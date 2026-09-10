@@ -5,29 +5,22 @@ import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
   Building2,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
-  CircleDollarSign,
-  Database,
   Gauge,
   Globe2,
-  House,
   Mail,
-  MapPinned,
   Menu,
   PlugZap,
   Search,
-  ShieldCheck,
   SlidersHorizontal,
   Target,
-  UsersRound,
   Waves,
   X,
 } from 'lucide-react';
 import { INGESTION_SOURCES, PROSPECTS, UTILITIES } from '@/lib/data';
-import { scoreBand, scoreBreakdown, scoreProspect } from '@/lib/scoring';
-import type { Prospect, StateCode } from '@/lib/types';
+import { scoreBand, scoreProspect } from '@/lib/scoring';
+import type { StateCode } from '@/lib/types';
 
 type View = 'home' | 'prospects' | 'utilities' | 'monitor' | 'engine' | 'integrations';
 
@@ -39,13 +32,6 @@ type GestureStart = {
 
 const PRIMARY_VIEWS: View[] = ['home', 'prospects', 'utilities', 'monitor'];
 
-const NAV: { id: View; label: string; icon: LucideIcon }[] = [
-  { id: 'home', label: 'Home', icon: House },
-  { id: 'prospects', label: 'Prospects', icon: Target },
-  { id: 'utilities', label: 'Utilities', icon: Waves },
-  { id: 'monitor', label: 'Monitor', icon: Activity },
-];
-
 const VIEW_TITLES: Record<View, string> = {
   home: 'Puma',
   prospects: 'Prospects',
@@ -55,79 +41,44 @@ const VIEW_TITLES: Record<View, string> = {
   integrations: 'Integrations',
 };
 
-const INTEGRATIONS: Array<{
-  group: string;
-  items: Array<{ name: string; detail: string; status: string; icon: LucideIcon }>;
-}> = [
-  {
-    group: 'Property & ownership',
-    items: [
-      { name: 'Property intelligence', detail: 'Portfolio, ownership, units and parcel context', status: 'Slot ready', icon: Building2 },
-      { name: 'Public records', detail: 'Municipal, assessor, deed and registration sources', status: 'Slot ready', icon: MapPinned },
-    ],
-  },
-  {
-    group: 'Utility & meter',
-    items: [
-      { name: 'Utility resolver', detail: 'Service territory, meter capability and tariff sources', status: 'Scaffolded', icon: Gauge },
-      { name: 'Authorized meter feeds', detail: 'Customer-approved interval usage and billing access', status: 'Awaiting client', icon: Waves },
-    ],
-  },
-  {
-    group: 'Research & enrichment',
-    items: [
-      { name: 'Public web research', detail: 'Company portfolio, people and operating footprint', status: 'Slot ready', icon: Globe2 },
-      { name: 'Company enrichment', detail: 'Decision-maker and organization intelligence', status: 'Slot ready', icon: UsersRound },
-    ],
-  },
-  {
-    group: 'Outreach & operations',
-    items: [
-      { name: 'Email outreach', detail: 'Future prospect follow-up and client communication', status: 'Slot ready', icon: Mail },
-      { name: 'Calendar', detail: 'Future meetings, follow-ups and account reviews', status: 'Slot ready', icon: CalendarDays },
-    ],
-  },
+const CONNECTOR_SLOTS: Array<{ label: string; detail: string; icon: LucideIcon }> = [
+  { label: 'Property data', detail: 'Ownership, portfolio and parcel sources', icon: Building2 },
+  { label: 'Utility data', detail: 'Meter, service territory and tariff sources', icon: Gauge },
+  { label: 'Enrichment', detail: 'Company and decision-maker research', icon: Globe2 },
+  { label: 'Outreach', detail: 'Email and operating workflows', icon: Mail },
 ];
 
-const formatMoney = (value: number) => new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-}).format(value);
-
-function PumaMark({ size = 34 }: { size?: number }) {
+function PumaMark({ size = 30, nav = false }: { size?: number; nav?: boolean }) {
   return (
-    <span className="puma-mark" style={{ width: size, height: size }} aria-hidden="true">
+    <span className={`puma-mark${nav ? ' nav-mark' : ''}`} style={{ width: size, height: size }} aria-hidden="true">
       <svg viewBox="0 0 36 36" fill="none">
-        <path d="M18 4.4c-4.6 6-8.2 10.1-8.2 15.3A8.2 8.2 0 0 0 18 28a8.2 8.2 0 0 0 8.2-8.3C26.2 14.5 22.6 10.4 18 4.4Z" />
-        <path d="M12.8 21.3c1.7-1.3 3.4-1.3 5.2 0s3.5 1.3 5.2 0" />
-        <path d="M14 25c1.3-.8 2.7-.8 4 0 1.3.8 2.7.8 4 0" />
+        <circle cx="18" cy="18" r="10.6" />
+        <path d="M11.6 20.5a6.8 6.8 0 0 1 12.8 0" />
+        <path d="M18 18l4.5-4.2" />
+        <circle cx="18" cy="18" r="1.45" />
+        <path d="M18 7.4c-1.5 2.2-2.6 3.7-2.6 5.1a2.6 2.6 0 0 0 5.2 0c0-1.4-1.1-2.9-2.6-5.1Z" />
       </svg>
     </span>
   );
 }
 
-function ScoreBadge({ score }: { score: number }) {
-  const band = scoreBand(score);
-  return (
-    <span className={`score-badge ${band.toLowerCase()}`}>
-      <strong>{score}</strong>
-      <small>{band}</small>
-    </span>
-  );
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <div className="section-label">{children}</div>;
 }
 
-function SectionLabel({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
+function EmptyState({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
   return (
-    <div className="section-label">
-      <span>{children}</span>
-      {action}
+    <div className="empty-state">
+      <span className="empty-icon"><Icon size={18} /></span>
+      <strong>{title}</strong>
+      <p>{detail}</p>
     </div>
   );
 }
 
-function SourceBadge({ confidence }: { confidence: Prospect['confidence'] }) {
-  return <span className="source-badge"><ShieldCheck size={11} />{confidence}</span>;
+function Score({ value }: { value: number }) {
+  const band = scoreBand(value).toLowerCase();
+  return <span className={`score ${band}`}>{value}</span>;
 }
 
 export default function Home() {
@@ -137,7 +88,6 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const gesture = useRef<GestureStart | null>(null);
-  const detailGesture = useRef<{ x: number; y: number } | null>(null);
 
   const ranked = useMemo(
     () => PROSPECTS.map((prospect) => ({ ...prospect, score: scoreProspect(prospect) }))
@@ -151,9 +101,6 @@ export default function Home() {
   });
 
   const selected = ranked.find((prospect) => prospect.id === selectedId) ?? null;
-  const totalBuildings = ranked.reduce((sum, prospect) => sum + prospect.portfolioBuildings, 0);
-  const totalExposure = ranked.reduce((sum, prospect) => sum + prospect.annualWaterExposure, 0);
-  const highPriority = ranked.filter((prospect) => prospect.score >= 75).length;
 
   const moveTo = (next: View) => {
     setView(next);
@@ -174,9 +121,9 @@ export default function Home() {
 
     const dx = touch.clientX - start.x;
     const dy = touch.clientY - start.y;
-    if (Math.abs(dx) < 62 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
+    if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
 
-    if (start.edge && dx > 70) {
+    if (start.edge && dx > 72) {
       setMenuOpen(true);
       return;
     }
@@ -187,78 +134,60 @@ export default function Home() {
     if (nextIndex >= 0 && nextIndex < PRIMARY_VIEWS.length) setView(PRIMARY_VIEWS[nextIndex]);
   };
 
-  const closeDetailFromSwipe = (event: React.TouchEvent<HTMLElement>) => {
-    const start = detailGesture.current;
-    detailGesture.current = null;
-    const touch = event.changedTouches[0];
-    if (!start || !touch) return;
-    const dx = touch.clientX - start.x;
-    const dy = touch.clientY - start.y;
-    if (dx > 70 && Math.abs(dx) > Math.abs(dy) * 1.25) setSelectedId(null);
-  };
-
   return (
     <main className="app-shell" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <header className="appbar">
         <button className="mark-button" onClick={() => setMenuOpen(true)} aria-label="Open menu">
-          <PumaMark size={34} />
+          <PumaMark />
         </button>
-        <div className="appbar-title">
-          <strong>{VIEW_TITLES[view]}</strong>
-          <span>Water Intelligence</span>
-        </div>
-        <button className="icon-button" onClick={() => setMenuOpen(true)} aria-label="More">
-          <Menu size={19} />
+        <strong className="appbar-title">{VIEW_TITLES[view]}</strong>
+        <button className="icon-button" onClick={() => setMenuOpen(true)} aria-label="Menu">
+          <Menu size={18} />
         </button>
       </header>
 
       <section key={view} className="screen">
         {view === 'home' && (
           <>
-            <div className="home-hero">
-              <p className="kicker">NJ · NY · PA</p>
-              <h1>Find waste before the call.</h1>
-              <p>Prospecting intelligence now. Managed water operations after the close.</p>
+            <div className="home-intro">
+              <PumaMark size={42} />
+              <div>
+                <h1>Puma Utilities</h1>
+                <p>Water intelligence · NJ / NY / PA</p>
+              </div>
             </div>
 
-            <div className="stat-strip" aria-label="Portfolio summary">
-              <div><strong>{ranked.length}</strong><span>Prospects</span></div>
-              <div><strong>{highPriority}</strong><span>High priority</span></div>
-              <div><strong>{totalBuildings}</strong><span>Buildings</span></div>
-              <div><strong>{formatMoney(totalExposure)}</strong><span>Modeled exposure</span></div>
-            </div>
-
-            <SectionLabel action={<button className="section-action" onClick={() => setView('prospects')}>See all</button>}>Priority</SectionLabel>
+            <SectionLabel>Workspace</SectionLabel>
             <div className="native-group">
-              {ranked.slice(0, 4).map((prospect) => (
-                <button className="native-row prospect-row" key={prospect.id} onClick={() => setSelectedId(prospect.id)}>
-                  <span className="row-avatar">{prospect.company.slice(0, 1)}</span>
-                  <span className="row-copy">
-                    <strong>{prospect.company}</strong>
-                    <small>{prospect.state} · {prospect.portfolioBuildings} buildings · {prospect.portfolioUnits.toLocaleString()} units</small>
-                  </span>
-                  <ScoreBadge score={prospect.score} />
-                  <ChevronRight className="chevron" size={17} />
-                </button>
-              ))}
+              <button className="native-row" onClick={() => setView('prospects')}>
+                <span className="row-icon"><Target size={17} /></span>
+                <span className="row-copy"><strong>Prospects</strong><small>{ranked.length ? `${ranked.length} records` : 'No data yet'}</small></span>
+                <ChevronRight className="chevron" size={16} />
+              </button>
+              <button className="native-row" onClick={() => setView('utilities')}>
+                <span className="row-icon"><Waves size={17} /></span>
+                <span className="row-copy"><strong>Utilities</strong><small>{UTILITIES.length ? `${UTILITIES.length} records` : 'No data yet'}</small></span>
+                <ChevronRight className="chevron" size={16} />
+              </button>
+              <button className="native-row" onClick={() => setView('monitor')}>
+                <span className="row-icon"><Activity size={17} /></span>
+                <span className="row-copy"><strong>Monitor</strong><small>No accounts connected</small></span>
+                <ChevronRight className="chevron" size={16} />
+              </button>
             </div>
 
-            <SectionLabel>Data boundary</SectionLabel>
-            <div className="native-group provenance-group">
-              <div className="native-row static-row"><span className="dot public" /><span className="row-copy"><strong>Public</strong><small>Ownership, property, utility and benchmarking records</small></span></div>
-              <div className="native-row static-row"><span className="dot modeled" /><span className="row-copy"><strong>Modeled</strong><small>Estimates and scoring inputs clearly labeled as estimates</small></span></div>
-              <div className="native-row static-row"><span className="dot authorized" /><span className="row-copy"><strong>Client-authorized</strong><small>Private meter and billing data only after permission</small></span></div>
-            </div>
-
-            <SectionLabel action={<button className="section-action" onClick={() => setView('integrations')}>Manage</button>}>Engine feeds</SectionLabel>
+            <SectionLabel>System</SectionLabel>
             <div className="native-group">
-              {INGESTION_SOURCES.slice(0, 4).map((source) => (
-                <div className="native-row static-row" key={source.id}>
-                  <span className="row-icon"><Database size={17} /></span>
-                  <span className="row-copy"><strong>{source.name}</strong><small>{source.geography} · {source.category}</small></span>
-                  <span className="row-status">{source.status}</span>
-                </div>
-              ))}
+              <button className="native-row" onClick={() => setView('engine')}>
+                <span className="row-icon"><SlidersHorizontal size={17} /></span>
+                <span className="row-copy"><strong>Engine</strong><small>Not configured</small></span>
+                <ChevronRight className="chevron" size={16} />
+              </button>
+              <button className="native-row" onClick={() => setView('integrations')}>
+                <span className="row-icon"><PlugZap size={17} /></span>
+                <span className="row-copy"><strong>Integrations</strong><small>{INGESTION_SOURCES.length ? `${INGESTION_SOURCES.length} connected` : 'Not connected'}</small></span>
+                <ChevronRight className="chevron" size={16} />
+              </button>
             </div>
           </>
         )}
@@ -266,267 +195,131 @@ export default function Home() {
         {view === 'prospects' && (
           <>
             <div className="screen-heading">
-              <p className="kicker">Prospecting</p>
-              <h1>Opportunity queue</h1>
-              <span>{filtered.length} current results</span>
+              <h1>Prospects</h1>
+              <span>{filtered.length} records</span>
             </div>
-
             <label className="search-field">
-              <Search size={17} />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search company, city or role" />
-              {query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={15} /></button>}
+              <Search size={16} />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" />
+              {query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={14} /></button>}
             </label>
-
             <div className="segmented-control" role="group" aria-label="State filter">
               {(['ALL', 'NJ', 'NY', 'PA'] as const).map((state) => (
                 <button key={state} className={stateFilter === state ? 'active' : ''} onClick={() => setStateFilter(state)}>{state}</button>
               ))}
             </div>
-
-            <SectionLabel>Ranked by opportunity</SectionLabel>
-            <div className="native-group">
-              {filtered.map((prospect) => (
-                <button className="native-row prospect-row tall" key={prospect.id} onClick={() => setSelectedId(prospect.id)}>
-                  <span className="row-copy">
-                    <span className="row-meta"><span>{prospect.state}</span><SourceBadge confidence={prospect.confidence} /></span>
-                    <strong>{prospect.company}</strong>
-                    <small>{prospect.portfolioBuildings} buildings · {prospect.portfolioUnits.toLocaleString()} units · {formatMoney(prospect.annualWaterExposure)} modeled</small>
-                  </span>
-                  <ScoreBadge score={prospect.score} />
-                  <ChevronRight className="chevron" size={17} />
-                </button>
-              ))}
-            </div>
+            {filtered.length === 0 ? (
+              <EmptyState icon={Target} title="No prospects yet" detail="Real engine results will appear here." />
+            ) : (
+              <div className="native-group list-group">
+                {filtered.map((prospect) => (
+                  <button className="native-row" key={prospect.id} onClick={() => setSelectedId(prospect.id)}>
+                    <span className="row-copy"><strong>{prospect.company}</strong><small>{prospect.state} · {prospect.headquarters}</small></span>
+                    <Score value={prospect.score} />
+                    <ChevronRight className="chevron" size={16} />
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         )}
 
         {view === 'utilities' && (
           <>
             <div className="screen-heading">
-              <p className="kicker">Utility intelligence</p>
-              <h1>Meter landscape</h1>
-              <span>Service territory, portals, meters and rates</span>
+              <h1>Utilities</h1>
+              <span>{UTILITIES.length} records</span>
             </div>
-            <SectionLabel>{UTILITIES.length} utility records</SectionLabel>
-            <div className="native-group">
-              {UTILITIES.map((utility) => (
-                <div className="utility-row" key={utility.id}>
-                  <div className="utility-head">
-                    <span className="row-icon"><Gauge size={18} /></span>
+            {UTILITIES.length === 0 ? (
+              <EmptyState icon={Waves} title="No utility data yet" detail="Utility records will appear when the engine connects them." />
+            ) : (
+              <div className="native-group list-group">
+                {UTILITIES.map((utility) => (
+                  <div className="native-row static-row" key={utility.id}>
+                    <span className="row-icon"><Gauge size={17} /></span>
                     <span className="row-copy"><strong>{utility.name}</strong><small>{utility.state} · {utility.meterStatus}</small></span>
                   </div>
-                  <dl className="utility-facts">
-                    <div><dt>Portal</dt><dd>{utility.portalCapability}</dd></div>
-                    <div><dt>Public signal</dt><dd>{utility.publicData}</dd></div>
-                    <div><dt>Rates</dt><dd>{utility.rateSource}</dd></div>
-                  </dl>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </>
         )}
 
         {view === 'monitor' && (
           <>
-            <div className="screen-heading">
-              <p className="kicker">Client mode</p>
-              <h1>Portfolio monitor</h1>
-              <span>Reserved for customer-authorized meter data</span>
-            </div>
-
-            <div className="monitor-empty">
-              <span className="monitor-mark"><PumaMark size={58} /></span>
-              <h2>No client meters connected</h2>
-              <p>This surface stays intentionally quiet until a customer delegates access. Public prospecting data never masquerades as private meter data.</p>
-            </div>
-
-            <SectionLabel>Live account metrics</SectionLabel>
-            <div className="native-group metric-list">
-              <div className="native-row static-row"><span className="row-copy"><strong>24h consumption</strong><small>Awaiting authorized interval feed</small></span><span className="metric-value">—</span></div>
-              <div className="native-row static-row"><span className="row-copy"><strong>Leak alerts</strong><small>No customer meters connected</small></span><span className="metric-value">0</span></div>
-              <div className="native-row static-row"><span className="row-copy"><strong>Portfolio variance</strong><small>Peer baseline is ready</small></span><span className="metric-value">—</span></div>
-            </div>
+            <div className="screen-heading"><h1>Monitor</h1><span>Client data</span></div>
+            <EmptyState icon={Activity} title="No meter accounts" detail="Authorized customer usage will appear here." />
           </>
         )}
 
         {view === 'engine' && (
           <>
-            <div className="screen-heading">
-              <p className="kicker">Scoring</p>
-              <h1>Opportunity engine</h1>
-              <span>Observable and explicitly modeled inputs only</span>
-            </div>
-            <SectionLabel>Score weights</SectionLabel>
-            <div className="native-group weight-list">
-              {[
-                ['Portfolio scale', 20],
-                ['Meter opportunity', 20],
-                ['Public-data coverage', 15],
-                ['Water-cost exposure', 20],
-                ['Anomaly signal', 15],
-                ['Decision-maker reachability', 10],
-              ].map(([label, weight]) => (
-                <div className="weight-row" key={String(label)}>
-                  <div><strong>{label}</strong><span>{weight} pts</span></div>
-                  <div className="meter"><i style={{ width: `${Number(weight) * 5}%` }} /></div>
-                </div>
-              ))}
-            </div>
-
-            <SectionLabel>Source pipeline</SectionLabel>
-            <div className="native-group">
-              {INGESTION_SOURCES.map((source) => (
-                <div className="native-row static-row" key={source.id}>
-                  <span className="row-icon"><Database size={17} /></span>
-                  <span className="row-copy"><strong>{source.name}</strong><small>{source.description}</small></span>
-                  <span className="row-status">{source.status}</span>
-                </div>
-              ))}
-            </div>
+            <div className="screen-heading"><h1>Engine</h1><span>Prospecting logic</span></div>
+            <EmptyState icon={SlidersHorizontal} title="No model connected" detail="The shell is ready for the production scoring engine." />
           </>
         )}
 
         {view === 'integrations' && (
           <>
-            <div className="screen-heading">
-              <p className="kicker">Connectors</p>
-              <h1>Integrations</h1>
-              <span>Clean attachment points for the engine you build next</span>
-            </div>
-            {INTEGRATIONS.map((group) => (
-              <div key={group.group}>
-                <SectionLabel>{group.group}</SectionLabel>
-                <div className="native-group">
-                  {group.items.map(({ name, detail, status, icon: Icon }) => (
-                    <div className="native-row static-row integration-row" key={name}>
-                      <span className="row-icon"><Icon size={18} /></span>
-                      <span className="row-copy"><strong>{name}</strong><small>{detail}</small></span>
-                      <span className="row-status">{status}</span>
-                    </div>
-                  ))}
+            <div className="screen-heading"><h1>Integrations</h1><span>Connection points</span></div>
+            <div className="native-group list-group">
+              {CONNECTOR_SLOTS.map(({ label, detail, icon: Icon }) => (
+                <div className="native-row static-row" key={label}>
+                  <span className="row-icon"><Icon size={17} /></span>
+                  <span className="row-copy"><strong>{label}</strong><small>{detail}</small></span>
+                  <span className="row-status">Not connected</span>
                 </div>
-              </div>
-            ))}
-            <div className="integration-note"><PlugZap size={17} /><p>These are interface slots, not claims of live access. Each connector can be wired later without redesigning the shell.</p></div>
+              ))}
+            </div>
           </>
         )}
       </section>
 
-      {PRIMARY_VIEWS.includes(view) && (
-        <nav className="bottom-nav" aria-label="Primary navigation">
-          {NAV.map(({ id, label, icon: Icon }) => (
-            <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)} aria-label={label}>
-              <Icon size={20} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-      )}
-
-      <div className="edge-hint" aria-hidden="true" />
+      <nav className="bottom-nav" aria-label="Primary navigation">
+        <button className={view === 'home' ? 'active' : ''} onClick={() => setView('home')} aria-label="Home"><PumaMark size={25} nav /><span>Home</span></button>
+        <button className={view === 'prospects' ? 'active' : ''} onClick={() => setView('prospects')} aria-label="Prospects"><Target size={18} /><span>Prospects</span></button>
+        <button className={view === 'utilities' ? 'active' : ''} onClick={() => setView('utilities')} aria-label="Utilities"><Waves size={18} /><span>Utilities</span></button>
+        <button className={view === 'monitor' ? 'active' : ''} onClick={() => setView('monitor')} aria-label="Monitor"><Activity size={18} /><span>Monitor</span></button>
+      </nav>
 
       <div className={`menu-scrim ${menuOpen ? 'open' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`side-menu ${menuOpen ? 'open' : ''}`} aria-hidden={!menuOpen}>
         <div className="menu-head">
-          <div className="menu-brand"><PumaMark size={44} /><div><strong>Puma</strong><span>Water Intelligence</span></div></div>
-          <button className="icon-button" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X size={18} /></button>
+          <div className="menu-brand"><PumaMark size={36} /><div><strong>Puma</strong><span>Utilities</span></div></div>
+          <button className="icon-button" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X size={17} /></button>
         </div>
         <div className="menu-nav">
-          <button onClick={() => moveTo('home')} className={view === 'home' ? 'current' : ''}><House size={19} /><span>Home</span><ChevronRight size={16} /></button>
-          <button onClick={() => moveTo('engine')} className={view === 'engine' ? 'current' : ''}><SlidersHorizontal size={19} /><span>Opportunity engine</span><ChevronRight size={16} /></button>
-          <button onClick={() => moveTo('integrations')} className={view === 'integrations' ? 'current' : ''}><PlugZap size={19} /><span>Integrations</span><ChevronRight size={16} /></button>
-        </div>
-        <div className="menu-foot">
-          <span>Markets</span><strong>New Jersey · New York · Pennsylvania</strong>
-          <small>Swipe from the left edge to open. Swipe between main tabs to navigate.</small>
+          <button onClick={() => moveTo('home')} className={view === 'home' ? 'current' : ''}><PumaMark size={22} nav /><span>Home</span><ChevronRight size={15} /></button>
+          <button onClick={() => moveTo('prospects')} className={view === 'prospects' ? 'current' : ''}><Target size={17} /><span>Prospects</span><ChevronRight size={15} /></button>
+          <button onClick={() => moveTo('utilities')} className={view === 'utilities' ? 'current' : ''}><Waves size={17} /><span>Utilities</span><ChevronRight size={15} /></button>
+          <button onClick={() => moveTo('monitor')} className={view === 'monitor' ? 'current' : ''}><Activity size={17} /><span>Monitor</span><ChevronRight size={15} /></button>
+          <button onClick={() => moveTo('engine')} className={view === 'engine' ? 'current' : ''}><SlidersHorizontal size={17} /><span>Engine</span><ChevronRight size={15} /></button>
+          <button onClick={() => moveTo('integrations')} className={view === 'integrations' ? 'current' : ''}><PlugZap size={17} /><span>Integrations</span><ChevronRight size={15} /></button>
         </div>
       </aside>
 
       {selected && (
-        <div className="detail-backdrop" onMouseDown={() => setSelectedId(null)}>
-          <aside
-            className="prospect-sheet"
-            onMouseDown={(event) => event.stopPropagation()}
-            onTouchStart={(event) => {
-              event.stopPropagation();
-              const touch = event.touches[0];
-              if (touch) detailGesture.current = { x: touch.clientX, y: touch.clientY };
-            }}
-            onTouchEnd={(event) => {
-              event.stopPropagation();
-              closeDetailFromSwipe(event);
-            }}
-          >
+        <div className="detail-backdrop">
+          <aside className="prospect-sheet">
             <header className="sheet-appbar">
-              <button className="back-button" onClick={() => setSelectedId(null)}><ChevronLeft size={22} />Back</button>
-              <span>Prospect</span>
-              <span className="sheet-spacer" />
+              <button className="back-button" onClick={() => setSelectedId(null)}><ChevronLeft size={18} />Back</button>
+              <strong>Prospect</strong>
+              <span />
             </header>
             <div className="sheet-content">
-              <div className="detail-title">
-                <div className="row-meta"><span>{selected.state}</span><SourceBadge confidence={selected.confidence} /></div>
-                <h2>{selected.company}</h2>
-                <p>{selected.headquarters}</p>
-                <ScoreBadge score={selected.score} />
-              </div>
-
+              <div className="detail-title"><h2>{selected.company}</h2><p>{selected.headquarters}</p><Score value={selected.score} /></div>
               <SectionLabel>Portfolio</SectionLabel>
-              <div className="native-group detail-metrics">
+              <div className="native-group detail-grid">
                 <div><span>Buildings</span><strong>{selected.portfolioBuildings}</strong></div>
                 <div><span>Units</span><strong>{selected.portfolioUnits.toLocaleString()}</strong></div>
-                <div><span>Modeled water</span><strong>{formatMoney(selected.annualWaterExposure)}</strong></div>
+                <div><span>State</span><strong>{selected.state}</strong></div>
               </div>
-
-              <SectionLabel>Why it matters</SectionLabel>
-              <div className="native-group prose-group"><p>{selected.portfolioNote}</p></div>
-
-              <ScoreDetails prospect={selected} />
-
-              <SectionLabel>Buyer path</SectionLabel>
-              <div className="native-group">
-                <div className="native-row static-row"><span className="row-copy"><strong>{selected.decisionMaker}</strong><small>{selected.decisionRole}</small></span></div>
-                <div className="native-row static-row"><span className="row-copy"><strong>Next action</strong><small>{selected.nextAction}</small></span></div>
-              </div>
-
-              <SectionLabel>Utility footprint</SectionLabel>
-              <div className="native-group">
-                {selected.utilityIds.map((id) => (
-                  <div className="native-row static-row" key={id}>
-                    <span className="row-icon"><Waves size={17} /></span>
-                    <span className="row-copy"><strong>{UTILITIES.find((utility) => utility.id === id)?.name ?? id}</strong><small>Utility record</small></span>
-                  </div>
-                ))}
-              </div>
+              <SectionLabel>Buyer</SectionLabel>
+              <div className="native-group prose-group"><strong>{selected.decisionMaker}</strong><p>{selected.decisionRole}</p></div>
             </div>
           </aside>
         </div>
       )}
     </main>
-  );
-}
-
-function ScoreDetails({ prospect }: { prospect: Prospect & { score: number } }) {
-  const breakdown = scoreBreakdown(prospect);
-  const rows = [
-    ['Portfolio', breakdown.portfolio, 20],
-    ['Meter opportunity', breakdown.meterOpportunity, 20],
-    ['Public data', breakdown.publicData, 15],
-    ['Water exposure', breakdown.waterExposure, 20],
-    ['Anomaly signal', breakdown.anomaly, 15],
-    ['Reachability', breakdown.reachability, 10],
-  ] as const;
-
-  return (
-    <>
-      <SectionLabel>Score breakdown</SectionLabel>
-      <div className="native-group weight-list">
-        {rows.map(([label, value, max]) => (
-          <div className="weight-row" key={label}>
-            <div><strong>{label}</strong><span>{value}/{max}</span></div>
-            <div className="meter"><i style={{ width: `${(value / max) * 100}%` }} /></div>
-          </div>
-        ))}
-      </div>
-    </>
   );
 }
