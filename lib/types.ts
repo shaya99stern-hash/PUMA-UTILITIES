@@ -33,9 +33,7 @@ export type Provenance = {
   id: string;
   label: string;
   status: EvidenceStatus;
-  /** A public URL, document identifier, or client-provided reference. */
   reference?: string;
-  /** ISO date of retrieval or receipt, if known. */
   retrievedAt?: string;
   note?: string;
 };
@@ -120,6 +118,7 @@ export type Property = {
   state: StateCode;
   parcelIds: string[];
   provenance: Provenance[];
+  activityNotes?: ActivityNote[];
   createdAt: string;
   updatedAt: string;
 };
