@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
@@ -12,7 +12,9 @@ import {
   Mail,
   Menu,
   PlugZap,
+  RefreshCw,
   Search,
+  Settings,
   SlidersHorizontal,
   Target,
   Waves,
@@ -22,13 +24,15 @@ import { INGESTION_SOURCES, PROSPECTS, UTILITIES } from '@/lib/data';
 import { scoreBand, scoreProspect } from '@/lib/scoring';
 import type { StateCode } from '@/lib/types';
 
-type View = 'home' | 'prospects' | 'utilities' | 'monitor' | 'engine' | 'integrations';
+type View = 'home' | 'prospects' | 'utilities' | 'monitor' | 'engine' | 'integrations' | 'settings';
 
 type GestureStart = {
   x: number;
   y: number;
   edge: boolean;
 };
+
+type UpdateStatus = 'idle' | 'checking' | 'reloading' | 'error';
 
 const PRIMARY_VIEWS: View[] = ['home', 'prospects', 'utilities', 'monitor'];
 
@@ -39,6 +43,7 @@ const VIEW_TITLES: Record<View, string> = {
   monitor: 'Monitor',
   engine: 'Engine',
   integrations: 'Integrations',
+  settings: 'Settings',
 };
 
 const CONNECTOR_SLOTS: Array<{ label: string; detail: string; icon: LucideIcon }> = [
@@ -87,7 +92,13 @@ export default function Home() {
   const [stateFilter, setStateFilter] = useState<'ALL' | StateCode>('ALL');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
   const gesture = useRef<GestureStart | null>(null);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(() => undefined);
+  }, []);
 
   const ranked = useMemo(
     () => PROSPECTS.map((prospect) => ({ ...prospect, score: scoreProspect(prospect) }))
@@ -105,6 +116,38 @@ export default function Home() {
   const moveTo = (next: View) => {
     setView(next);
     setMenuOpen(false);
+  };
+
+  const updateApp = async () => {
+    if (updateStatus === 'checking' || updateStatus === 'reloading') return;
+    setUpdateStatus('checking');
+
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(async (registration) => {
+          await registration.update();
+          registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
+          registration.active?.postMessage({ type: 'CLEAR_CACHES' });
+        }));
+      }
+
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+      }
+
+      await fetch(`/?_puma_refresh=${Date.now()}`, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { 'x-puma-update': '1' },
+      });
+
+      setUpdateStatus('reloading');
+      window.location.replace(`/?_puma_refresh=${Date.now()}`);
+    } catch {
+      setUpdateStatus('error');
+    }
   };
 
   const onTouchStart = (event: React.TouchEvent<HTMLElement>) => {
@@ -133,6 +176,14 @@ export default function Home() {
     const nextIndex = dx < 0 ? index + 1 : index - 1;
     if (nextIndex >= 0 && nextIndex < PRIMARY_VIEWS.length) setView(PRIMARY_VIEWS[nextIndex]);
   };
+
+  const updateLabel = updateStatus === 'checking'
+    ? 'Checking…'
+    : updateStatus === 'reloading'
+      ? 'Updating…'
+      : updateStatus === 'error'
+        ? 'Try again'
+        : 'Update App';
 
   return (
     <main className="app-shell" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
@@ -186,6 +237,11 @@ export default function Home() {
               <button className="native-row" onClick={() => setView('integrations')}>
                 <span className="row-icon"><PlugZap size={17} /></span>
                 <span className="row-copy"><strong>Integrations</strong><small>{INGESTION_SOURCES.length ? `${INGESTION_SOURCES.length} connected` : 'Not connected'}</small></span>
+                <ChevronRight className="chevron" size={16} />
+              </button>
+              <button className="native-row" onClick={() => setView('settings')}>
+                <span className="row-icon"><Settings size={17} /></span>
+                <span className="row-copy"><strong>Settings</strong><small>App and update controls</small></span>
                 <ChevronRight className="chevron" size={16} />
               </button>
             </div>
@@ -273,6 +329,26 @@ export default function Home() {
             </div>
           </>
         )}
+
+        {view === 'settings' && (
+          <>
+            <div className="screen-heading"><h1>Settings</h1><span>App controls</span></div>
+            <SectionLabel>App</SectionLabel>
+            <div className="native-group list-group">
+              <button className="native-row" onClick={updateApp} disabled={updateStatus === 'checking' || updateStatus === 'reloading'}>
+                <span className="row-icon"><RefreshCw size={17} /></span>
+                <span className="row-copy">
+                  <strong>{updateLabel}</strong>
+                  <small>Fetch the newest deployed version without reinstalling the PWA</small>
+                </span>
+                <ChevronRight className="chevron" size={16} />
+              </button>
+            </div>
+            {updateStatus === 'error' && (
+              <div className="integration-note"><p>Update failed. Check your connection and tap Update App again.</p></div>
+            )}
+          </>
+        )}
       </section>
 
       <nav className="bottom-nav" aria-label="Primary navigation">
@@ -295,6 +371,7 @@ export default function Home() {
           <button onClick={() => moveTo('monitor')} className={view === 'monitor' ? 'current' : ''}><Activity size={17} /><span>Monitor</span><ChevronRight size={15} /></button>
           <button onClick={() => moveTo('engine')} className={view === 'engine' ? 'current' : ''}><SlidersHorizontal size={17} /><span>Engine</span><ChevronRight size={15} /></button>
           <button onClick={() => moveTo('integrations')} className={view === 'integrations' ? 'current' : ''}><PlugZap size={17} /><span>Integrations</span><ChevronRight size={15} /></button>
+          <button onClick={() => moveTo('settings')} className={view === 'settings' ? 'current' : ''}><Settings size={17} /><span>Settings</span><ChevronRight size={15} /></button>
         </div>
       </aside>
 
