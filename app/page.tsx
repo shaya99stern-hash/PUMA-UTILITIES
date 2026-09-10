@@ -16,15 +16,13 @@ import {
   Search,
   Settings,
   SlidersHorizontal,
-  Target,
   Waves,
   X,
 } from 'lucide-react';
 import { INGESTION_SOURCES, PROSPECTS, UTILITIES } from '@/lib/data';
 import { scoreBand, scoreProspect } from '@/lib/scoring';
-import type { StateCode } from '@/lib/types';
 
-type View = 'home' | 'prospects' | 'utilities' | 'monitor' | 'engine' | 'integrations' | 'settings';
+type View = 'home' | 'clients' | 'monitor' | 'engine' | 'settings';
 
 type GestureStart = {
   x: number;
@@ -34,15 +32,13 @@ type GestureStart = {
 
 type UpdateStatus = 'idle' | 'checking' | 'reloading' | 'error';
 
-const PRIMARY_VIEWS: View[] = ['home', 'prospects', 'utilities', 'monitor'];
+const PRIMARY_VIEWS: View[] = ['home', 'clients', 'monitor'];
 
 const VIEW_TITLES: Record<View, string> = {
   home: 'Puma',
-  prospects: 'Prospects',
-  utilities: 'Utilities',
+  clients: 'Clients',
   monitor: 'Monitor',
   engine: 'Engine',
-  integrations: 'Integrations',
   settings: 'Settings',
 };
 
@@ -89,7 +85,6 @@ function Score({ value }: { value: number }) {
 export default function Home() {
   const [view, setView] = useState<View>('home');
   const [query, setQuery] = useState('');
-  const [stateFilter, setStateFilter] = useState<'ALL' | StateCode>('ALL');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
@@ -100,18 +95,17 @@ export default function Home() {
     navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(() => undefined);
   }, []);
 
-  const ranked = useMemo(
-    () => PROSPECTS.map((prospect) => ({ ...prospect, score: scoreProspect(prospect) }))
-      .sort((a, b) => b.score - a.score),
+  const clients = useMemo(
+    () => PROSPECTS.map((client) => ({ ...client, score: scoreProspect(client) }))
+      .sort((a, b) => a.company.localeCompare(b.company)),
     [],
   );
 
-  const filtered = ranked.filter((prospect) => {
-    const haystack = `${prospect.company} ${prospect.headquarters} ${prospect.decisionRole}`.toLowerCase();
-    return haystack.includes(query.toLowerCase()) && (stateFilter === 'ALL' || prospect.state === stateFilter);
-  });
-
-  const selected = ranked.find((prospect) => prospect.id === selectedId) ?? null;
+  const filtered = clients.filter((client) => client.company.toLowerCase().includes(query.toLowerCase()));
+  const selected = clients.find((client) => client.id === selectedId) ?? null;
+  const selectedUtilities = selected
+    ? selected.utilityIds.map((id) => UTILITIES.find((utility) => utility.id === id)).filter(Boolean)
+    : [];
 
   const moveTo = (next: View) => {
     setView(next);
@@ -204,25 +198,20 @@ export default function Home() {
               <PumaMark size={42} />
               <div>
                 <h1>Puma Utilities</h1>
-                <p>Water intelligence · NJ / NY / PA</p>
+                <p>Client water intelligence · NJ / NY / PA</p>
               </div>
             </div>
 
             <SectionLabel>Workspace</SectionLabel>
             <div className="native-group">
-              <button className="native-row" onClick={() => setView('prospects')}>
-                <span className="row-icon"><Target size={17} /></span>
-                <span className="row-copy"><strong>Prospects</strong><small>{ranked.length ? `${ranked.length} records` : 'No data yet'}</small></span>
-                <ChevronRight className="chevron" size={16} />
-              </button>
-              <button className="native-row" onClick={() => setView('utilities')}>
-                <span className="row-icon"><Waves size={17} /></span>
-                <span className="row-copy"><strong>Utilities</strong><small>{UTILITIES.length ? `${UTILITIES.length} records` : 'No data yet'}</small></span>
+              <button className="native-row" onClick={() => setView('clients')}>
+                <span className="row-icon"><Building2 size={17} /></span>
+                <span className="row-copy"><strong>Clients</strong><small>{clients.length ? `${clients.length} companies` : 'No clients yet'}</small></span>
                 <ChevronRight className="chevron" size={16} />
               </button>
               <button className="native-row" onClick={() => setView('monitor')}>
                 <span className="row-icon"><Activity size={17} /></span>
-                <span className="row-copy"><strong>Monitor</strong><small>No accounts connected</small></span>
+                <span className="row-copy"><strong>Monitor</strong><small>Water issues and spend alerts</small></span>
                 <ChevronRight className="chevron" size={16} />
               </button>
             </div>
@@ -231,47 +220,40 @@ export default function Home() {
             <div className="native-group">
               <button className="native-row" onClick={() => setView('engine')}>
                 <span className="row-icon"><SlidersHorizontal size={17} /></span>
-                <span className="row-copy"><strong>Engine</strong><small>Not configured</small></span>
-                <ChevronRight className="chevron" size={16} />
-              </button>
-              <button className="native-row" onClick={() => setView('integrations')}>
-                <span className="row-icon"><PlugZap size={17} /></span>
-                <span className="row-copy"><strong>Integrations</strong><small>{INGESTION_SOURCES.length ? `${INGESTION_SOURCES.length} connected` : 'Not connected'}</small></span>
+                <span className="row-copy"><strong>Engine</strong><small>Data and scoring logic</small></span>
                 <ChevronRight className="chevron" size={16} />
               </button>
               <button className="native-row" onClick={() => setView('settings')}>
                 <span className="row-icon"><Settings size={17} /></span>
-                <span className="row-copy"><strong>Settings</strong><small>App and update controls</small></span>
+                <span className="row-copy"><strong>Settings</strong><small>Integrations and app controls</small></span>
                 <ChevronRight className="chevron" size={16} />
               </button>
             </div>
           </>
         )}
 
-        {view === 'prospects' && (
+        {view === 'clients' && (
           <>
             <div className="screen-heading">
-              <h1>Prospects</h1>
-              <span>{filtered.length} records</span>
+              <h1>Clients</h1>
+              <span>{filtered.length} companies</span>
             </div>
             <label className="search-field">
               <Search size={16} />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search company" />
               {query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={14} /></button>}
             </label>
-            <div className="segmented-control" role="group" aria-label="State filter">
-              {(['ALL', 'NJ', 'NY', 'PA'] as const).map((state) => (
-                <button key={state} className={stateFilter === state ? 'active' : ''} onClick={() => setStateFilter(state)}>{state}</button>
-              ))}
-            </div>
+
             {filtered.length === 0 ? (
-              <EmptyState icon={Target} title="No prospects yet" detail="Real engine results will appear here." />
+              <EmptyState icon={Building2} title="No clients yet" detail="Client companies will appear here when connected to the engine." />
             ) : (
               <div className="native-group list-group">
-                {filtered.map((prospect) => (
-                  <button className="native-row" key={prospect.id} onClick={() => setSelectedId(prospect.id)}>
-                    <span className="row-copy"><strong>{prospect.company}</strong><small>{prospect.state} · {prospect.headquarters}</small></span>
-                    <Score value={prospect.score} />
+                {filtered.map((client) => (
+                  <button className="native-row" key={client.id} onClick={() => setSelectedId(client.id)}>
+                    <span className="row-copy">
+                      <strong>{client.company}</strong>
+                      <small>{client.portfolioBuildings} buildings</small>
+                    </span>
                     <ChevronRight className="chevron" size={16} />
                   </button>
                 ))}
@@ -280,59 +262,39 @@ export default function Home() {
           </>
         )}
 
-        {view === 'utilities' && (
-          <>
-            <div className="screen-heading">
-              <h1>Utilities</h1>
-              <span>{UTILITIES.length} records</span>
-            </div>
-            {UTILITIES.length === 0 ? (
-              <EmptyState icon={Waves} title="No utility data yet" detail="Utility records will appear when the engine connects them." />
-            ) : (
-              <div className="native-group list-group">
-                {UTILITIES.map((utility) => (
-                  <div className="native-row static-row" key={utility.id}>
-                    <span className="row-icon"><Gauge size={17} /></span>
-                    <span className="row-copy"><strong>{utility.name}</strong><small>{utility.state} · {utility.meterStatus}</small></span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
         {view === 'monitor' && (
           <>
-            <div className="screen-heading"><h1>Monitor</h1><span>Client data</span></div>
-            <EmptyState icon={Activity} title="No meter accounts" detail="Authorized customer usage will appear here." />
+            <div className="screen-heading"><h1>Monitor</h1><span>Client exceptions</span></div>
+            <EmptyState
+              icon={Activity}
+              title="No client alerts"
+              detail="Clients with abnormal water use, active leak signals, or spend above configured thresholds will appear here."
+            />
           </>
         )}
 
         {view === 'engine' && (
           <>
-            <div className="screen-heading"><h1>Engine</h1><span>Prospecting logic</span></div>
-            <EmptyState icon={SlidersHorizontal} title="No model connected" detail="The shell is ready for the production scoring engine." />
-          </>
-        )}
-
-        {view === 'integrations' && (
-          <>
-            <div className="screen-heading"><h1>Integrations</h1><span>Connection points</span></div>
-            <div className="native-group list-group">
-              {CONNECTOR_SLOTS.map(({ label, detail, icon: Icon }) => (
-                <div className="native-row static-row" key={label}>
-                  <span className="row-icon"><Icon size={17} /></span>
-                  <span className="row-copy"><strong>{label}</strong><small>{detail}</small></span>
-                  <span className="row-status">Not connected</span>
-                </div>
-              ))}
-            </div>
+            <div className="screen-heading"><h1>Engine</h1><span>Data and scoring logic</span></div>
+            <EmptyState icon={SlidersHorizontal} title="No model connected" detail="The shell is ready for the production engine." />
           </>
         )}
 
         {view === 'settings' && (
           <>
             <div className="screen-heading"><h1>Settings</h1><span>App controls</span></div>
+
+            <SectionLabel>Integrations</SectionLabel>
+            <div className="native-group list-group">
+              {CONNECTOR_SLOTS.map(({ label, detail, icon: Icon }) => (
+                <div className="native-row static-row" key={label}>
+                  <span className="row-icon"><Icon size={17} /></span>
+                  <span className="row-copy"><strong>{label}</strong><small>{detail}</small></span>
+                  <span className="row-status">{INGESTION_SOURCES.length ? 'Available' : 'Not connected'}</span>
+                </div>
+              ))}
+            </div>
+
             <SectionLabel>App</SectionLabel>
             <div className="native-group list-group">
               <button className="native-row" onClick={updateApp} disabled={updateStatus === 'checking' || updateStatus === 'reloading'}>
@@ -351,10 +313,9 @@ export default function Home() {
         )}
       </section>
 
-      <nav className="bottom-nav" aria-label="Primary navigation">
+      <nav className="bottom-nav compact-nav" aria-label="Primary navigation">
         <button className={view === 'home' ? 'active' : ''} onClick={() => setView('home')} aria-label="Home"><PumaMark size={25} nav /><span>Home</span></button>
-        <button className={view === 'prospects' ? 'active' : ''} onClick={() => setView('prospects')} aria-label="Prospects"><Target size={18} /><span>Prospects</span></button>
-        <button className={view === 'utilities' ? 'active' : ''} onClick={() => setView('utilities')} aria-label="Utilities"><Waves size={18} /><span>Utilities</span></button>
+        <button className={view === 'clients' ? 'active' : ''} onClick={() => setView('clients')} aria-label="Clients"><Building2 size={18} /><span>Clients</span></button>
         <button className={view === 'monitor' ? 'active' : ''} onClick={() => setView('monitor')} aria-label="Monitor"><Activity size={18} /><span>Monitor</span></button>
       </nav>
 
@@ -366,11 +327,9 @@ export default function Home() {
         </div>
         <div className="menu-nav">
           <button onClick={() => moveTo('home')} className={view === 'home' ? 'current' : ''}><PumaMark size={22} nav /><span>Home</span><ChevronRight size={15} /></button>
-          <button onClick={() => moveTo('prospects')} className={view === 'prospects' ? 'current' : ''}><Target size={17} /><span>Prospects</span><ChevronRight size={15} /></button>
-          <button onClick={() => moveTo('utilities')} className={view === 'utilities' ? 'current' : ''}><Waves size={17} /><span>Utilities</span><ChevronRight size={15} /></button>
+          <button onClick={() => moveTo('clients')} className={view === 'clients' ? 'current' : ''}><Building2 size={17} /><span>Clients</span><ChevronRight size={15} /></button>
           <button onClick={() => moveTo('monitor')} className={view === 'monitor' ? 'current' : ''}><Activity size={17} /><span>Monitor</span><ChevronRight size={15} /></button>
           <button onClick={() => moveTo('engine')} className={view === 'engine' ? 'current' : ''}><SlidersHorizontal size={17} /><span>Engine</span><ChevronRight size={15} /></button>
-          <button onClick={() => moveTo('integrations')} className={view === 'integrations' ? 'current' : ''}><PlugZap size={17} /><span>Integrations</span><ChevronRight size={15} /></button>
           <button onClick={() => moveTo('settings')} className={view === 'settings' ? 'current' : ''}><Settings size={17} /><span>Settings</span><ChevronRight size={15} /></button>
         </div>
       </aside>
@@ -380,19 +339,44 @@ export default function Home() {
           <aside className="prospect-sheet">
             <header className="sheet-appbar">
               <button className="back-button" onClick={() => setSelectedId(null)}><ChevronLeft size={18} />Back</button>
-              <strong>Prospect</strong>
+              <strong>Client</strong>
               <span />
             </header>
             <div className="sheet-content">
-              <div className="detail-title"><h2>{selected.company}</h2><p>{selected.headquarters}</p><Score value={selected.score} /></div>
+              <div className="detail-title">
+                <h2>{selected.company}</h2>
+                <p>{selected.headquarters}</p>
+                <Score value={selected.score} />
+              </div>
+
               <SectionLabel>Portfolio</SectionLabel>
               <div className="native-group detail-grid">
                 <div><span>Buildings</span><strong>{selected.portfolioBuildings}</strong></div>
                 <div><span>Units</span><strong>{selected.portfolioUnits.toLocaleString()}</strong></div>
                 <div><span>State</span><strong>{selected.state}</strong></div>
               </div>
-              <SectionLabel>Buyer</SectionLabel>
-              <div className="native-group prose-group"><strong>{selected.decisionMaker}</strong><p>{selected.decisionRole}</p></div>
+
+              <SectionLabel>Buildings & utilities</SectionLabel>
+              {selectedUtilities.length === 0 ? (
+                <div className="native-group">
+                  <div className="native-row static-row">
+                    <span className="row-icon"><Waves size={17} /></span>
+                    <span className="row-copy"><strong>No meter records yet</strong><small>Building-level utility, meter type, AMI status, usage and tariff data will appear here.</small></span>
+                  </div>
+                </div>
+              ) : (
+                <div className="native-group">
+                  {selectedUtilities.map((utility) => utility && (
+                    <div className="native-row static-row" key={utility.id}>
+                      <span className="row-icon"><Gauge size={17} /></span>
+                      <span className="row-copy">
+                        <strong>{utility.name}</strong>
+                        <small>{utility.meterStatus} · {utility.portalCapability}</small>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </aside>
         </div>
