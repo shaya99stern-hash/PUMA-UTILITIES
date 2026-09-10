@@ -7,7 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/evidence-gating.test.ts tests/monitor-alerts.test.ts tests/pwa-cache-scope.test.ts"
   },
   "engines": {
     "node": ">=20.9.0"
@@ -22,6 +23,7 @@
     "@types/node": "22.18.0",
     "@types/react": "19.1.12",
     "@types/react-dom": "19.1.9",
+    "tsx": "4.20.6",
     "typescript": "5.9.2"
   }
 }

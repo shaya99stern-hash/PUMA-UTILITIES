@@ -12,6 +12,9 @@ export const metadata: Metadata = {
     title: 'Puma Utilities',
     statusBarStyle: 'black-translucent',
   },
+  icons: {
+    apple: [{ url: '/apple-touch-icon', sizes: '180x180', type: 'image/png' }],
+  },
 };
 
 export const viewport: Viewport = {
