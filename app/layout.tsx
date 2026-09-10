@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import './globals.css';
 
+const APP_ICON = '/apple-touch-icon.png?v=20260910-3';
+
 export const metadata: Metadata = {
   applicationName: 'Puma Utilities',
   title: 'Puma Utilities — Water Intelligence',
@@ -13,8 +15,8 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
   },
   icons: {
-    icon: [{ url: '/puma-home-icon.jpeg', sizes: '1254x1254', type: 'image/jpeg' }],
-    apple: [{ url: '/puma-home-icon.jpeg', sizes: '1254x1254', type: 'image/jpeg' }],
+    icon: [{ url: APP_ICON, sizes: '180x180', type: 'image/png' }],
+    apple: [{ url: APP_ICON, sizes: '180x180', type: 'image/png' }],
   },
 };
 
