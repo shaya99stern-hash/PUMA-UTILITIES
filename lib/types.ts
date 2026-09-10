@@ -1,4 +1,4 @@
-export type StateCode = 'NJ' | 'NY' | 'PA';
+export type StateCode = string;
 
 /**
  * How Puma is allowed to describe a value. `unknown` is intentionally
@@ -16,8 +16,18 @@ export type PipelineStage =
   | 'Research'
   | 'Qualified'
   | 'Outreach'
+  | 'Follow-up'
+  | 'Pilot'
+  | 'Installation'
   | 'Client'
   | 'Archived';
+
+export type InstallationStatus =
+  | 'Not started'
+  | 'Site visit'
+  | 'Scheduled'
+  | 'Installed'
+  | 'Live';
 
 export type Provenance = {
   id: string;
@@ -37,11 +47,6 @@ export type EvidenceValue<T> = {
   updatedAt?: string;
 };
 
-/**
- * A public portfolio statement is deliberately kept separate from a verified
- * building count. For example, "33 locations" must never be presented as
- * "33 buildings" merely because it is useful for a score.
- */
 export type PortfolioMetricLabel =
   | 'buildings'
   | 'properties'
@@ -52,7 +57,6 @@ export type PortfolioMetricLabel =
 export type PortfolioMetric = {
   value: number;
   label: PortfolioMetricLabel;
-  /** Whether the public statement is a lower bound (rendered as "30+"). */
   qualifier?: 'at-least' | 'exact';
   status: EvidenceStatus;
   provenanceId?: string;
@@ -69,6 +73,15 @@ export type Person = {
   provenanceId?: string;
 };
 
+export type ActivityNote = {
+  id: string;
+  text: string;
+  createdAt: string;
+  source: 'typed' | 'voice';
+  companyId?: string;
+  propertyId?: string;
+};
+
 export type Company = {
   id: string;
   name: string;
@@ -77,14 +90,15 @@ export type Company = {
   headquarters: EvidenceValue<string>;
   portfolioBuildings: EvidenceValue<number>;
   portfolioUnits: EvidenceValue<number>;
-  /** Accurately-labelled public statements, including non-building counts. */
   portfolio?: PortfolioMetric[];
   people: Person[];
   provenance: Provenance[];
-  /** A documented discovery path, not a statement of active service. */
   researchPathways?: string[];
   nextAction?: string;
   notes?: string;
+  activityNotes?: ActivityNote[];
+  installationStatus?: InstallationStatus;
+  lastContactAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -156,10 +170,6 @@ export type Meter = {
   updatedAt: string;
 };
 
-/**
- * A tariff is intentionally a sourced, effective-dated record. Puma never
- * supplies a default rate or turns a tariff into a bill without authorization.
- */
 export type Tariff = {
   id: string;
   utilityServiceId: string;
@@ -172,9 +182,7 @@ export type Tariff = {
 };
 
 export type MonitorSettings = {
-  /** Currency amount per authorized reading period. Undefined means off. */
   spendThreshold?: number;
-  /** Percent above an authorized expected-use baseline. Undefined means off. */
   varianceThresholdPercent?: number;
 };
 
@@ -187,6 +195,7 @@ export type Workspace = {
   meters: Meter[];
   tariffs: Tariff[];
   monitorSettings: MonitorSettings;
+  inboxNotes?: ActivityNote[];
   updatedAt: string;
 };
 
@@ -208,7 +217,6 @@ export type ScoreFactor = {
 
 export type OpportunityScore = {
   factors: ScoreFactor[];
-  /** A score is published only when every factor has evidence. */
   total?: number;
   completeness: number;
 };
