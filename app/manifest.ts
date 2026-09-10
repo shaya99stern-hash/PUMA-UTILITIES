@@ -12,9 +12,9 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'portrait-primary',
     icons: [
       {
-        src: '/puma-home-icon.jpeg',
-        sizes: '1254x1254',
-        type: 'image/jpeg',
+        src: '/apple-touch-icon.png?v=20260910-3',
+        sizes: '180x180',
+        type: 'image/png',
         purpose: 'any',
       },
     ],
