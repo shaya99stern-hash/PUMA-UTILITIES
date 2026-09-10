@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import './globals.css';
+import './puma-brand.css';
 
 const APP_ICON = '/apple-touch-icon.png?v=20260910-3';
 
