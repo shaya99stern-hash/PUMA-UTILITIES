@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Puma Utilities',
     short_name: 'Puma',
-    description: 'Multifamily water intelligence and prospecting engine.',
+    description: 'Nationwide multifamily water prospecting, CRM, installation tracking, and client-authorized monitoring.',
     start_url: '/',
     display: 'standalone',
     background_color: '#050607',
