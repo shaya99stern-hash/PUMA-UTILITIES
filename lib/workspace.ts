@@ -23,6 +23,7 @@ export function emptyWorkspace(): Workspace {
     meters: [],
     tariffs: [],
     monitorSettings: {},
+    inboxNotes: [],
     updatedAt: nowIso(),
   };
 }
@@ -54,6 +55,7 @@ export function parseWorkspace(value: unknown): Workspace {
     meters: arrayOrEmpty(value.meters),
     tariffs: arrayOrEmpty(value.tariffs),
     monitorSettings: isRecord(value.monitorSettings) ? value.monitorSettings : {},
+    inboxNotes: arrayOrEmpty(value.inboxNotes),
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : nowIso(),
   };
 }
@@ -68,10 +70,6 @@ export function loadWorkspace(): Workspace {
   }
 }
 
-/**
- * Local persistence is best-effort by design: a privacy setting or full quota
- * must not make the PWA unusable or cause an update to erase in-memory work.
- */
 export function saveWorkspace(workspace: Workspace): boolean {
   if (typeof window === 'undefined') return false;
   try {
