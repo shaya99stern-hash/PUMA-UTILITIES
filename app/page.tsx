@@ -137,13 +137,13 @@ export default function Home() {
   return (
     <main className="app-shell" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <header className="appbar">
-        <button className="mark-button" onClick={() => setMenuOpen(true)} aria-label="Open menu">
-          <PumaMark />
-        </button>
-        <strong className="appbar-title">{VIEW_TITLES[view]}</strong>
         <button className="icon-button" onClick={() => setMenuOpen(true)} aria-label="Menu">
           <Menu size={18} />
         </button>
+        <strong className="appbar-title">{VIEW_TITLES[view]}</strong>
+        <div className="mark-button" aria-label="Puma Utilities logo">
+          <PumaMark />
+        </div>
       </header>
 
       <section key={view} className="screen">
