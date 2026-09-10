@@ -13,7 +13,8 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
   },
   icons: {
-    apple: [{ url: '/apple-touch-icon', sizes: '180x180', type: 'image/png' }],
+    icon: [{ url: '/puma-home-icon.jpeg', sizes: '1254x1254', type: 'image/jpeg' }],
+    apple: [{ url: '/puma-home-icon.jpeg', sizes: '1254x1254', type: 'image/jpeg' }],
   },
 };
 
