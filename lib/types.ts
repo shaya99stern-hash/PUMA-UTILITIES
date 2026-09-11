@@ -20,6 +20,7 @@ export type PipelineStage =
   | 'Pilot'
   | 'Installation'
   | 'Client'
+  | 'Not Interested'
   | 'Archived';
 
 export type InstallationStatus =
@@ -28,6 +29,23 @@ export type InstallationStatus =
   | 'Scheduled'
   | 'Installed'
   | 'Live';
+
+export type AccountsPayableStatus = 'Draft' | 'Due' | 'Paid' | 'Overdue' | 'Void';
+
+export type AccountsPayableItem = {
+  id: string;
+  companyId: string;
+  propertyId?: string;
+  description: string;
+  amount: number;
+  currency: 'USD';
+  status: AccountsPayableStatus;
+  dueDate?: string;
+  paidAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  note?: string;
+};
 
 export type Provenance = {
   id: string;
@@ -195,6 +213,7 @@ export type Workspace = {
   tariffs: Tariff[];
   monitorSettings: MonitorSettings;
   inboxNotes?: ActivityNote[];
+  accountsPayable?: AccountsPayableItem[];
   updatedAt: string;
 };
 
