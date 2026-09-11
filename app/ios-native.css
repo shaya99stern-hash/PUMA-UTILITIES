@@ -69,6 +69,5 @@ html body .pm-brand-mark {
 }
 
 html body .pm-brand-mark img {
-  mix-blend-mode: normal !important;
   filter: none !important;
 }
