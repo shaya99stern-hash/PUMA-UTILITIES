@@ -1,0 +1,52 @@
+html, body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+@supports (overflow: clip) {
+  html, body { overflow-x: clip; }
+}
+
+html body .pm-shell {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+}
+
+html body .pm-content,
+html body .pm-page {
+  width: 100%;
+  max-width: 100vw;
+  min-width: 0;
+}
+
+html body .pm-page {
+  overflow-x: clip;
+}
+
+html body .pm-filter-row,
+html body .pm-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+html body .pm-company-row,
+html body .pm-company-row > a,
+html body .pm-company-copy {
+  min-width: 0;
+}
+
+html body .pm-brand-mark {
+  background: transparent !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+}
+
+html body .pm-brand-mark img {
+  mix-blend-mode: screen;
+}
