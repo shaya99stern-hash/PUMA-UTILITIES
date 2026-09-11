@@ -5,10 +5,10 @@
   "description": "Puma Utilities — nationwide multifamily water intelligence and CRM.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm test && npm run typecheck && next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/evidence-gating.test.ts tests/monitor-alerts.test.ts tests/pwa-cache-scope.test.ts tests/client-workflow.test.ts tests/client-presentation.test.ts tests/voice-notes.test.ts tests/building-routing.test.ts"
+    "test": "tsx --test tests/evidence-gating.test.ts tests/monitor-alerts.test.ts tests/pwa-cache-scope.test.ts tests/client-workflow.test.ts tests/client-presentation.test.ts tests/voice-notes.test.ts tests/building-routing.test.ts tests/minimal-companies-ui.test.ts"
   },
   "engines": {
     "node": ">=20.9.0"
