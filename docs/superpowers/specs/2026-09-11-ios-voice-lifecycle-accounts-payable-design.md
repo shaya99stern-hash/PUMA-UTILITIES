@@ -1,9 +1,5 @@
 # Puma Utilities — iOS Shell, Voice, Lifecycle, and Accounts Payable Design
 
-## Scope
-
-This change intentionally excludes live lead-discovery implementation. The Find Leads surface remains present and is prepared for a future free/keyless discovery engine, but no paid provider, scraper fleet, or external search integration is added in this phase.
-
 ## Goals
 
 1. Make the installed iPhone PWA behave more like a native iOS app by preventing the document itself from freely rubber-banding/panning while preserving intentional scrolling inside the app content and horizontal chip/tab strips.
@@ -12,7 +8,7 @@ This change intentionally excludes live lead-discovery implementation. The Find 
 4. Replace the current two-segment Companies organization with five top-level lifecycle views: Prospects, Contacted, Not Interested, Installations, and Active Clients.
 5. Add a first-class `Not Interested` lifecycle state rather than faking it as a UI-only filter.
 6. Add Accounts Payable to the side drawer after Find Leads and before Settings. This phase creates the route, data model, and UI foundation for invoices/payment tracking but does not process payments or charge cards.
-7. Preserve existing company, building, notes, monitoring, profile, and bulk-selection behavior unless explicitly moved by this design.
+7. Preserve existing company, building, notes, monitoring, profile, Find Leads, and bulk-selection behavior unless explicitly moved by this design.
 
 ## iOS Shell
 
@@ -39,8 +35,6 @@ Voice remains a global top-right control. The flow is:
 7. User reviews and saves the note to the current building, company, or Voice Inbox.
 
 Permission-denied, unsupported, empty-audio, transcription-failed, and recording-failed states must be visible and recoverable.
-
-No third-party paid transcription provider is introduced in this phase.
 
 ## Companies Lifecycle
 
@@ -80,15 +74,9 @@ The first version shows:
 - paid amount
 - overdue count
 - a minimal list of AP items with company, description, amount, due date, and status
-- an empty state explaining that payment processing is not connected yet
+- an empty state for workspaces with no AP records yet
 
-The UI is designed so a later free/self-hosted or external billing implementation can replace the local layer without redesigning navigation.
-
-## Find Leads Preparation Only
-
-Find Leads remains a separate route. Its current "connector not connected" state is replaced with a neutral "Lead engine setup" state that makes clear live discovery is not configured yet.
-
-Code boundaries should make a future free/keyless provider easy to add (for example, a dedicated lead-engine interface/module), but this phase must not perform live discovery, scrape public sites, fabricate search results, or add paid provider assumptions.
+The UI is designed so a later billing implementation can replace the local layer without redesigning navigation.
 
 ## Testing and Verification
 
@@ -112,8 +100,6 @@ Before merge:
 
 ## Non-Goals
 
-- no paid search API
-- no live lead discovery or scraping implementation
 - no payment charging/Stripe-like processing
 - no bank/accounting integration
 - no replacement of the installed Home Screen icon
