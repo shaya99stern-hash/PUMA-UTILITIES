@@ -24,6 +24,7 @@ export function emptyWorkspace(): Workspace {
     tariffs: [],
     monitorSettings: {},
     inboxNotes: [],
+    accountsPayable: [],
     updatedAt: nowIso(),
   };
 }
@@ -56,6 +57,7 @@ export function parseWorkspace(value: unknown): Workspace {
     tariffs: arrayOrEmpty(value.tariffs),
     monitorSettings: isRecord(value.monitorSettings) ? value.monitorSettings : {},
     inboxNotes: arrayOrEmpty(value.inboxNotes),
+    accountsPayable: arrayOrEmpty(value.accountsPayable),
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : nowIso(),
   };
 }
