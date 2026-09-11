@@ -23,6 +23,7 @@ export function prospectStatusFor(company: Company): Exclude<ProspectStatus, 'Al
       return 'Installation';
     case 'Client':
       return 'Contacted';
+    case 'Not Interested':
     case 'Archived':
       return 'Needs Outreach';
   }

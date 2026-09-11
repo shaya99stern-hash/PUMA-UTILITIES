@@ -3,17 +3,17 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const shimPath = 'app/components/puma-workspace-app.tsx';
-const v3Path = 'app/components/puma-workspace-app-v3.tsx';
+const implementationPath = 'app/components/puma-workspace-app-v4.tsx';
 
-test('routes Puma through the minimal Companies implementation', () => {
+test('routes Puma through the final minimal Companies implementation', () => {
   const shim = readFileSync(shimPath, 'utf8');
-  assert.match(shim, /puma-workspace-app-v3/);
-  assert.equal(existsSync(v3Path), true, 'v3 implementation should exist');
+  assert.match(shim, /puma-workspace-app-v4/);
+  assert.equal(existsSync(implementationPath), true, 'v4 implementation should exist');
 });
 
 test('minimal implementation uses Companies, a quiet home, and profile personalization', () => {
-  assert.equal(existsSync(v3Path), true, 'v3 implementation should exist');
-  const source = readFileSync(v3Path, 'utf8');
+  assert.equal(existsSync(implementationPath), true, 'v4 implementation should exist');
+  const source = readFileSync(implementationPath, 'utf8');
 
   assert.match(source, /Follow-Ups for Today/);
   assert.match(source, /Active Clients/);
@@ -27,10 +27,11 @@ test('minimal implementation uses Companies, a quiet home, and profile personali
   assert.doesNotMatch(source, /puma-record-actions/);
 });
 
-test('in-app brand mark visually suppresses the old gray icon tile', () => {
-  assert.equal(existsSync(v3Path), true, 'v3 implementation should exist');
-  const source = readFileSync(v3Path, 'utf8');
+test('in-app brand mark matches the app background without image filter hacks', () => {
+  assert.equal(existsSync(implementationPath), true, 'v4 implementation should exist');
+  const source = readFileSync(implementationPath, 'utf8');
   assert.match(source, /pm-brand-mark/);
-  assert.match(source, /contrast\(/);
-  assert.match(source, /overflow:\s*hidden/);
+  assert.match(source, /background:var\(--pm-bg\)/);
+  assert.doesNotMatch(source, /filter:\s*contrast\(/);
+  assert.match(source, /overflow:hidden/);
 });
