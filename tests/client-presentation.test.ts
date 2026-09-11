@@ -9,11 +9,14 @@ function company(stage: Company['stage'], id = `company-${stage}`, emails: strin
     id,
     name: stage,
     stage,
-    people: emails.map((email, index) => ({ id: `${id}-person-${index}`, name: `Person ${index + 1}`, email })),
+    headquarters: { status: 'unknown' },
+    portfolioBuildings: { status: 'unknown' },
+    portfolioUnits: { status: 'unknown' },
+    people: emails.map((email, index) => ({ id: `${id}-person-${index}`, name: `Person ${index + 1}`, email, status: 'verified-public' })),
     provenance: [],
     createdAt: '2026-09-10T00:00:00.000Z',
     updatedAt: '2026-09-10T00:00:00.000Z',
-  } as Company;
+  };
 }
 
 test('Client stage is shown under Active Clients', () => {
