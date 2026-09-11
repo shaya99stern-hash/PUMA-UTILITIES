@@ -6,6 +6,7 @@ export type VoicePhase =
   | 'review'
   | 'saved'
   | 'permission-denied'
+  | 'denied'
   | 'unsupported'
   | 'error';
 
