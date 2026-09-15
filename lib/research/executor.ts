@@ -1,0 +1,133 @@
+import { bestClaim } from './graph';
+import { ingestCompanyWebsite, ingestHpdOwnership, ingestNjParcel } from './ingest';
+import { ingestWaterServiceAreas } from './ingest-water';
+import type { ResearchGraph, ResearchTask } from './types';
+import { executeWebDiscovery } from './web-discovery';
+import { crawlCompanyWebsite } from './sources/company-website';
+import { lookupHpdOwnershipByBbl } from './sources/nyc-hpd';
+import { searchNjParcelsByAddress } from './sources/nj-parcels';
+import { geocodeUsAddress, lookupEpaWaterSystems, lookupNjPurveyors, lookupPaWaterSuppliers } from './sources/water-service';
+
+export interface ResearchTaskResult {
+  taskId: string;
+  status: 'complete' | 'blocked' | 'failed';
+  sourceId: string;
+  discoveredEntityIds: string[];
+  evidenceAdded: number;
+  claimsAdded: number;
+  message: string;
+  retryable?: boolean;
+}
+
+export async function executeResearchTask(
+  graph: ResearchGraph,
+  task: ResearchTask,
+  options: { searchEndpoint?: string; signal?: AbortSignal } = {},
+): Promise<ResearchTaskResult> {
+  const beforeEntities = new Set(graph.entities.map((item) => item.id));
+  const beforeEvidence = graph.evidence.length;
+  const beforeClaims = graph.claims.length;
+  task.status = 'running';
+
+  try {
+    const message = await executeSource(graph, task, options);
+    task.status = message.blocked ? 'blocked' : 'complete';
+    return {
+      taskId: task.id,
+      status: message.blocked ? 'blocked' : 'complete',
+      sourceId: task.sourceId,
+      discoveredEntityIds: graph.entities.filter((item) => !beforeEntities.has(item.id)).map((item) => item.id),
+      evidenceAdded: graph.evidence.length - beforeEvidence,
+      claimsAdded: graph.claims.length - beforeClaims,
+      message: message.text,
+      retryable: message.retryable,
+    };
+  } catch (error) {
+    task.status = 'failed';
+    return {
+      taskId: task.id,
+      status: 'failed',
+      sourceId: task.sourceId,
+      discoveredEntityIds: graph.entities.filter((item) => !beforeEntities.has(item.id)).map((item) => item.id),
+      evidenceAdded: graph.evidence.length - beforeEvidence,
+      claimsAdded: graph.claims.length - beforeClaims,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function executeSource(
+  graph: ResearchGraph,
+  task: ResearchTask,
+  options: { searchEndpoint?: string; signal?: AbortSignal },
+): Promise<{ text: string; blocked?: boolean; retryable?: boolean }> {
+  const entity = graph.entities.find((item) => item.id === task.subjectId);
+  if (!entity) return { text: 'Research subject no longer exists.', blocked: true };
+
+  if (task.sourceId === 'open-web-discovery') {
+    const response = await executeWebDiscovery(graph, task, { endpoint: options.searchEndpoint, signal: options.signal, limit: 10 });
+    return { text: `Open-web discovery returned ${response.results.length} result(s).` };
+  }
+
+  if (task.sourceId === 'company-first-party-web') {
+    if (entity.kind !== 'company') return { text: 'First-party company crawl requires a company entity.', blocked: true };
+    let website = bestClaim(graph, entity.id, 'company.website');
+    if (!stringValue(website?.value)) {
+      try {
+        await executeWebDiscovery(graph, { ...task, sourceId: 'open-web-discovery' }, { endpoint: options.searchEndpoint, signal: options.signal, limit: 8 });
+      } catch (error) {
+        return { text: `Company website is unresolved and web discovery could not run: ${error instanceof Error ? error.message : String(error)}`, blocked: true, retryable: true };
+      }
+      website = bestClaim(graph, entity.id, 'company.website');
+    }
+    const url = stringValue(website?.value);
+    if (!url) return { text: 'No credible first-party website candidate is available yet.', blocked: true, retryable: true };
+    const research = await crawlCompanyWebsite(url, { maxPages: 6, signal: options.signal });
+    ingestCompanyWebsite(graph, entity.id, research);
+    return { text: `Crawled ${research.visitedUrls.length} first-party page(s); found ${research.contacts.length} public business contact(s) and ${research.leadershipSignals.length} leadership signal(s).` };
+  }
+
+  if (task.sourceId === 'nj-parcel-mod4') {
+    if (entity.kind !== 'property') return { text: 'NJ parcel resolution requires a property entity.', blocked: true };
+    const records = await searchNjParcelsByAddress(entity.label, options.signal);
+    records.slice(0, 10).forEach((record) => ingestNjParcel(graph, record));
+    return { text: `NJ parcel source returned ${records.length} matching record(s).` };
+  }
+
+  if (task.sourceId === 'nyc-hpd-registrations') {
+    if (entity.kind !== 'property') return { text: 'NYC HPD resolution requires a property entity.', blocked: true };
+    const bbl = parseBbl(entity.aliases ?? [], entity.label);
+    if (!bbl) return { text: 'NYC HPD requires a resolved BBL before registration/contact lookup.', blocked: true, retryable: true };
+    const result = await lookupHpdOwnershipByBbl(bbl.borough, bbl.block, bbl.lot, options.signal);
+    ingestHpdOwnership(graph, result, entity.label);
+    return { text: `NYC HPD returned ${result.contacts.length} registration contact(s).` };
+  }
+
+  if (task.sourceId === 'epa-water-service-areas' || task.sourceId === 'njdep-water-purveyor' || task.sourceId === 'padep-water-service') {
+    if (entity.kind !== 'property') return { text: 'Water service-area resolution requires a property entity.', blocked: true };
+    const geocode = await geocodeUsAddress(entity.label, options.signal);
+    if (!geocode) return { text: 'Census geocoder could not resolve the property address.', blocked: true };
+    const areas = task.sourceId === 'njdep-water-purveyor'
+      ? await lookupNjPurveyors(geocode.longitude, geocode.latitude, options.signal)
+      : task.sourceId === 'padep-water-service'
+        ? await lookupPaWaterSuppliers(geocode.longitude, geocode.latitude, options.signal)
+        : await lookupEpaWaterSystems(geocode.longitude, geocode.latitude, options.signal);
+    ingestWaterServiceAreas(graph, entity.id, areas);
+    return { text: `${task.sourceId} returned ${areas.length} intersecting water service area(s).` };
+  }
+
+  return { text: `${task.sourceId} is registered but its executable adapter is not connected yet.`, blocked: true };
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function parseBbl(aliases: string[], label: string): { borough: string; block: string; lot: string } | undefined {
+  const values = [...aliases, label];
+  for (const value of values) {
+    const match = value.match(/(?:bbl\s*[:#-]?\s*)?([1-5])[-\s/]([0-9]{1,5})[-\s/]([0-9]{1,4})/i);
+    if (match) return { borough: match[1], block: match[2], lot: match[3] };
+  }
+  return undefined;
+}
