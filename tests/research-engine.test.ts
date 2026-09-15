@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addClaim, addEvidence, createResearchGraph, deriveProspectNeeds, graphCompleteness, upsertEntity } from '../lib/research/graph';
+import { addClaim, addEvidence, createResearchGraph, deriveEntityNeeds, deriveProspectNeeds, graphCompleteness, upsertEntity } from '../lib/research/graph';
 import { companyMatch } from '../lib/research/entity-resolution';
-import { planProspectTasks, shouldContinueResearch } from '../lib/research/task-planner';
+import { ingestCompanyWebsite, ingestHpdOwnership, ingestNjParcel } from '../lib/research/ingest';
+import { isPublicIp } from '../lib/research/network-safety';
+import { planEntityTasks, planProspectTasks, shouldContinueResearch } from '../lib/research/task-planner';
+import { extractContacts, extractLeadershipSignals } from '../lib/research/sources/company-website';
 import { isPublicHttpUrl, validateSearchEndpoint } from '../lib/research/web-search';
 
 test('missing prospect fields become research needs instead of terminating the lead', () => {
@@ -17,6 +20,18 @@ test('missing prospect fields become research needs instead of terminating the l
   const tasks = planProspectTasks(graph, 'company:one', 'NJ', { maxTasks: 30 });
   assert.ok(tasks.length > 0);
   assert.ok(tasks.some((task) => task.sourceId === 'open-web-discovery'));
+});
+
+test('property entities recursively create owner manager and utility tasks', () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id: 'property:one', kind: 'property', label: '123 Main St', geography: 'NY' });
+  const needs = deriveEntityNeeds(graph, 'property:one');
+  assert.ok(needs.some((need) => need.fact === 'property.owner'));
+  assert.ok(needs.some((need) => need.fact === 'property.manager'));
+  assert.ok(needs.some((need) => need.fact === 'utility.provider'));
+  const tasks = planEntityTasks(graph, 'property:one', 'NY');
+  assert.ok(tasks.some((task) => task.sourceId === 'nyc-acris'));
+  assert.ok(tasks.some((task) => task.sourceId === 'nyc-hpd-registrations'));
 });
 
 test('conflicting material claims remain explicit conflicts', () => {
@@ -67,6 +82,53 @@ test('company resolver requires strong corroboration before merge', () => {
   assert.equal(weak.safeToMerge, false);
 });
 
+test('NJ parcel ingestion creates property and owner entities without inventing missing owners', () => {
+  const graph = createResearchGraph();
+  const propertyId = ingestNjParcel(graph, { pamsPin: '0901_1_2', propertyLocation: '10 Market St', ownerName: 'Market Street Holdings LLC' }, undefined, '2026-09-15T12:00:00.000Z');
+  assert.ok(graph.entities.some((entity) => entity.id === propertyId && entity.kind === 'property'));
+  assert.ok(graph.claims.some((claim) => claim.subjectId === propertyId && claim.fact === 'property.owner'));
+
+  const second = createResearchGraph();
+  const redactedId = ingestNjParcel(second, { pamsPin: '0901_1_3', propertyLocation: '12 Market St' }, undefined, '2026-09-15T12:00:00.000Z');
+  assert.equal(second.claims.some((claim) => claim.subjectId === redactedId && claim.fact === 'property.owner'), false);
+});
+
+test('HPD contact ingestion preserves owner and managing-agent roles', () => {
+  const graph = createResearchGraph();
+  const propertyId = ingestHpdOwnership(graph, {
+    registration: { registrationId: '100', boroughId: '1', block: '100', lot: '1' },
+    contacts: [
+      { registrationId: '100', type: 'CorporateOwner', corporationName: 'Owner LLC' },
+      { registrationId: '100', type: 'Agent', corporationName: 'Manager Co' },
+    ],
+    sourceUrls: ['https://data.cityofnewyork.us/resource/tesw-yqqr.json', 'https://data.cityofnewyork.us/resource/feu5-w2e2.json'],
+  }, '100 Broadway', '2026-09-15T12:00:00.000Z');
+  assert.ok(graph.claims.some((claim) => claim.subjectId === propertyId && claim.fact === 'property.owner'));
+  assert.ok(graph.claims.some((claim) => claim.subjectId === propertyId && claim.fact === 'property.manager'));
+});
+
+test('first-party website extraction and ingestion captures public contacts and explicit leadership', () => {
+  const html = '<h2>Jane Smith — Managing Principal</h2><a href="mailto:jane@samplepm.com">Email</a><p>(212) 555-0100</p>';
+  assert.ok(extractContacts(html, 'https://samplepm.com/about').some((contact) => contact.value === 'jane@samplepm.com'));
+  assert.ok(extractLeadershipSignals(html, 'https://samplepm.com/about').some((signal) => /Managing Principal/i.test(signal.text)));
+
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id: 'company:sample', kind: 'company', label: 'Sample Property Management', geography: 'NY' });
+  ingestCompanyWebsite(graph, 'company:sample', {
+    seedUrl: 'https://samplepm.com/',
+    visitedUrls: ['https://samplepm.com/', 'https://samplepm.com/about'],
+    contacts: [
+      { type: 'email', value: 'jane@samplepm.com', sourceUrl: 'https://samplepm.com/about' },
+      { type: 'phone', value: '+12125550100', sourceUrl: 'https://samplepm.com/about' },
+    ],
+    leadershipSignals: [{ text: 'Jane Smith — Managing Principal', sourceUrl: 'https://samplepm.com/about' }],
+    socialUrls: [],
+    warnings: [],
+  }, '2026-09-15T12:00:00.000Z');
+  assert.ok(graph.claims.some((claim) => claim.subjectId === 'company:sample' && claim.fact === 'company.email'));
+  assert.ok(graph.claims.some((claim) => claim.subjectId === 'company:sample' && claim.fact === 'person.decisionMaker'));
+});
+
 test('recursive research stops at bounded limits', () => {
   assert.equal(shouldContinueResearch({ depth: 1, maxDepth: 4, tasksCompleted: 10, maxTasks: 100, completeness: 0.4 }), true);
   assert.equal(shouldContinueResearch({ depth: 4, maxDepth: 4, tasksCompleted: 10, maxTasks: 100, completeness: 0.4 }), false);
@@ -74,9 +136,14 @@ test('recursive research stops at bounded limits', () => {
   assert.equal(shouldContinueResearch({ depth: 1, maxDepth: 4, tasksCompleted: 10, maxTasks: 100, completeness: 0.4, marginalInformationGain: 0.005 }), false);
 });
 
-test('web search backend rejects obvious local/private destinations', () => {
+test('web and network safety reject obvious private destinations', () => {
   assert.throws(() => validateSearchEndpoint('http://127.0.0.1:8080'));
   assert.throws(() => validateSearchEndpoint('http://192.168.1.2'));
   assert.equal(isPublicHttpUrl('https://example.com/about'), true);
   assert.equal(isPublicHttpUrl('http://localhost/admin'), false);
+  assert.equal(isPublicIp('127.0.0.1'), false);
+  assert.equal(isPublicIp('10.1.2.3'), false);
+  assert.equal(isPublicIp('192.168.0.4'), false);
+  assert.equal(isPublicIp('8.8.8.8'), true);
+  assert.equal(isPublicIp('::1'), false);
 });
