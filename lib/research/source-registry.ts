@@ -78,6 +78,39 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     notes: ['Pennsylvania is county-adapter driven. Capabilities vary by county; use official county GIS/assessment systems and recorder sources where available.']
   },
   {
+    id: 'epa-water-service-areas',
+    label: 'US EPA Public Water System Service Areas',
+    url: 'https://www.epa.gov/ground-water-and-drinking-water/public-water-system-service-areas',
+    geographies: ['US'],
+    authority: 'official',
+    strategy: 'structured',
+    capabilities: ['utility.provider'],
+    reliability: 0.88, evidenceStrength: 0.88, expectedLatencyMs: 650, freshnessDays: 120, maxConcurrency: 5,
+    notes: ['National coverage; boundaries may be state/system sourced or EPA-modeled. Preserve boundary provenance and never present a modeled polygon as a confirmed customer account.']
+  },
+  {
+    id: 'njdep-water-purveyor',
+    label: 'NJDEP Public Community Water Purveyor Service Areas',
+    url: 'https://mapsdep.nj.gov/arcgis/rest/services/Features/Utilities/MapServer/13',
+    geographies: ['NJ'],
+    authority: 'official',
+    strategy: 'structured',
+    capabilities: ['utility.provider'],
+    reliability: 0.94, evidenceStrength: 0.95, expectedLatencyMs: 550, freshnessDays: 365, maxConcurrency: 5,
+    notes: ['Maps actual public community water delivery/service areas rather than future franchise areas. The published layer is older, so corroborate with current utility/local sources for outreach-critical decisions.']
+  },
+  {
+    id: 'padep-water-service',
+    label: 'PADEP Public Water Supplier Service Areas',
+    url: 'https://mapservices.pasda.psu.edu/server/rest/services/pasda/DEP2/MapServer/8',
+    geographies: ['PA'],
+    authority: 'official',
+    strategy: 'structured',
+    capabilities: ['utility.provider'],
+    reliability: 0.94, evidenceStrength: 0.95, expectedLatencyMs: 550, freshnessDays: 120, maxConcurrency: 5,
+    notes: ['Current public-water-supplier service-area polygons; boundaries are approximate and should be treated as service-territory evidence, not customer-account confirmation.']
+  },
+  {
     id: 'company-first-party-web',
     label: 'Company first-party website',
     geographies: ['US'],
