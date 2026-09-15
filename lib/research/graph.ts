@@ -1,6 +1,6 @@
 import type { ResearchClaim, ResearchEntity, ResearchEvidence, ResearchFact, ResearchGraph, ResearchNeed } from './types';
 
-const COMPANY_FACT_IMPORTANCE: Record<ResearchFact, number> = {
+const FACT_IMPORTANCE: Record<ResearchFact, number> = {
   'company.identity': 100,
   'company.website': 90,
   'company.phone': 80,
@@ -30,6 +30,26 @@ const COMPANY_REQUIRED_FACTS: ResearchFact[] = [
   'person.title',
   'person.phone',
   'person.email',
+  'utility.provider',
+  'utility.amiCapability',
+];
+
+const PROPERTY_REQUIRED_FACTS: ResearchFact[] = [
+  'property.identity',
+  'property.owner',
+  'property.manager',
+  'utility.provider',
+  'utility.amiCapability',
+];
+
+const PERSON_REQUIRED_FACTS: ResearchFact[] = [
+  'person.decisionMaker',
+  'person.title',
+  'person.phone',
+  'person.email',
+];
+
+const UTILITY_REQUIRED_FACTS: ResearchFact[] = [
   'utility.provider',
   'utility.amiCapability',
 ];
@@ -94,20 +114,48 @@ export function bestClaim(graph: ResearchGraph, subjectId: string, fact: Researc
     .sort((left, right) => claimRank(right) - claimRank(left))[0];
 }
 
-export function deriveProspectNeeds(graph: ResearchGraph, companyId: string, geography?: string): ResearchNeed[] {
-  return COMPANY_REQUIRED_FACTS.flatMap((fact) => {
-    const claim = bestClaim(graph, companyId, fact);
-    if (claim && (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7) return [];
-    return [{ fact, geography, importance: COMPANY_FACT_IMPORTANCE[fact], subjectId: companyId }];
+export function deriveEntityNeeds(graph: ResearchGraph, entityId: string, geography?: string): ResearchNeed[] {
+  const entity = graph.entities.find((item) => item.id === entityId);
+  if (!entity) throw new Error(`Research entity ${entityId} was not found.`);
+  const facts = entity.kind === 'company'
+    ? COMPANY_REQUIRED_FACTS
+    : entity.kind === 'property'
+      ? PROPERTY_REQUIRED_FACTS
+      : entity.kind === 'person'
+        ? PERSON_REQUIRED_FACTS
+        : entity.kind === 'utility'
+          ? UTILITY_REQUIRED_FACTS
+          : [];
+
+  return facts.flatMap((fact) => {
+    const claim = bestClaim(graph, entityId, fact);
+    if (isResolvedClaim(claim)) return [];
+    return [{ fact, geography: geography ?? entity.geography, importance: FACT_IMPORTANCE[fact], subjectId: entityId }];
   });
 }
 
-export function graphCompleteness(graph: ResearchGraph, companyId: string): number {
-  const resolved = COMPANY_REQUIRED_FACTS.filter((fact) => {
-    const claim = bestClaim(graph, companyId, fact);
-    return Boolean(claim && (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7);
-  }).length;
-  return resolved / COMPANY_REQUIRED_FACTS.length;
+export function deriveProspectNeeds(graph: ResearchGraph, companyId: string, geography?: string): ResearchNeed[] {
+  return deriveEntityNeeds(graph, companyId, geography);
+}
+
+export function graphCompleteness(graph: ResearchGraph, entityId: string): number {
+  const entity = graph.entities.find((item) => item.id === entityId);
+  if (!entity) return 0;
+  const facts = entity.kind === 'company'
+    ? COMPANY_REQUIRED_FACTS
+    : entity.kind === 'property'
+      ? PROPERTY_REQUIRED_FACTS
+      : entity.kind === 'person'
+        ? PERSON_REQUIRED_FACTS
+        : entity.kind === 'utility'
+          ? UTILITY_REQUIRED_FACTS
+          : [];
+  if (!facts.length) return 1;
+  return facts.filter((fact) => isResolvedClaim(bestClaim(graph, entityId, fact))).length / facts.length;
+}
+
+function isResolvedClaim(claim?: ResearchClaim): boolean {
+  return Boolean(claim && (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7);
 }
 
 function sameClaimValue(left: ResearchClaim, right: ResearchClaim): boolean {
