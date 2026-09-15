@@ -43,9 +43,9 @@ export async function crawlCompanyWebsite(
     if (!next || visited.has(next)) continue;
     visited.add(next);
     try {
-      const html = await fetchHtml(next, timeoutMs, options.signal);
-      for (const contact of extractContacts(html, next)) contacts.set(`${contact.type}:${contact.value}`, contact);
-      for (const signal of extractLeadershipSignals(html, next)) leadershipSignals.set(`${next}:${signal.text}`, signal);
+      const { html, finalUrl } = await fetchHtml(next, timeoutMs, options.signal);
+      for (const contact of extractContacts(html, finalUrl)) contacts.set(`${contact.type}:${contact.value}`, contact);
+      for (const signal of extractLeadershipSignals(html, finalUrl)) leadershipSignals.set(`${finalUrl}:${signal.text}`, signal);
       for (const social of extractSocialUrls(html)) socialUrls.add(social);
 
       for (const discovered of extractLikelyInternalPages(html, seed)) {
@@ -90,26 +90,37 @@ export function extractLeadershipSignals(html: string, sourceUrl: string): Websi
   return lines.filter((line) => DECISION_TITLES.test(line)).slice(0, 50).map((line) => ({ text: line, sourceUrl }));
 }
 
-async function fetchHtml(url: string, timeoutMs: number, outerSignal?: AbortSignal): Promise<string> {
+async function fetchHtml(url: string, timeoutMs: number, outerSignal?: AbortSignal): Promise<{ html: string; finalUrl: string }> {
   if (!isPublicHttpUrl(url)) throw new Error('Refused non-public URL.');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const abort = () => controller.abort();
   outerSignal?.addEventListener('abort', abort, { once: true });
   try {
-    const response = await fetch(url, {
-      headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'PumaUtilitiesResearch/1.0 (+public business research)' },
-      redirect: 'follow',
-      cache: 'no-store',
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const contentType = response.headers.get('content-type') ?? '';
-    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) throw new Error('Not an HTML page.');
-    const length = Number(response.headers.get('content-length') ?? 0);
-    if (length > 2_000_000) throw new Error('Page is too large to crawl safely.');
-    const html = await response.text();
-    return html.slice(0, 2_000_000);
+    let current = url;
+    for (let redirects = 0; redirects <= 4; redirects += 1) {
+      if (!isPublicHttpUrl(current)) throw new Error('Refused redirect to non-public URL.');
+      const response = await fetch(current, {
+        headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'PumaUtilitiesResearch/1.0 (+public business research)' },
+        redirect: 'manual',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) throw new Error(`Redirect ${response.status} had no location.`);
+        current = new URL(location, current).toString();
+        continue;
+      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) throw new Error('Not an HTML page.');
+      const length = Number(response.headers.get('content-length') ?? 0);
+      if (length > 2_000_000) throw new Error('Page is too large to crawl safely.');
+      const html = (await response.text()).slice(0, 2_000_000);
+      return { html, finalUrl: current };
+    }
+    throw new Error('Too many redirects.');
   } finally {
     clearTimeout(timer);
     outerSignal?.removeEventListener('abort', abort);
