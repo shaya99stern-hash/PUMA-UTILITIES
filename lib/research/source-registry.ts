@@ -13,15 +13,15 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     notes: ['Use published datasets/data services rather than automating the ACRIS UI. Join document, legal and party observations by source identifiers.']
   },
   {
-    id: 'nyc-hpd-owner-building',
-    label: 'NYC HPD Owner / Building Info',
-    url: 'https://data.cityofnewyork.us/Housing-Development/Owner-Building-Info/sshn-8ixj',
+    id: 'nyc-hpd-registrations',
+    label: 'NYC HPD Registrations + Registration Contacts',
+    url: 'https://data.cityofnewyork.us/Housing-Development/Registration-Contacts/feu5-w2e2',
     geographies: ['NY', 'NYC'],
     authority: 'official',
     strategy: 'structured',
     capabilities: ['property.identity', 'property.owner', 'property.manager', 'person.decisionMaker', 'person.phone'],
     reliability: 0.95, evidenceStrength: 0.96, expectedLatencyMs: 500, freshnessDays: 45, maxConcurrency: 6,
-    notes: ['Registration/owner/managing-agent records are especially valuable for multifamily resolution. Preserve registration recency.']
+    notes: ['Resolve the building through HPD Registrations (tesw-yqqr), then join Registration Contacts (feu5-w2e2) by registrationid. Preserve the exact contact type such as CorporateOwner, Agent or HeadOfficer.']
   },
   {
     id: 'nys-dos-business',
