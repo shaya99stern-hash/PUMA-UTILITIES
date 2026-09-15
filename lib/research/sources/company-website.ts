@@ -1,3 +1,4 @@
+import { assertPublicNetworkTarget } from '../network-safety';
 import { isPublicHttpUrl } from '../web-search';
 
 const DEFAULT_PATHS = ['/', '/about', '/about-us', '/team', '/leadership', '/management', '/properties', '/portfolio', '/contact', '/contact-us'];
@@ -100,6 +101,7 @@ async function fetchHtml(url: string, timeoutMs: number, outerSignal?: AbortSign
     let current = url;
     for (let redirects = 0; redirects <= 4; redirects += 1) {
       if (!isPublicHttpUrl(current)) throw new Error('Refused redirect to non-public URL.');
+      await assertPublicNetworkTarget(current);
       const response = await fetch(current, {
         headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'PumaUtilitiesResearch/1.0 (+public business research)' },
         redirect: 'manual',
