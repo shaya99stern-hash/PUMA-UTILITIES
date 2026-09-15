@@ -34,7 +34,7 @@ test('property entities recursively create owner manager and utility tasks', () 
   assert.ok(tasks.some((task) => task.sourceId === 'nyc-hpd-registrations'));
 });
 
-test('conflicting material claims remain explicit conflicts', () => {
+test('conflicting single-valued material claims remain explicit conflicts', () => {
   const graph = createResearchGraph();
   upsertEntity(graph, { id: 'company:one', kind: 'company', label: 'Example Property Group', geography: 'NY' });
   addEvidence(graph, {
@@ -51,6 +51,23 @@ test('conflicting material claims remain explicit conflicts', () => {
   });
   assert.equal(first.state, 'CONFLICTED');
   assert.equal(second.state, 'CONFLICTED');
+});
+
+test('multi-valued emails and ownership relationships do not become false conflicts', () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id: 'company:one', kind: 'company', label: 'Example Property Group', geography: 'NY' });
+  const emailOne = addClaim(graph, { id: 'email:1', subjectId: 'company:one', fact: 'company.email', value: 'info@example.com', state: 'SUPPORTED', confidence: 0.8, evidenceIds: [], observedAt: '2026-09-15T12:00:00.000Z' });
+  const emailTwo = addClaim(graph, { id: 'email:2', subjectId: 'company:one', fact: 'company.email', value: 'leasing@example.com', state: 'SUPPORTED', confidence: 0.8, evidenceIds: [], observedAt: '2026-09-15T12:00:00.000Z' });
+  assert.equal(emailOne.state, 'SUPPORTED');
+  assert.equal(emailTwo.state, 'SUPPORTED');
+
+  upsertEntity(graph, { id: 'property:one', kind: 'property', label: '123 Main St', geography: 'NY' });
+  upsertEntity(graph, { id: 'company:owner-a', kind: 'company', label: 'Owner A LLC', geography: 'NY' });
+  upsertEntity(graph, { id: 'company:owner-b', kind: 'company', label: 'Owner B LLC', geography: 'NY' });
+  const ownerA = addClaim(graph, { id: 'owner:a', subjectId: 'property:one', fact: 'property.owner', objectEntityId: 'company:owner-a', state: 'SUPPORTED', confidence: 0.8, evidenceIds: [], observedAt: '2026-09-15T12:00:00.000Z' });
+  const ownerB = addClaim(graph, { id: 'owner:b', subjectId: 'property:one', fact: 'property.owner', objectEntityId: 'company:owner-b', state: 'SUPPORTED', confidence: 0.8, evidenceIds: [], observedAt: '2026-09-15T12:00:00.000Z' });
+  assert.equal(ownerA.state, 'SUPPORTED');
+  assert.equal(ownerB.state, 'SUPPORTED');
 });
 
 test('completeness only credits supported or verified claims', () => {
