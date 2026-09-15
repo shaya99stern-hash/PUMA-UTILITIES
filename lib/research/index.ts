@@ -10,3 +10,4 @@ export * from './ingest';
 export * from './sources/nyc-hpd';
 export * from './sources/nj-parcels';
 export * from './sources/company-website';
+export * from './sources/water-service';
