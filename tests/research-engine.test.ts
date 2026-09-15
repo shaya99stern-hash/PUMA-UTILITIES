@@ -3,7 +3,9 @@ import test from 'node:test';
 import { addClaim, addEvidence, createResearchGraph, deriveEntityNeeds, deriveProspectNeeds, graphCompleteness, upsertEntity } from '../lib/research/graph';
 import { companyMatch } from '../lib/research/entity-resolution';
 import { ingestCompanyWebsite, ingestHpdOwnership, ingestNjParcel } from '../lib/research/ingest';
+import { ingestWaterServiceAreas } from '../lib/research/ingest-water';
 import { isPublicIp } from '../lib/research/network-safety';
+import { runResearch } from '../lib/research/runner';
 import { planEntityTasks, planProspectTasks, shouldContinueResearch } from '../lib/research/task-planner';
 import { extractContacts, extractLeadershipSignals } from '../lib/research/sources/company-website';
 import { isPublicHttpUrl, validateSearchEndpoint } from '../lib/research/web-search';
@@ -15,7 +17,8 @@ test('missing prospect fields become research needs instead of terminating the l
   const needs = deriveProspectNeeds(graph, 'company:one', 'NJ');
   assert.ok(needs.some((need) => need.fact === 'person.decisionMaker'));
   assert.ok(needs.some((need) => need.fact === 'company.portfolio'));
-  assert.ok(needs.some((need) => need.fact === 'utility.provider'));
+  assert.ok(needs.some((need) => need.fact === 'company.ownerOperator'));
+  assert.equal(needs.some((need) => need.fact === 'utility.provider'), false);
 
   const tasks = planProspectTasks(graph, 'company:one', 'NJ', { maxTasks: 30 });
   assert.ok(tasks.length > 0);
@@ -24,14 +27,15 @@ test('missing prospect fields become research needs instead of terminating the l
 
 test('property entities recursively create owner manager and utility tasks', () => {
   const graph = createResearchGraph();
-  upsertEntity(graph, { id: 'property:one', kind: 'property', label: '123 Main St', geography: 'NY' });
+  upsertEntity(graph, { id: 'property:one', kind: 'property', label: '123 Main St, Newark, NJ', geography: 'NJ' });
   const needs = deriveEntityNeeds(graph, 'property:one');
   assert.ok(needs.some((need) => need.fact === 'property.owner'));
   assert.ok(needs.some((need) => need.fact === 'property.manager'));
   assert.ok(needs.some((need) => need.fact === 'utility.provider'));
-  const tasks = planEntityTasks(graph, 'property:one', 'NY');
-  assert.ok(tasks.some((task) => task.sourceId === 'nyc-acris'));
-  assert.ok(tasks.some((task) => task.sourceId === 'nyc-hpd-registrations'));
+  const tasks = planEntityTasks(graph, 'property:one', 'NJ');
+  assert.ok(tasks.some((task) => task.sourceId === 'nj-parcel-mod4'));
+  assert.ok(tasks.some((task) => task.sourceId === 'njdep-water-purveyor'));
+  assert.ok(tasks.some((task) => task.sourceId === 'epa-water-service-areas'));
 });
 
 test('conflicting single-valued material claims remain explicit conflicts', () => {
@@ -53,7 +57,7 @@ test('conflicting single-valued material claims remain explicit conflicts', () =
   assert.equal(second.state, 'CONFLICTED');
 });
 
-test('multi-valued emails and ownership relationships do not become false conflicts', () => {
+test('multi-valued emails ownership and water providers do not become false conflicts', () => {
   const graph = createResearchGraph();
   upsertEntity(graph, { id: 'company:one', kind: 'company', label: 'Example Property Group', geography: 'NY' });
   const emailOne = addClaim(graph, { id: 'email:1', subjectId: 'company:one', fact: 'company.email', value: 'info@example.com', state: 'SUPPORTED', confidence: 0.8, evidenceIds: [], observedAt: '2026-09-15T12:00:00.000Z' });
@@ -68,6 +72,14 @@ test('multi-valued emails and ownership relationships do not become false confli
   const ownerB = addClaim(graph, { id: 'owner:b', subjectId: 'property:one', fact: 'property.owner', objectEntityId: 'company:owner-b', state: 'SUPPORTED', confidence: 0.8, evidenceIds: [], observedAt: '2026-09-15T12:00:00.000Z' });
   assert.equal(ownerA.state, 'SUPPORTED');
   assert.equal(ownerB.state, 'SUPPORTED');
+
+  ingestWaterServiceAreas(graph, 'property:one', [
+    { provider: 'Wholesale Water Authority', publicWaterSystemId: 'NY0001', boundarySource: 'epa-national', boundaryConfidence: 'authoritative' },
+    { provider: 'Retail Water Department', publicWaterSystemId: 'NY0002', boundarySource: 'epa-national', boundaryConfidence: 'authoritative' },
+  ], '2026-09-15T12:00:00.000Z');
+  const providerClaims = graph.claims.filter((claim) => claim.subjectId === 'property:one' && claim.fact === 'utility.provider');
+  assert.equal(providerClaims.length, 2);
+  assert.ok(providerClaims.every((claim) => claim.state === 'SUPPORTED'));
 });
 
 test('completeness only credits supported or verified claims', () => {
@@ -81,7 +93,7 @@ test('completeness only credits supported or verified claims', () => {
   });
   const completeness = graphCompleteness(graph, 'company:one');
   assert.ok(completeness > 0);
-  assert.ok(completeness < 0.2);
+  assert.ok(completeness < 0.25);
 });
 
 test('company resolver requires strong corroboration before merge', () => {
@@ -144,6 +156,24 @@ test('first-party website extraction and ingestion captures public contacts and 
   }, '2026-09-15T12:00:00.000Z');
   assert.ok(graph.claims.some((claim) => claim.subjectId === 'company:sample' && claim.fact === 'company.email'));
   assert.ok(graph.claims.some((claim) => claim.subjectId === 'company:sample' && claim.fact === 'person.decisionMaker'));
+});
+
+test('research runner executes each non-retryable task once', async () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id: 'company:runner', kind: 'company', label: 'Runner Property Group', geography: 'NJ' });
+  const counts = new Map<string, number>();
+  const result = await runResearch(graph, 'company:runner', {
+    maxTasks: 80,
+    concurrency: 6,
+    executor: async (_graph, task) => {
+      const key = `${task.subjectId}:${task.need.fact}:${task.sourceId}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+      return { taskId: task.id, status: 'complete', sourceId: task.sourceId, discoveredEntityIds: [], evidenceAdded: 0, claimsAdded: 0, message: 'synthetic complete' };
+    },
+  });
+  assert.equal(result.stopReason, 'source-exhausted');
+  assert.ok(counts.size > 0);
+  assert.ok([...counts.values()].every((count) => count === 1));
 });
 
 test('recursive research stops at bounded limits', () => {
