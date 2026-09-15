@@ -1,5 +1,5 @@
 import { graphCompleteness } from './graph';
-import { executeResearchTask, type ResearchTaskResult } from './executor';
+import { executeResearchTask as defaultExecutor, type ResearchTaskResult } from './executor';
 import { SOURCE_REGISTRY } from './source-registry';
 import { planEntityTasks } from './task-planner';
 import type { ResearchGraph, ResearchTask } from './types';
@@ -12,6 +12,7 @@ export interface ResearchRunOptions {
   targetCompleteness?: number;
   searchEndpoint?: string;
   signal?: AbortSignal;
+  executor?: typeof defaultExecutor;
 }
 
 export interface ResearchRunResult {
@@ -36,8 +37,10 @@ export async function runResearch(
   const concurrency = clampInteger(options.concurrency ?? 5, 1, 12);
   const perNeed = clampInteger(options.perNeed ?? 4, 1, 10);
   const targetCompleteness = Math.max(0.25, Math.min(1, options.targetCompleteness ?? 0.82));
+  const executor = options.executor ?? defaultExecutor;
   const attempts = new Map<string, number>();
   const queuedKeys = new Set<string>();
+  const finishedKeys = new Set<string>();
   const queue: ResearchTask[] = [];
   const results: ResearchTaskResult[] = [];
   const entityDepth = new Map<string, number>([[rootEntityId, 0]]);
@@ -46,13 +49,13 @@ export async function runResearch(
 
   while (queue.length && results.length < maxTasks) {
     if (options.signal?.aborted) return summarize('aborted');
-    if (graphCompleteness(graph, rootEntityId) >= targetCompleteness && rootHasDecisionMaker(graph, rootEntityId)) {
+    if (graphCompleteness(graph, rootEntityId) >= targetCompleteness && rootIsActionable(graph, rootEntityId)) {
       return summarize('target-completeness');
     }
 
     const batch = takeBatch(queue, concurrency);
     for (const task of batch) queuedKeys.delete(taskKey(task));
-    const settled = await Promise.all(batch.map((task) => executeResearchTask(graph, task, {
+    const settled = await Promise.all(batch.map((task) => executor(graph, task, {
       searchEndpoint: options.searchEndpoint,
       signal: options.signal,
     })));
@@ -62,11 +65,13 @@ export async function runResearch(
       const task = batch[index];
       const result = settled[index];
       const key = taskKey(task);
-      attempts.set(key, (attempts.get(key) ?? 0) + 1);
+      const count = (attempts.get(key) ?? 0) + 1;
+      attempts.set(key, count);
       const depth = task.depth;
 
+      if (result.status === 'complete' || !result.retryable || count >= 2) finishedKeys.add(key);
       if (result.evidenceAdded > 0 || result.claimsAdded > 0) enqueueEntity(task.subjectId, depth);
-      if (result.retryable && (attempts.get(key) ?? 0) < 2) enqueueTask(task);
+      if (result.retryable && count < 2) enqueueTask(task);
 
       for (const entityId of result.discoveredEntityIds) {
         const nextDepth = Math.min(maxDepth, depth + 1);
@@ -90,7 +95,7 @@ export async function runResearch(
   function enqueueTask(task: ResearchTask): void {
     const key = taskKey(task);
     const count = attempts.get(key) ?? 0;
-    if (count >= 2 || queuedKeys.has(key)) return;
+    if (count >= 2 || finishedKeys.has(key) || queuedKeys.has(key)) return;
     if (results.length + queue.length >= maxTasks * 2) return;
     queue.push(task);
     queuedKeys.add(key);
@@ -135,11 +140,24 @@ function taskKey(task: ResearchTask): string {
   return `${task.subjectId}:${task.need.fact}:${task.sourceId}`;
 }
 
-function rootHasDecisionMaker(graph: ResearchGraph, rootEntityId: string): boolean {
+function rootIsActionable(graph: ResearchGraph, rootEntityId: string): boolean {
   const root = graph.entities.find((entity) => entity.id === rootEntityId);
   if (root?.kind !== 'company') return true;
+  const decisionMakers = graph.claims.filter((claim) =>
+    claim.subjectId === rootEntityId && claim.fact === 'person.decisionMaker' && claim.objectEntityId &&
+    (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7
+  );
+  if (!decisionMakers.length) return false;
+
+  const companyContact = graph.claims.some((claim) =>
+    claim.subjectId === rootEntityId && (claim.fact === 'company.email' || claim.fact === 'company.phone') &&
+    (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7
+  );
+  if (companyContact) return true;
+
+  const personIds = new Set(decisionMakers.map((claim) => claim.objectEntityId).filter((value): value is string => Boolean(value)));
   return graph.claims.some((claim) =>
-    claim.subjectId === rootEntityId && claim.fact === 'person.decisionMaker' &&
+    personIds.has(claim.subjectId) && (claim.fact === 'person.email' || claim.fact === 'person.phone') &&
     (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7
   );
 }
