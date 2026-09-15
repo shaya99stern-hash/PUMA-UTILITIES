@@ -54,6 +54,17 @@ const UTILITY_REQUIRED_FACTS: ResearchFact[] = [
   'utility.amiCapability',
 ];
 
+const SINGLE_VALUED_FACTS = new Set<ResearchFact>([
+  'company.identity',
+  'company.website',
+  'company.ownerOperator',
+  'company.portfolio',
+  'property.identity',
+  'utility.provider',
+  'utility.amiCapability',
+  'utility.buildingMeterStatus',
+]);
+
 export function createResearchGraph(): ResearchGraph {
   return { entities: [], evidence: [], claims: [] };
 }
@@ -91,17 +102,19 @@ export function addClaim(graph: ResearchGraph, claim: ResearchClaim): ResearchCl
   const existing = graph.claims.find((item) => item.id === claim.id);
   if (existing) return existing;
 
-  const competing = graph.claims.filter((item) =>
-    item.subjectId === claim.subjectId &&
-    item.fact === claim.fact &&
-    item.state !== 'UNRESOLVED' &&
-    claim.state !== 'UNRESOLVED' &&
-    !sameClaimValue(item, claim)
-  );
+  if (SINGLE_VALUED_FACTS.has(claim.fact)) {
+    const competing = graph.claims.filter((item) =>
+      item.subjectId === claim.subjectId &&
+      item.fact === claim.fact &&
+      item.state !== 'UNRESOLVED' &&
+      claim.state !== 'UNRESOLVED' &&
+      !sameClaimValue(item, claim)
+    );
 
-  if (competing.length) {
-    for (const item of competing) item.state = 'CONFLICTED';
-    claim.state = 'CONFLICTED';
+    if (competing.length) {
+      for (const item of competing) item.state = 'CONFLICTED';
+      claim.state = 'CONFLICTED';
+    }
   }
 
   graph.claims.push(claim);
