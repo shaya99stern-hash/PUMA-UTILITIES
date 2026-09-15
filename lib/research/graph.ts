@@ -27,11 +27,6 @@ const COMPANY_REQUIRED_FACTS: ResearchFact[] = [
   'company.ownerOperator',
   'company.portfolio',
   'person.decisionMaker',
-  'person.title',
-  'person.phone',
-  'person.email',
-  'utility.provider',
-  'utility.amiCapability',
 ];
 
 const PROPERTY_REQUIRED_FACTS: ResearchFact[] = [
@@ -43,7 +38,6 @@ const PROPERTY_REQUIRED_FACTS: ResearchFact[] = [
 ];
 
 const PERSON_REQUIRED_FACTS: ResearchFact[] = [
-  'person.decisionMaker',
   'person.title',
   'person.phone',
   'person.email',
@@ -60,7 +54,6 @@ const SINGLE_VALUED_FACTS = new Set<ResearchFact>([
   'company.ownerOperator',
   'company.portfolio',
   'property.identity',
-  'utility.provider',
   'utility.amiCapability',
   'utility.buildingMeterStatus',
 ]);
