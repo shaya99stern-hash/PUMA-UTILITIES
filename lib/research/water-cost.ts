@@ -11,7 +11,7 @@ export const GALLONS_PER_CCF = 748;
 export type ParsedWaterRate = {
   dollarsPer1000Gallons: number;
   sourceText: string;
-  sourceUnit: '1000-gallons' | 'ccf' | '1000-cubic-feet';
+  sourceUnit: '1000-gallons' | '10000-gallons' | 'ccf' | '1000-cubic-feet';
 };
 
 export type ParsedFixedWaterCharge = {
@@ -160,6 +160,7 @@ export function parseFixedWaterCharge(text: string): ParsedFixedWaterCharge | un
     { pattern:/\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*month\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\b/gi, divisor:1 },
     { pattern:/quarterly\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\s*[:\-]?\s*\$\s*(\d+(?:\.\d{1,2})?)/gi, divisor:3 },
     { pattern:/(?:water\s+)?(?:service|base|customer|minimum)\s+charge(?:\s+of)?\s*\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*quarter\b/gi, divisor:3 },
+    { pattern:/(?:water\s+)?(?:service|base|customer|minimum)\s+charge(?:\s+of)?\s*\$\s*(\d+(?:\.\d{1,2})?).{0,24}(?:every|per)\s+two\s+months\b/gi, divisor:2 },
     { pattern:/(?:annual|yearly)\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\s*[:\-]?\s*\$\s*(\d+(?:\.\d{1,2})?)/gi, divisor:12 },
     { pattern:/(?:water\s+)?(?:service|base|customer|minimum)\s+charge(?:\s+of)?\s*\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*year\b/gi, divisor:12 },
   ];
@@ -179,6 +180,9 @@ export function parseVariableWaterRate(text: string): ParsedWaterRate | undefine
   if (/\b(irrigation-only|fire protection|hydrant service)\b/i.test(normalized)) return undefined;
   const candidates: ParsedWaterRate[] = [];
 
+  for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:10,?000|10000)\s*(?:gallons?|gal)\b/gi)) {
+    candidates.push({ dollarsPer1000Gallons: Number(match[1]) / 10, sourceText: match[0], sourceUnit: '10000-gallons' });
+  }
   for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:1,?000|1000)\s*(?:gallons?|gal)\b/gi)) {
     candidates.push({ dollarsPer1000Gallons: Number(match[1]), sourceText: match[0], sourceUnit: '1000-gallons' });
   }
