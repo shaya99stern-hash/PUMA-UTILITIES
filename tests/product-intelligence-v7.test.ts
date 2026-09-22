@@ -21,9 +21,12 @@ test('in-app Puma mark is vector artwork with no square app-icon image behind it
 });
 
 test('desktop sidebar and mobile active navigation use the same black surface without boxed icon tiles', () => {
-  assert.match(responsive, /\.pm-desktop-sidebar[\s\S]*background:\s*var\(--pm-bg\)/);
-  assert.match(responsive, /\.pm-bottom-nav a\.active[\s\S]*background:\s*transparent/);
-  assert.doesNotMatch(responsive, /\.pm-brand-mark[\s\S]*background:\s*#(?:fff|ffffff|101214)/i);
+  const sidebarBlock = responsive.match(/\.pm-desktop-sidebar\s*\{[^}]*\}/g)?.join('\n') ?? '';
+  const activeNavBlock = responsive.match(/\.pm-bottom-nav a\.active\s*\{[^}]*\}/g)?.join('\n') ?? '';
+  const brandBlock = responsive.match(/\.pm-brand-mark\s*\{[^}]*\}/g)?.join('\n') ?? '';
+  assert.match(sidebarBlock, /background:\s*var\(--pm-bg\)/);
+  assert.match(activeNavBlock, /background:\s*transparent/);
+  assert.doesNotMatch(brandBlock, /background:\s*#(?:fff|ffffff|101214)/i);
 });
 
 test('water benchmark labels always include literal currency symbols', () => {

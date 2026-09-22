@@ -597,7 +597,7 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
             <div><span>Building Meter</span><strong>{utilityCapabilityLabel(utility)}</strong></div>
             {utility.amiProgram?.status !== 'unknown' && utility.amiProgram?.value && <div><span>Utility AMI Program</span><strong>{utility.amiProgram.value}</strong></div>}
             {utility.rateSummary?.status !== 'unknown' && utility.rateSummary?.value && <div><span>Published Rate Evidence</span><strong>{utility.rateSummary.value}</strong></div>}
-            {utility.benchmarkCost && <div><span>Benchmark Water Cost</span><strong>{`~${Math.round(utility.benchmarkCost.annualEstimatedWaterCost).toLocaleString()}/yr water${utility.benchmarkCost.includesFixedCharges ? ' incl. fixed water charge' : ''}`}</strong></div>}
+            {utility.benchmarkCost && <div><span>Benchmark Water Cost</span><strong>{`~$${Math.round(utility.benchmarkCost.annualEstimatedWaterCost).toLocaleString()}/yr water${utility.benchmarkCost.includesFixedCharges ? ' incl. fixed water charge' : ''}`}</strong></div>}
           </div>)}
           {selectedCompany.stage === 'Client' && <Link className="pm-detail-link" href="/monitor"><span><strong>Monitor</strong><small>Open client-authorized readings and alerts</small></span><ChevronRight size={17} /></Link>}
         </div>
