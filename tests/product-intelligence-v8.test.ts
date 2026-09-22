@@ -194,6 +194,12 @@ test('property task planning spends budget only on geographically applicable exe
   assert.equal(nySources.has('nyc-pluto'), false);
   assert.equal(nySources.has('nyc-hpd-registrations'), false);
 
+  const queens = createResearchGraph();
+  upsertEntity(queens, { id:'property:queens', kind:'property', label:'40-01 Main St, Flushing, NY 11354', geography:'NY' });
+  const queensSources = new Set(planEntityTasks(queens, 'property:queens', 'NY', { perNeed:6, maxTasks:50 }).map((task) => task.sourceId));
+  assert.ok(queensSources.has('nyc-acris'));
+  assert.equal(queensSources.has('nys-tax-parcels-public'), false);
+
   const phila = createResearchGraph();
   upsertEntity(phila, { id:'property:phila', kind:'property', label:'100 Market St, Philadelphia, PA 19106', geography:'PA' });
   const philaSources = new Set(planEntityTasks(phila, 'property:phila', 'PA', { perNeed:6, maxTasks:50 }).map((task) => task.sourceId));

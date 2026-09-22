@@ -38,7 +38,7 @@ export function normalizeNysParcelStreet(address: string): string {
 }
 
 export async function lookupNysTaxParcelByAddress(address: string, signal?: AbortSignal): Promise<NysTaxParcelRecord | undefined> {
-  if (/\b(?:new york|brooklyn|bronx|queens|staten island)\s*,?\s*ny\b/i.test(address)) return undefined;
+  if (isNycAddress(address)) return undefined;
   const street = normalizeNysParcelStreet(address);
   if (street.length < 5 || street.length > 100) return undefined;
   const zip = address.match(/\bNY\s+(\d{5})(?:-\d{4})?\b/i)?.[1];
@@ -129,6 +129,18 @@ export function ingestNysTaxParcel(
       observedAt,
     });
   }
+}
+
+function isNycAddress(address: string): boolean {
+  if (/\b(?:new york|manhattan|brooklyn|bronx|queens|staten island)\b/i.test(address)) return true;
+  const zip = address.match(/\bNY\s+(\d{5})(?:-\d{4})?\b/i)?.[1];
+  const value = zip ? Number(zip) : NaN;
+  return Number.isFinite(value) && (
+    (value >= 10001 && value <= 10282) ||
+    (value >= 10301 && value <= 10475) ||
+    (value >= 11004 && value <= 11005) ||
+    (value >= 11101 && value <= 11697)
+  );
 }
 
 function toRecord(row: Record<string, unknown>): NysTaxParcelRecord {
