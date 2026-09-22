@@ -16,7 +16,7 @@ export async function GET() {
     browserEnrichmentConfigured: Boolean(process.env.PUMA_BROWSER_RESEARCH_URL && process.env.PUMA_BROWSER_RESEARCH_TOKEN),
     browserAdapters: ['contactout-public-directory'],
     officialLeadershipSources: ['sec-edgar'],
-    officialPropertySources: ['nyc-acris','nyc-hpd-registrations','nyc-pluto','nj-parcel-mod4','phila-opa-properties'],
+    officialPropertySources: ['nyc-acris','nyc-hpd-registrations','nyc-pluto','nys-tax-parcels-public','nj-parcel-mod4','phila-opa-properties'],
     structuredFirstParty: ['schema-org-person','schema-org-property','sitemap-discovery'],
     costEstimation: 'evidence-gated-residential-benchmark-plus-normalized-unambiguous-water-charge',
     rules: { publicOnly: true, paywallBypass: false, contactCreditsBypass: false },
@@ -56,11 +56,11 @@ export async function POST(request: Request) {
     }
 
     const result = await runResearch(graph, rootEntityId, {
-      maxTasks: boundedInteger(input.maxTasks, 44, 1, 80),
-      maxDepth: boundedInteger(input.maxDepth, 3, 0, 5),
-      maxBudgetUnits: boundedNumber(input.maxBudgetUnits, 58, 5, 120),
-      concurrency: boundedInteger(input.concurrency, 4, 1, 8),
-      perNeed: boundedInteger(input.perNeed, 4, 1, 6),
+      maxTasks: boundedInteger(input.maxTasks, 60, 1, 80),
+      maxDepth: boundedInteger(input.maxDepth, 4, 0, 5),
+      maxBudgetUnits: boundedNumber(input.maxBudgetUnits, 82, 5, 120),
+      concurrency: boundedInteger(input.concurrency, 5, 1, 8),
+      perNeed: boundedInteger(input.perNeed, 6, 1, 6),
       targetCompleteness: boundedNumber(input.targetCompleteness, 0.82, 0.25, 1),
       signal: request.signal,
     });

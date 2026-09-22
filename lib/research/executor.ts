@@ -15,6 +15,7 @@ import { researchOfficialBusinessIdentity } from './sources/official-business';
 import { ingestAcrisOwnership, lookupAcrisOwnershipByAddress } from './sources/nyc-acris';
 import { ingestNycPluto, lookupNycPlutoByBbl } from './sources/nyc-pluto';
 import { ingestPhiladelphiaOpa, lookupPhiladelphiaOpaByAddress } from './sources/philadelphia-opa';
+import { ingestNysTaxParcel, lookupNysTaxParcelByAddress } from './sources/nys-tax-parcels';
 
 export interface ResearchTaskResult {
   taskId: string;
@@ -183,6 +184,15 @@ async function executeSource(
     const result = await lookupHpdOwnershipByBbl(bbl.borough, bbl.block, bbl.lot, options.signal);
     ingestHpdOwnership(graph, result, entity.label, undefined, entity.id);
     return { text: `NYC HPD returned ${result.contacts.length} registration contact(s).` };
+  }
+
+  if (task.sourceId === 'nys-tax-parcels-public') {
+    if (entity.kind !== 'property') return { text: 'NYS tax parcel resolution requires a property entity.', blocked: true };
+    if ((entity.geography ?? '').toUpperCase() !== 'NY') return { text: 'NYS tax parcel source applies only to New York properties.', blocked: true, retryable: false };
+    const record = await lookupNysTaxParcelByAddress(entity.label, options.signal);
+    if (!record) return { text: 'NYS public tax parcels did not return one unambiguous exact-address record. The statewide layer covers participating counties only, so this is not negative ownership evidence.', blocked: true, retryable: false };
+    ingestNysTaxParcel(graph, entity.id, record);
+    return { text: `NYS tax parcels corroborated ${record.printKey ?? record.sbl ?? 'parcel identity'} and ${[record.primaryOwner, record.additionalOwner].filter(Boolean).length} owner-of-record name(s).` };
   }
 
   if (task.sourceId === 'phila-opa-properties') {
