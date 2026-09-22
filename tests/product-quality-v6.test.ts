@@ -50,9 +50,9 @@ test('bulk selection exposes select-all and clear-all behavior', () => {
 });
 
 test('benchmark currency labels include literal dollar signs everywhere', () => {
-  assert.match(shell, /~\$\{Math\.round\(utility\.benchmarkCost\.annualEstimatedWaterCost\)/);
-  assert.match(research, /~\$\{Math\.round\(estimate\.annualEstimatedWaterCost\)/);
-  assert.match(research, /\$\{Math\.round\(estimate\.monthlyEstimatedWaterCost\)/);
+  assert.match(shell, /~\$\$\{Math\.round\(utility\.benchmarkCost\.annualEstimatedWaterCost\)/);
+  assert.match(research, /~\$\$\{Math\.round\(estimate\.annualEstimatedWaterCost\)/);
+  assert.match(research, /\$\$\{Math\.round\(estimate\.monthlyEstimatedWaterCost\)/);
 });
 
 test('NYC BBL formatter produces the 10-digit PLUTO key', () => {
