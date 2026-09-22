@@ -61,15 +61,15 @@ export type AcrisOwnershipResult = {
 export async function lookupAcrisOwnershipByAddress(address: string, signal?: AbortSignal): Promise<AcrisOwnershipResult | undefined> {
   const parsed = parseStreetAddress(address);
   if (!parsed) return undefined;
-  const borough = inferBoroughCode(address);
-  if (borough === '5') return undefined;
+  const inferredBorough = inferBoroughCode(address);
+  if (inferredBorough === '5') return undefined;
 
   const legalUrl = new URL(LEGALS_API);
   legalUrl.searchParams.set('$select', 'document_id,borough,block,lot,street_number,street_name');
   legalUrl.searchParams.set('$where', [
     `street_number='${escapeSoql(parsed.number)}'`,
     `upper(street_name) like '%${escapeSoql(parsed.streetCore)}%'`,
-    borough ? `borough=${borough}` : undefined,
+    inferredBorough ? `borough=${inferredBorough}` : undefined,
   ].filter(Boolean).join(' AND '));
   legalUrl.searchParams.set('$limit', '100');
   const legals = await fetchRows<AcrisLegalRow>(legalUrl, signal);
