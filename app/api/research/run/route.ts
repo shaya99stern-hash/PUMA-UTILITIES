@@ -16,7 +16,7 @@ export async function GET() {
     browserEnrichmentConfigured: Boolean(process.env.PUMA_BROWSER_RESEARCH_URL && process.env.PUMA_BROWSER_RESEARCH_TOKEN),
     browserAdapters: ['contactout-public-directory'],
     officialLeadershipSources: ['sec-edgar'],
-    officialPropertySources: ['nyc-acris','nyc-hpd-registrations','nyc-pluto','nys-tax-parcels-public','nj-parcel-mod4','phila-opa-properties'],
+    officialPropertySources: ['nyc-acris','nyc-hpd-registrations','nyc-pluto','nys-tax-parcels-public','nj-parcel-mod4','phila-opa-properties','pa-county-assessment:bucks'],
     structuredFirstParty: ['schema-org-person','schema-org-property','sitemap-discovery'],
     costEstimation: 'evidence-gated-residential-benchmark-plus-normalized-unambiguous-water-charge',
     rules: { publicOnly: true, paywallBypass: false, contactCreditsBypass: false },
@@ -73,18 +73,7 @@ export async function POST(request: Request) {
   }
 }
 
-function invalid(message: string) {
-  return NextResponse.json({ error: message }, { status: 400 });
-}
-
-function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, Math.floor(value))) : fallback;
-}
-
-function boundedNumber(value: unknown, fallback: number, min: number, max: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
-}
-
-function slug(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'entity';
-}
+function invalid(message: string) { return NextResponse.json({ error: message }, { status: 400 }); }
+function boundedInteger(value: unknown, fallback: number, min: number, max: number): number { return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, Math.floor(value))) : fallback; }
+function boundedNumber(value: unknown, fallback: number, min: number, max: number): number { return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback; }
+function slug(value: string): string { return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'entity'; }
