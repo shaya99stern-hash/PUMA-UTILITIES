@@ -165,7 +165,7 @@ async function executeSource(
     const bbl = parseBbl(entity.aliases ?? [], entity.label);
     if (!bbl) return { text: 'NYC HPD requires a resolved BBL before registration/contact lookup.', blocked: true, retryable: true };
     const result = await lookupHpdOwnershipByBbl(bbl.borough, bbl.block, bbl.lot, options.signal);
-    ingestHpdOwnership(graph, result, entity.label);
+    ingestHpdOwnership(graph, result, entity.label, undefined, entity.id);
     return { text: `NYC HPD returned ${result.contacts.length} registration contact(s).` };
   }
 

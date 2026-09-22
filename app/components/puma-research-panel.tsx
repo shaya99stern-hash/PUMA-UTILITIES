@@ -202,7 +202,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
           <span>Defensible water-cost benchmarks</span>
           {waterEstimates.slice(0, 12).map((estimate) => <div key={estimate.propertyId}>
             <strong>{result.graph.entities.find((entity) => entity.id === estimate.propertyId)?.label ?? estimate.provider}</strong>
-            <small>{`~$${Math.round(estimate.annualVariableCost).toLocaleString()}/yr variable water · ${Math.round(estimate.monthlyVariableCost).toLocaleString()}/mo · fixed/sewer/tax charges excluded`}</small>
+            <small>{`~${Math.round(estimate.annualEstimatedWaterCost).toLocaleString()}/yr water · ${Math.round(estimate.monthlyEstimatedWaterCost).toLocaleString()}/mo · ${estimate.includesFixedCharges ? 'published fixed water charge included · ' : ''}sewer/tax/demand excluded`}</small>
           </div>)}
         </div>}
 

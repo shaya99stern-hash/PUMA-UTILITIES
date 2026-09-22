@@ -31,16 +31,18 @@ export function ingestNjParcel(
     confidence: 0.94,
     excerpt: parcelExcerpt(record),
   });
-  addClaim(graph, {
-    id: `claim:${propertyId}:identity:nj-parcel`,
-    subjectId: propertyId,
-    fact: 'property.identity',
-    value: record.pamsPin ?? label,
-    state: 'VERIFIED',
-    confidence: 0.94,
-    evidenceIds: [evidenceId],
-    observedAt,
-  });
+  if (!targetPropertyId) {
+    addClaim(graph, {
+      id: `claim:${propertyId}:identity:nj-parcel`,
+      subjectId: propertyId,
+      fact: 'property.identity',
+      value: record.pamsPin ?? label,
+      state: 'VERIFIED',
+      confidence: 0.94,
+      evidenceIds: [evidenceId],
+      observedAt,
+    });
+  }
 
   const officialUnits = resolvedNjUnitCount(record);
   if (officialUnits !== undefined) {
@@ -90,13 +92,23 @@ export function ingestHpdOwnership(
   result: HpdOwnershipResult,
   label: string,
   observedAt = new Date().toISOString(),
+  targetPropertyId?: string,
 ): string {
   const registration = result.registration;
   const key = registration
     ? `${registration.boroughId}-${registration.block}-${registration.lot}`
     : label;
-  const propertyId = `property:nyc:${stableToken(key)}`;
-  upsertEntity(graph, { id: propertyId, kind: 'property', label, geography: 'NY' });
+  const propertyId = targetPropertyId ?? `property:nyc:${stableToken(key)}`;
+  const existingProperty = graph.entities.find((entity) => entity.id === propertyId && entity.kind === 'property');
+  upsertEntity(graph, {
+    id: propertyId,
+    kind: 'property',
+    label: existingProperty?.label ?? label,
+    geography: existingProperty?.geography ?? 'NY',
+    aliases: registration
+      ? mergeAliases(existingProperty?.aliases, [`BBL ${registration.boroughId}-${registration.block}-${registration.lot}`])
+      : existingProperty?.aliases,
+  });
 
   result.sourceUrls.forEach((url, index) => addEvidence(graph, {
     id: `evidence:hpd:${stableToken(key)}:${index}`,
@@ -108,7 +120,7 @@ export function ingestHpdOwnership(
     excerpt: registration ? `HPD registration ${registration.registrationId} for BBL ${key}` : `No current HPD registration resolved for ${label}`,
   }));
 
-  if (registration) {
+  if (registration && !targetPropertyId) {
     addClaim(graph, {
       id: `claim:${propertyId}:identity:hpd`,
       subjectId: propertyId,

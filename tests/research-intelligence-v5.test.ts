@@ -58,7 +58,7 @@ test('NJ official parcel evidence enriches the researched property instead of cr
   assert.equal(graph.entities.filter((entity) => entity.kind === 'property').length, 1);
   assert.ok(graph.claims.some((claim) => claim.subjectId === 'property:portfolio' && claim.fact === 'property.owner' && claim.objectEntityId));
   assert.ok(graph.claims.some((claim) => claim.subjectId === 'property:portfolio' && claim.fact === 'property.units' && claim.value === 84));
-  assert.ok(graph.claims.some((claim) => claim.subjectId === 'property:portfolio' && claim.fact === 'property.identity' && claim.value === '0714_123_4'));
+  assert.ok(graph.entities.find((entity) => entity.id === 'property:portfolio')?.aliases?.includes('NJ PAMS 0714_123_4'));
 });
 
 test('official unit-count conflicts block false precision in cost estimation', () => {
@@ -115,4 +115,23 @@ test('water benchmark includes a unique published monthly water service charge w
   assert.equal(estimate?.annualFixedWaterCharge, 222);
   assert.equal(estimate?.annualEstimatedWaterCost, (estimate?.annualVariableCost ?? 0) + 222);
   assert.match(estimate?.methodology ?? '', /sewer.*tax.*excluded/i);
+});
+
+
+test('HPD official contacts enrich the existing NYC property after a BBL is resolved', () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id:'property:hpd-target', kind:'property', label:'10 Example Ave, Brooklyn, NY 11201', geography:'NY', aliases:['BBL 3-123-45'] });
+  const { ingestHpdOwnership } = require('../lib/research/ingest') as typeof import('../lib/research/ingest');
+  ingestHpdOwnership(graph, {
+    registration:{ registrationId:'100', boroughId:'3', block:'123', lot:'45' },
+    contacts:[
+      { registrationId:'100', type:'CorporateOwner', corporationName:'EXAMPLE OWNER LLC' },
+      { registrationId:'100', type:'Agent', corporationName:'EXAMPLE MANAGEMENT LLC' }
+    ],
+    sourceUrls:['https://data.cityofnewyork.us/resource/tesw-yqqr.json','https://data.cityofnewyork.us/resource/feu5-w2e2.json']
+  }, '10 Example Ave, Brooklyn, NY 11201', '2026-09-22T19:00:00Z', 'property:hpd-target');
+
+  assert.equal(graph.entities.filter((entity) => entity.kind === 'property').length, 1);
+  assert.ok(graph.claims.some((claim) => claim.subjectId === 'property:hpd-target' && claim.fact === 'property.owner'));
+  assert.ok(graph.claims.some((claim) => claim.subjectId === 'property:hpd-target' && claim.fact === 'property.manager'));
 });
