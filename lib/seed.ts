@@ -225,3 +225,55 @@ export function mergeReleaseOneSeeds(workspace: Workspace): Workspace {
     updatedAt: new Date().toISOString(),
   };
 }
+
+
+/**
+ * Remove the legacy Release One demo/research targets from a real operator
+ * workspace. Exact stable seed IDs are used so user-created/researched
+ * companies are never removed by name similarity.
+ */
+export function stripLegacyReleaseOneSeeds(workspace: Workspace): Workspace {
+  const seededCompanyIds = new Set<string>(RELEASE_ONE_COMPANY_IDS);
+  const seededPropertyIds = new Set(
+    workspace.properties
+      .filter((property) => seededCompanyIds.has(property.companyId))
+      .map((property) => property.id),
+  );
+  const seededUtilityIds = new Set(
+    workspace.utilities
+      .filter((utility) => seededPropertyIds.has(utility.propertyId))
+      .map((utility) => utility.id),
+  );
+  const seededMeterIds = new Set(
+    workspace.meters
+      .filter((meter) => seededUtilityIds.has(meter.utilityServiceId))
+      .map((meter) => meter.id),
+  );
+
+  const changed =
+    workspace.companies.some((company) => seededCompanyIds.has(company.id)) ||
+    seededPropertyIds.size > 0 ||
+    seededUtilityIds.size > 0 ||
+    seededMeterIds.size > 0;
+
+  if (!changed) return workspace;
+
+  return {
+    ...workspace,
+    companies: workspace.companies.filter((company) => !seededCompanyIds.has(company.id)),
+    properties: workspace.properties.filter((property) => !seededPropertyIds.has(property.id)),
+    parcels: workspace.parcels.filter((parcel) => !seededPropertyIds.has(parcel.propertyId)),
+    utilities: workspace.utilities.filter((utility) => !seededUtilityIds.has(utility.id)),
+    meters: workspace.meters.filter((meter) => !seededMeterIds.has(meter.id)),
+    tariffs: workspace.tariffs.filter((tariff) => !seededUtilityIds.has(tariff.utilityServiceId)),
+    inboxNotes: (workspace.inboxNotes ?? []).filter((note) =>
+      (!note.companyId || !seededCompanyIds.has(note.companyId)) &&
+      (!note.propertyId || !seededPropertyIds.has(note.propertyId))
+    ),
+    accountsPayable: (workspace.accountsPayable ?? []).filter((item) =>
+      !seededCompanyIds.has(item.companyId) &&
+      (!item.propertyId || !seededPropertyIds.has(item.propertyId))
+    ),
+    updatedAt: new Date().toISOString(),
+  };
+}
