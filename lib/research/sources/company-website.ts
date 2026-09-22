@@ -484,24 +484,37 @@ export function extractLikelySitemapUrls(xml: string, origin: string): string[] 
 }
 
 async function fetchSitemap(origin: string, timeoutMs: number, outerSignal?: AbortSignal): Promise<string> {
-  const url = new URL('/sitemap.xml', origin).toString();
-  if (!isPublicHttpUrl(url)) throw new Error('Refused non-public sitemap URL.');
-  await assertPublicNetworkTarget(url);
+  const start = new URL('/sitemap.xml', origin);
+  const allowedHost = start.hostname.toLowerCase().replace(/^www\./, '');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const abort = () => controller.abort();
   outerSignal?.addEventListener('abort', abort, { once:true });
   try {
-    const response = await fetch(url, {
-      headers:{ Accept:'application/xml,text/xml;q=0.9,text/plain;q=0.8', 'User-Agent':'PumaUtilitiesResearch/1.3 public business research' },
-      redirect:'follow',
-      cache:'no-store',
-      signal:controller.signal,
-    });
-    if (!response.ok) throw new Error(`Sitemap HTTP ${response.status}`);
-    const length = Number(response.headers.get('content-length') ?? 0);
-    if (length > 1_000_000) throw new Error('Sitemap is too large.');
-    return (await response.text()).slice(0, 1_000_000);
+    let current = start.toString();
+    for (let redirects = 0; redirects <= 3; redirects += 1) {
+      if (!isPublicHttpUrl(current)) throw new Error('Refused non-public sitemap URL.');
+      const currentUrl = new URL(current);
+      if (currentUrl.hostname.toLowerCase().replace(/^www\./, '') !== allowedHost) throw new Error('Refused cross-host sitemap redirect.');
+      await assertPublicNetworkTarget(current);
+      const response = await fetch(current, {
+        headers:{ Accept:'application/xml,text/xml;q=0.9,text/plain;q=0.8', 'User-Agent':'PumaUtilitiesResearch/1.3 public business research' },
+        redirect:'manual',
+        cache:'no-store',
+        signal:controller.signal,
+      });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) throw new Error(`Sitemap redirect ${response.status} had no location.`);
+        current = new URL(location, current).toString();
+        continue;
+      }
+      if (!response.ok) throw new Error(`Sitemap HTTP ${response.status}`);
+      const length = Number(response.headers.get('content-length') ?? 0);
+      if (length > 1_000_000) throw new Error('Sitemap is too large.');
+      return (await response.text()).slice(0, 1_000_000);
+    }
+    throw new Error('Too many sitemap redirects.');
   } finally {
     clearTimeout(timer);
     outerSignal?.removeEventListener('abort', abort);

@@ -5,7 +5,7 @@ const LEGALS_API = 'https://data.cityofnewyork.us/resource/8h5j-fqxa.json';
 const MASTER_API = 'https://data.cityofnewyork.us/resource/bnx9-e6tj.json';
 const PARTIES_API = 'https://data.cityofnewyork.us/resource/636b-3b5g.json';
 
-const DEED_TYPES = new Set(['DEED','DEEDO','CONDEED','CORRD','DEED COR','DEED, LE','DEEDP','REIT']);
+const DEED_TYPES = new Set(['DEED','CORRD','DEED COR','DEED, LE','DEED, TS','DEEDO','DEEDP','IDED']);
 
 type AcrisLegalRow = {
   document_id?: string;
@@ -61,10 +61,16 @@ export type AcrisOwnershipResult = {
 export async function lookupAcrisOwnershipByAddress(address: string, signal?: AbortSignal): Promise<AcrisOwnershipResult | undefined> {
   const parsed = parseStreetAddress(address);
   if (!parsed) return undefined;
+  const borough = inferBoroughCode(address);
+  if (borough === '5') return undefined;
 
   const legalUrl = new URL(LEGALS_API);
   legalUrl.searchParams.set('$select', 'document_id,borough,block,lot,street_number,street_name');
-  legalUrl.searchParams.set('$where', `street_number='${escapeSoql(parsed.number)}' AND upper(street_name) like '%${escapeSoql(parsed.streetCore)}%'`);
+  legalUrl.searchParams.set('$where', [
+    `street_number='${escapeSoql(parsed.number)}'`,
+    `upper(street_name) like '%${escapeSoql(parsed.streetCore)}%'`,
+    borough ? `borough=${borough}` : undefined,
+  ].filter(Boolean).join(' AND '));
   legalUrl.searchParams.set('$limit', '100');
   const legals = await fetchRows<AcrisLegalRow>(legalUrl, signal);
   const exact = legals.filter((row) =>
@@ -141,21 +147,24 @@ export function ingestAcrisOwnership(
   const bblLabel = `BBL ${result.bbl.borough}-${result.bbl.block}-${result.bbl.lot}`;
   property.aliases = [...new Set([...(property.aliases ?? []), bblLabel])];
 
-  const evidenceId = `evidence:acris:${token(result.deed.documentId)}`;
-  addEvidence(graph, {
-    id: evidenceId,
-    sourceId: 'nyc-acris',
-    url: result.sourceUrls[1] ?? result.sourceUrls[0],
-    observedAt,
-    authority: 'official',
-    confidence: 0.97,
-    excerpt: [
-      bblLabel,
-      result.deed.documentType,
-      result.deed.recordedAt ?? result.deed.documentDate,
-      result.deed.crfn ? `CRFN ${result.deed.crfn}` : undefined,
-      result.grantees.map((grantee) => `grantee: ${grantee.name}`).join('; '),
-    ].filter(Boolean).join(' · ').slice(0, 900),
+  const evidenceIds = result.sourceUrls.map((url, index) => {
+    const evidenceId = `evidence:acris:${token(result.deed.documentId)}:${index}`;
+    addEvidence(graph, {
+      id: evidenceId,
+      sourceId: 'nyc-acris',
+      url,
+      observedAt,
+      authority: 'official',
+      confidence: 0.97,
+      excerpt: [
+        bblLabel,
+        result.deed.documentType,
+        result.deed.recordedAt ?? result.deed.documentDate,
+        result.deed.crfn ? `CRFN ${result.deed.crfn}` : undefined,
+        result.grantees.map((grantee) => `grantee: ${grantee.name}`).join('; '),
+      ].filter(Boolean).join(' · ').slice(0, 900),
+    });
+    return evidenceId;
   });
 
   for (const grantee of result.grantees) {
@@ -168,7 +177,7 @@ export function ingestAcrisOwnership(
       objectEntityId: ownerId,
       state: 'VERIFIED',
       confidence: 0.96,
-      evidenceIds: [evidenceId],
+      evidenceIds,
       observedAt,
     });
     addClaim(graph, {
@@ -178,10 +187,20 @@ export function ingestAcrisOwnership(
       value: grantee.name,
       state: 'SUPPORTED',
       confidence: 0.9,
-      evidenceIds: [evidenceId],
+      evidenceIds,
       observedAt,
     });
   }
+}
+
+function inferBoroughCode(address: string): string | undefined {
+  const normalized = address.toLowerCase();
+  if (/\bstaten\s+island\b/.test(normalized)) return '5';
+  if (/\bbronx\b/.test(normalized)) return '2';
+  if (/\bbrooklyn\b/.test(normalized)) return '3';
+  if (/\bqueens\b/.test(normalized)) return '4';
+  if (/\bmanhattan\b/.test(normalized) || /,\s*new\s+york\s*,\s*ny\b/.test(normalized)) return '1';
+  return undefined;
 }
 
 function parseStreetAddress(address: string): { number: string; streetCore: string } | undefined {
