@@ -157,11 +157,11 @@ export function extractPropertySignals(html: string, sourceUrl: string): Website
   const addressPattern = new RegExp('\\b\\d{1,6}\\s+[A-Za-z0-9][A-Za-z0-9 .\\\'-]{2,70}\\s(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Place|Pl|Parkway|Pkwy|Highway|Hwy|Way)\\b(?:[^\\n,]{0,40})?,?\\s+[A-Za-z .\\\'-]{2,40},?\\s+(' + statePattern + ')\\s+\\d{5}(?:-\\d{4})?\\b', 'gi');
   const output = new Map<string, WebsitePropertySignal>();
   for (const match of text.matchAll(addressPattern)) {
-    const address = match[0].replace(/\\s+/g, ' ').trim().replace(/^[,;: -]+|[,;: -]+$/g, '');
+    const address = match[0].replace(/\s+/g, ' ').trim().replace(/^[,;: -]+|[,;: -]+$/g, '');
     if (address.length < 12 || address.length > 180) continue;
     const context = nearbyContext(text, match.index ?? 0, match[0].length) ?? '';
-    const unitsMatch = context.match(/\\b(\\d{1,4})\\s*(?:[- ]?units?|apartments?)\\b/i);
-    const squareFeetMatch = context.match(/\\b([\\d,]{4,})\\s*(?:square\\s+feet|sq\\.?\\s*ft\\.?|sf)\\b/i);
+    const unitsMatch = context.match(/\b(\d{1,4})\s*(?:[- ]?units?|apartments?)\b/i);
+    const squareFeetMatch = context.match(/\b([\d,]{4,})\s*(?:square\s+feet|sq\.?\s*ft\.?|sf)\b/i);
     const units = unitsMatch ? Number(unitsMatch[1]) : undefined;
     const grossSquareFeet = squareFeetMatch ? Number(squareFeetMatch[1].replace(/,/g, '')) : undefined;
     output.set(address.toLowerCase(), {
@@ -179,8 +179,9 @@ export function extractPortfolioSignals(html: string, sourceUrl: string): Websit
   const text = htmlToText(html);
   const output: WebsitePortfolioSignal[] = [];
   const patterns = [
-    /\\b(?:(more than|over|at least)\\s+)?(?:portfolio(?:\\s+of|\\s+includes|\\s+consists of)?|owns?|manages?|operates?)\\s+(\\d{1,4})(\\+)?\\s+(buildings?|properties|communities|locations)\\b/gi,
-    /\\b(?:(more than|over|at least)\\s+)?(\\d{1,4})(\\+)?[-\\s]+(building|property|community|location)\\s+portfolio\\b/gi,
+    /\b(?:(more than|over|at least)\s+)?(?:portfolio(?:\s+of|\s+includes|\s+consists of)?|owns?|manages?|operates?)\s+(\d{1,4})(\+)?\s+(buildings?|properties|communities|locations)\b/gi,
+    /\b(?:owns?|own)\s+and\s+(?:manages?|operates?)\s+(?:(more than|over|at least)\s+)?(\d{1,4})(\+)?\s+(buildings?|properties|communities|locations)\b/gi,
+    /\b(?:(more than|over|at least)\s+)?(\d{1,4})(\+)?[-\s]+(building|property|community|location)\s+portfolio\b/gi,
   ];
   const seen = new Set<string>();
   for (const pattern of patterns) {
@@ -193,7 +194,7 @@ export function extractPortfolioSignals(html: string, sourceUrl: string): Websit
           : rawLabel.startsWith('communit') ? 'communities'
             : 'locations';
       const qualifier = match[1] || match[3] ? 'at-least' : 'exact';
-      const signal: WebsitePortfolioSignal = { count, label, qualifier, text: match[0].replace(/\\s+/g, ' ').trim(), sourceUrl };
+      const signal: WebsitePortfolioSignal = { count, label, qualifier, text: match[0].replace(/\s+/g, ' ').trim(), sourceUrl };
       const key = qualifier + ':' + count + ':' + label;
       if (!seen.has(key)) {
         seen.add(key);
@@ -206,9 +207,9 @@ export function extractPortfolioSignals(html: string, sourceUrl: string): Websit
 
 export function extractOwnerOperatorSignals(html: string, sourceUrl: string): WebsiteOwnerOperatorSignal[] {
   const text = htmlToText(html);
-  const lines = text.split(/\\n+/).map((line) => line.replace(/\\s+/g, ' ').trim()).filter((line) => line.length >= 12 && line.length <= 320);
+  const lines = text.split(/\n+/).map((line) => line.replace(/\s+/g, ' ').trim()).filter((line) => line.length >= 12 && line.length <= 320);
   return lines
-    .filter((line) => /\\b(owner[- ]?operator|owns? and (?:self[- ]?)?manages?|acquires?,? owns?,? and manages?|vertically integrated owner|owner and manager)\\b/i.test(line))
+    .filter((line) => /\b(owner[- ]?operator|owns? and (?:self[- ]?)?manages?|acquires?,? owns?,? and manages?|vertically integrated owner|owner and manager)\b/i.test(line))
     .slice(0, 20)
     .map((text) => ({ text, sourceUrl }));
 }

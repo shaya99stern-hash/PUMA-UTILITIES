@@ -58,10 +58,8 @@ const SINGLE_VALUED_FACTS = new Set<ResearchFact>([
   'company.website',
   'company.ownerOperator',
   'company.portfolio',
-  'company.portfolioLowerBound',
   'property.identity',
   'utility.amiCapability',
-  'utility.rateSchedule',
   'utility.buildingMeterStatus',
 ]);
 
