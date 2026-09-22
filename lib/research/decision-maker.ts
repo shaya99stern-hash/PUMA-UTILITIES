@@ -23,13 +23,15 @@ export function rankDecisionMakers(graph: ResearchGraph, companyId: string): Ran
   return ids.flatMap((personId): RankedDecisionMaker[] => {
     const entity = graph.entities.find((item) => item.id === personId && item.kind === 'person');
     if (!entity) return [];
+    const relationshipClaim = trustedClaims(graph, companyId, 'person.decisionMaker')
+      .find((claim) => claim.objectEntityId === personId);
     const titleClaim = bestTrustedClaim(graph, personId, 'person.title');
     const emailClaim = bestTrustedClaim(graph, personId, 'person.email');
     const phoneClaim = bestTrustedClaim(graph, personId, 'person.phone');
     const title = typeof titleClaim?.value === 'string' ? titleClaim.value : undefined;
     const email = typeof emailClaim?.value === 'string' ? emailClaim.value : undefined;
     const phone = typeof phoneClaim?.value === 'string' ? phoneClaim.value : undefined;
-    const authority = bestAuthority(graph, [titleClaim, emailClaim, phoneClaim].filter(Boolean) as ResearchClaim[]);
+    const authority = bestAuthority(graph, [relationshipClaim, titleClaim, emailClaim, phoneClaim].filter(Boolean) as ResearchClaim[]);
     const reasons: string[] = [];
     let score = roleScore(title);
 

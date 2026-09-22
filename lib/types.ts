@@ -141,6 +141,8 @@ export type Property = {
   companyId: string;
   name: string;
   address: EvidenceValue<string>;
+  units?: EvidenceValue<number>;
+  grossSquareFeet?: EvidenceValue<number>;
   state: StateCode;
   parcelIds: string[];
   provenance: Provenance[];
@@ -161,6 +163,19 @@ export type PortalCapability =
   | 'not-visible'
   | 'unknown';
 
+export type BenchmarkWaterCost = {
+  annualVariableCost: number;
+  monthlyVariableCost: number;
+  benchmarkAnnualGallons: number;
+  annualVariableCostLow?: number;
+  annualVariableCostHigh?: number;
+  basis: 'epa-multifamily-gallons-per-unit' | 'epa-multifamily-wui';
+  includesFixedCharges: false;
+  methodology: string;
+  sourceUrls: string[];
+  status: 'estimated';
+};
+
 export type UtilityService = {
   id: string;
   propertyId: string;
@@ -172,6 +187,7 @@ export type UtilityService = {
   provenanceId?: string;
   amiProgram?: EvidenceValue<string>;
   rateSummary?: EvidenceValue<string>;
+  benchmarkCost?: BenchmarkWaterCost;
 };
 
 export type UsageReading = {

@@ -553,12 +553,17 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
         <Link className="pm-back" href={buildingListPath(selectedCompany.id)}><ChevronLeft size={17} /> Buildings</Link>
         <div className="pm-record-head"><h1>{selectedProperty.name}</h1><div className="pm-office"><span>Address</span><strong>{selectedProperty.address.status !== 'unknown' && selectedProperty.address.value ? selectedProperty.address.value : `${selectedProperty.state} · address not verified`}</strong></div></div>
         <div className="pm-detail-stack">
+          {(selectedProperty.units?.value || selectedProperty.grossSquareFeet?.value) && <div className="pm-utility">
+            {selectedProperty.units?.value && <div><span>Residential Units</span><strong>{selectedProperty.units.value.toLocaleString()}</strong></div>}
+            {selectedProperty.grossSquareFeet?.value && <div><span>Gross Area</span><strong>{selectedProperty.grossSquareFeet.value.toLocaleString()} sq ft</strong></div>}
+          </div>}
           {utilities.length === 0 && <div className="pm-empty"><strong>No water utility record saved.</strong></div>}
           {utilities.map((utility) => <div className="pm-utility" key={utility.id}>
             <div><span>Water Utility</span><strong>{utility.provider}</strong></div>
             <div><span>Building Meter</span><strong>{utilityCapabilityLabel(utility)}</strong></div>
             {utility.amiProgram?.status !== 'unknown' && utility.amiProgram?.value && <div><span>Utility AMI Program</span><strong>{utility.amiProgram.value}</strong></div>}
             {utility.rateSummary?.status !== 'unknown' && utility.rateSummary?.value && <div><span>Published Rate Evidence</span><strong>{utility.rateSummary.value}</strong></div>}
+            {utility.benchmarkCost && <div><span>Benchmark Water Cost</span><strong>{`~$${Math.round(utility.benchmarkCost.annualVariableCost).toLocaleString()}/yr variable water`}</strong></div>}
           </div>)}
           {selectedCompany.stage === 'Client' && <Link className="pm-detail-link" href="/monitor"><span><strong>Monitor</strong><small>Open client-authorized readings and alerts</small></span><ChevronRight size={17} /></Link>}
         </div>

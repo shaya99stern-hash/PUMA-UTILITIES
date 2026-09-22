@@ -1,8 +1,10 @@
 import { normalizeLabel } from './graph';
 import { assessResearchRun } from './qualification';
+import { rankDecisionMakers } from './decision-maker';
+import { estimatePropertyWaterCost } from './water-cost';
 import type { ResearchRunResult } from './runner';
 import type { ResearchClaim, ResearchEvidence, ResearchGraph } from './types';
-import type { Company, Person, Property, Provenance, UtilityService, Workspace } from '../types';
+import type { Company, Person, PortfolioMetric, Property, Provenance, UtilityService, Workspace } from '../types';
 
 export type ResearchMergeSummary = {
   companyId: string;
@@ -21,20 +23,22 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
   const existing = workspace.companies.find((company) => normalizeLabel(company.name) === normalizeLabel(root.label));
   const companyId = existing?.id ?? `research_company_${token(root.id)}`;
   const provenance = provenanceForSubject(graph, root.id);
-  const decisionMakerIds = new Set(
-    trustedClaims(graph, root.id, 'person.decisionMaker')
-      .map((claim) => claim.objectEntityId)
-      .filter((value): value is string => Boolean(value))
-  );
-
-  const people = [...decisionMakerIds].map((id) => projectPerson(graph, id)).filter((value): value is Person => Boolean(value));
+  const rankedDecisionMakers = rankDecisionMakers(graph, root.id);
+  const people = rankedDecisionMakers
+    .map((ranked) => projectPerson(graph, ranked.personId))
+    .filter((value): value is Person => Boolean(value));
   const officeContact = projectOfficeContact(graph, root.id);
   if (officeContact) people.push(officeContact);
 
   const website = stringClaim(graph, root.id, 'company.website');
   const publicEmail = stringClaim(graph, root.id, 'company.email');
   const publicPhone = stringClaim(graph, root.id, 'company.phone');
-  const portfolio = numberClaim(graph, root.id, 'company.portfolio');
+  const portfolioMetrics = projectPortfolioMetrics(graph, root.id);
+  const exactBuildings = portfolioMetrics.find((metric) =>
+    ['buildings', 'properties', 'locations', 'communities'].includes(metric.label) &&
+    metric.qualifier !== 'at-least'
+  );
+  const exactUnits = portfolioMetrics.find((metric) => metric.label === 'apartments' && metric.qualifier !== 'at-least');
   const assessment = assessResearchRun(result);
 
   const company: Company = {
@@ -57,9 +61,13 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
     publicEmail: publicEmail ?? existing?.publicEmail,
     publicPhone: publicPhone ?? existing?.publicPhone,
     prospectAssessment: assessment,
-    portfolioBuildings: portfolio !== undefined
-      ? { value: portfolio, status: 'verified-public', updatedAt: now }
+    portfolioBuildings: exactBuildings
+      ? { value: exactBuildings.value, status: 'verified-public', provenanceId: exactBuildings.provenanceId, updatedAt: now }
       : existing?.portfolioBuildings ?? { status: 'unknown' },
+    portfolioUnits: exactUnits
+      ? { value: exactUnits.value, status: 'verified-public', provenanceId: exactUnits.provenanceId, updatedAt: now }
+      : existing?.portfolioUnits ?? { status: 'unknown' },
+    portfolio: portfolioMetrics.length ? mergePortfolio(existing?.portfolio ?? [], portfolioMetrics) : existing?.portfolio,
     people: mergePeople(existing?.people ?? [], people),
     provenance: mergeProvenance(existing?.provenance ?? [], provenance),
     updatedAt: now,
@@ -88,6 +96,7 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
       if (!claim.objectEntityId) continue;
       const utilityEntity = graph.entities.find((item) => item.id === claim.objectEntityId);
       if (!utilityEntity) continue;
+      const benchmark = estimatePropertyWaterCost(graph, propertyEntityId);
       projectedUtilities.push({
         id: `research_utility_${token(workspacePropertyId + utilityEntity.id)}`,
         propertyId: workspacePropertyId,
@@ -99,6 +108,18 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
         provenanceId: claim.evidenceIds[0] ? `research_prov_${token(claim.evidenceIds[0])}` : undefined,
         amiProgram: evidenceValueFromClaim(graph, utilityEntity.id, 'utility.amiCapability', now),
         rateSummary: evidenceValueFromClaim(graph, utilityEntity.id, 'utility.rateSchedule', now),
+        benchmarkCost: benchmark?.utilityId === utilityEntity.id ? {
+          annualVariableCost: benchmark.annualVariableCost,
+          monthlyVariableCost: benchmark.monthlyVariableCost,
+          benchmarkAnnualGallons: benchmark.benchmarkAnnualGallons,
+          annualVariableCostLow: benchmark.annualVariableCostLow,
+          annualVariableCostHigh: benchmark.annualVariableCostHigh,
+          basis: benchmark.basis,
+          includesFixedCharges: false,
+          methodology: benchmark.methodology,
+          sourceUrls: benchmark.sourceUrls,
+          status: 'estimated',
+        } : undefined,
       });
     }
   }
@@ -163,6 +184,8 @@ function projectProperty(graph: ResearchGraph, entityId: string, companyId: stri
     companyId,
     name: entity.label,
     address: { value: entity.label, status: 'verified-public', updatedAt: now },
+    units: numberEvidenceValue(graph, entityId, 'property.units', now),
+    grossSquareFeet: numberEvidenceValue(graph, entityId, 'property.grossSquareFeet', now),
     state: entity.geography ?? '',
     parcelIds: [],
     provenance: provenanceForSubject(graph, entityId),
@@ -215,9 +238,38 @@ function evidenceValueFromClaim(graph: ResearchGraph, subjectId: string, fact: R
   };
 }
 
-function numberClaim(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): number | undefined {
+function numberEvidenceValue(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact'], now: string) {
   const claim = trustedClaims(graph, subjectId, fact).find((item) => typeof item.value === 'number' && Number.isFinite(item.value));
-  return typeof claim?.value === 'number' ? claim.value : undefined;
+  if (!claim || typeof claim.value !== 'number') return undefined;
+  return {
+    value: claim.value,
+    status: 'verified-public' as const,
+    provenanceId: claim.evidenceIds[0] ? `research_prov_${token(claim.evidenceIds[0])}` : undefined,
+    updatedAt: now,
+  };
+}
+
+function projectPortfolioMetrics(graph: ResearchGraph, companyId: string): PortfolioMetric[] {
+  const claims = [
+    ...trustedClaims(graph, companyId, 'company.portfolio'),
+    ...trustedClaims(graph, companyId, 'company.portfolioLowerBound'),
+  ];
+  return claims
+    .filter((claim) => typeof claim.value === 'number' && Number.isFinite(claim.value))
+    .map((claim): PortfolioMetric => ({
+      value: claim.value as number,
+      label: claim.metricLabel ?? 'buildings',
+      qualifier: claim.fact === 'company.portfolioLowerBound' ? 'at-least' : (claim.qualifier ?? 'exact'),
+      status: 'verified-public',
+      provenanceId: claim.evidenceIds[0] ? `research_prov_${token(claim.evidenceIds[0])}` : undefined,
+      statement: claim.statement,
+    }));
+}
+
+function mergePortfolio(existing: PortfolioMetric[], incoming: PortfolioMetric[]): PortfolioMetric[] {
+  const map = new Map(existing.map((item) => [`${item.label}:${item.value}:${item.qualifier ?? 'exact'}`, item]));
+  for (const item of incoming) map.set(`${item.label}:${item.value}:${item.qualifier ?? 'exact'}`, item);
+  return [...map.values()];
 }
 
 function trustedClaims(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): ResearchClaim[] {

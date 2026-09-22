@@ -171,6 +171,9 @@ function isResolvedClaim(claim?: ResearchClaim): boolean {
 
 function sameClaimValue(left: ResearchClaim, right: ResearchClaim): boolean {
   if (left.objectEntityId || right.objectEntityId) return left.objectEntityId === right.objectEntityId;
+  if (left.fact === 'company.identity' && right.fact === 'company.identity') {
+    return normalizeLabel(String(left.value ?? '')) === normalizeLabel(String(right.value ?? ''));
+  }
   return String(left.value ?? '').trim().toLowerCase() === String(right.value ?? '').trim().toLowerCase();
 }
 

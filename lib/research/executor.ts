@@ -11,6 +11,7 @@ import { geocodeUsAddress, lookupEpaWaterSystems, lookupNjPurveyors, lookupPaWat
 import { ingestUtilityWebsite, researchUtilityWebsite } from './sources/utility-website';
 import { ingestSecCompanyResearch, researchSecCompany } from './sources/sec-edgar';
 import { resolvePersonFromCompanySite } from './sources/person-company';
+import { researchOfficialBusinessIdentity } from './sources/official-business';
 
 export interface ResearchTaskResult {
   taskId: string;
@@ -68,6 +69,12 @@ async function executeSource(
   const entity = graph.entities.find((item) => item.id === task.subjectId);
   if (!entity) return { text: 'Research subject no longer exists.', blocked: true };
 
+  if (task.sourceId === 'nys-dos-business' || task.sourceId === 'nj-dores-business' || task.sourceId === 'pa-dos-business') {
+    if (entity.kind !== 'company') return { text: 'Official business-record research requires a company entity.', blocked: true };
+    const result = await researchOfficialBusinessIdentity(graph, entity.id, task.sourceId, options.signal);
+    return { text: result.message, blocked: result.matched === 0 };
+  }
+
   if (task.sourceId === 'sec-edgar') {
     if (entity.kind !== 'company') return { text: 'SEC EDGAR research requires a company entity.', blocked: true };
     const research = await researchSecCompany(entity.label, options.signal);
@@ -114,7 +121,7 @@ async function executeSource(
     }
     const url = stringValue(website?.value);
     if (!url) return { text: 'No credible first-party website candidate is available yet.', blocked: true, retryable: true };
-    const research = await crawlCompanyWebsite(url, { maxPages: 6, signal: options.signal });
+    const research = await crawlCompanyWebsite(url, { maxPages: 9, signal: options.signal });
     ingestCompanyWebsite(graph, entity.id, research);
     return { text: `Crawled ${research.visitedUrls.length} first-party page(s); found ${research.contacts.length} public business contact(s) and ${research.leadershipSignals.length} leadership signal(s).` };
   }
