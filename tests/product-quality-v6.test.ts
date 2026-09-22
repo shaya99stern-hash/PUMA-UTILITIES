@@ -89,3 +89,23 @@ test('source registry advertises PLUTO only for official property physical facts
   const registry = readFileSync('lib/research/source-registry.ts', 'utf8');
   assert.match(registry, /id:\s*['"]nyc-pluto['"][\s\S]*capabilities:\s*\[['"]property\.units['"],['"]property\.grossSquareFeet['"]\]/);
 });
+
+
+test('PLUTO condominium records do not mislabel net area as gross square footage', () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id:'property:condo', kind:'property', label:'1 Condo Ave, New York, NY', geography:'NY' });
+  ingestNycPluto(graph, 'property:condo', {
+    bbl:'1000010001',
+    unitsres:'120',
+    bldgarea:'210000',
+    condono:'44',
+  }, undefined, '2026-09-22T20:00:00Z');
+  assert.ok(graph.claims.some((claim) => claim.subjectId === 'property:condo' && claim.fact === 'property.units' && claim.value === 120));
+  assert.equal(graph.claims.some((claim) => claim.subjectId === 'property:condo' && claim.fact === 'property.grossSquareFeet'), false);
+});
+
+test('property planning explicitly asks for units and physical area', () => {
+  const graphSource = readFileSync('lib/research/graph.ts', 'utf8');
+  assert.match(graphSource, /PROPERTY_REQUIRED_FACTS[\s\S]*'property\.units'/);
+  assert.match(graphSource, /PROPERTY_REQUIRED_FACTS[\s\S]*'property\.grossSquareFeet'/);
+});

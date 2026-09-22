@@ -13,6 +13,20 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     notes: ['Use published datasets/data services rather than automating the ACRIS UI. Join document, legal and party observations by source identifiers.']
   },
   {
+    id: 'nyc-pluto',
+    label: 'NYC PLUTO',
+    url: 'https://data.cityofnewyork.us/City-Government/Primary-Land-Use-Tax-Lot-Output-PLUTO-/64uk-42ks',
+    geographies: ['NY', 'NYC'],
+    authority: 'official',
+    strategy: 'structured',
+    capabilities: ['property.units','property.grossSquareFeet'],
+    reliability: 0.96, evidenceStrength: 0.96, expectedLatencyMs: 450, freshnessDays: 120, maxConcurrency: 6,
+    notes: [
+      'Resolve by an already corroborated NYC BBL. UnitsRes is residential units on the tax lot.',
+      'BldgArea is not promoted to gross-square-footage for condominium records because PLUTO documents condo area as net rather than gross.'
+    ]
+  },
+  {
     id: 'nyc-hpd-registrations',
     label: 'NYC HPD Registrations + Registration Contacts',
     url: 'https://data.cityofnewyork.us/Housing-Development/Registration-Contacts/feu5-w2e2',
