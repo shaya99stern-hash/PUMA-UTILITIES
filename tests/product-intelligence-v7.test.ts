@@ -133,5 +133,5 @@ test('install metadata uses generated Puma icons rather than the retired baked P
   assert.doesNotMatch(layout, /apple-touch-icon\.png/);
   assert.match(manifest, /pwa-icon-192/);
   assert.match(manifest, /pwa-icon-512/);
-  assert.match(worker, /shell-v3/);
+  assert.match(worker, /shell-v4/);
 });
