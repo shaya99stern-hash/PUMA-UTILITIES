@@ -134,3 +134,15 @@ test('multifamily WUI estimate is withheld when square footage lacks sourced res
   addClaim(graph, { id:'rate2', subjectId:'utility:commercial', fact:'utility.rateSchedule', value:'$8.42 per 1,000 gallons', state:'SUPPORTED', confidence:.9, evidenceIds:[], observedAt:'2026-09-22T18:00:00Z' });
   assert.equal(estimatePropertyWaterCost(graph, 'property:commercial'), undefined);
 });
+
+
+test('water-cost estimate is withheld when separate trusted rate lines imply multiple tiers', () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id:'property:tiered', kind:'property', label:'20 Main St, Newark, NJ 07102', geography:'NJ' });
+  upsertEntity(graph, { id:'utility:tiered', kind:'utility', label:'Tiered Water', geography:'NJ' });
+  addClaim(graph, { id:'units-tier', subjectId:'property:tiered', fact:'property.units', value:80, state:'SUPPORTED', confidence:.9, evidenceIds:[], observedAt:'2026-09-22T18:00:00Z' });
+  addClaim(graph, { id:'provider-tier', subjectId:'property:tiered', fact:'utility.provider', objectEntityId:'utility:tiered', state:'SUPPORTED', confidence:.9, evidenceIds:[], observedAt:'2026-09-22T18:00:00Z' });
+  addClaim(graph, { id:'rate-tier-1', subjectId:'utility:tiered', fact:'utility.rateSchedule', value:'First block $5.00 per CCF', state:'SUPPORTED', confidence:.9, evidenceIds:[], observedAt:'2026-09-22T18:00:00Z' });
+  addClaim(graph, { id:'rate-tier-2', subjectId:'utility:tiered', fact:'utility.rateSchedule', value:'Second block $8.00 per CCF', state:'SUPPORTED', confidence:.9, evidenceIds:[], observedAt:'2026-09-22T18:01:00Z' });
+  assert.equal(estimatePropertyWaterCost(graph, 'property:tiered'), undefined);
+});
