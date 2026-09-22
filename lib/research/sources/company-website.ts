@@ -2,7 +2,7 @@ import { assertPublicNetworkTarget } from '../network-safety';
 import { isPublicHttpUrl } from '../web-search';
 
 const DEFAULT_PATHS = ['/', '/about', '/about-us', '/team', '/leadership', '/management', '/properties', '/portfolio', '/contact', '/contact-us'];
-const DECISION_TITLES = /\b(owner|founder|principal|managing principal|managing partner|president|chief executive officer|ceo|chief operating officer|coo|head of property management|property manager|asset manager|director of operations|vice president)\b/i;
+const DECISION_TITLES = /\b(owner|founder|principal|managing principal|managing partner|president|chief executive officer|ceo|chief operating officer|coo|chief property officer|head of property management|property manager|regional property manager|asset manager|director of asset management|director of operations|facilities director|director of facilities|vice president(?: of operations| of property management| of asset management)?)\b/i;
 
 export interface WebsiteContact {
   type: 'email' | 'phone';
@@ -58,6 +58,13 @@ export async function crawlCompanyWebsite(
   const maxPages = Math.max(1, Math.min(10, Math.floor(options.maxPages ?? 6)));
   const timeoutMs = Math.max(1000, Math.min(15_000, Math.floor(options.timeoutMs ?? 7000)));
   const queue = prioritizedUrls(seed).slice(0, maxPages * 2);
+  try {
+    const sitemapXml = await fetchSitemap(seed.origin, timeoutMs, options.signal);
+    const sitemapUrls = extractLikelySitemapUrls(sitemapXml, seed.origin).slice(0, maxPages * 2);
+    queue.splice(1, 0, ...sitemapUrls.filter((url) => !queue.includes(url)));
+  } catch {
+    // Sitemaps are optional; continue with bounded page discovery.
+  }
   const visited = new Set<string>();
   const contacts = new Map<string, WebsiteContact>();
   const leadershipSignals = new Map<string, WebsiteLeadershipSignal>();
@@ -106,6 +113,20 @@ export function extractContacts(html: string, sourceUrl: string): WebsiteContact
   const plain = htmlToText(html);
   const contacts = new Map<string, WebsiteContact>();
 
+  for (const person of extractJsonLdPeople(html)) {
+    const context = [person.name, person.jobTitle].filter(Boolean).join(' — ') || undefined;
+    if (person.email) {
+      const email = person.email.toLowerCase().replace(/^mailto:/i, '').trim();
+      if (/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email) && !email.endsWith('@example.com')) {
+        contacts.set(`email:${email}`, { type:'email', value:email, sourceUrl, context });
+      }
+    }
+    if (person.telephone) {
+      const phone = normalizeUsPhone(person.telephone.replace(/^tel:/i, ''));
+      if (phone) contacts.set(`phone:${phone}`, { type:'phone', value:phone, sourceUrl, context });
+    }
+  }
+
   for (const match of plain.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)) {
     const email = match[0].toLowerCase().replace(/[),.;:]+$/, '');
     if (email.endsWith('@example.com') || /\.(png|jpg|jpeg|gif|webp)$/i.test(email)) continue;
@@ -148,7 +169,16 @@ export function extractContacts(html: string, sourceUrl: string): WebsiteContact
 export function extractLeadershipSignals(html: string, sourceUrl: string): WebsiteLeadershipSignal[] {
   const text = htmlToText(html);
   const lines = text.split(/\n+/).map((line) => line.trim()).filter((line) => line.length >= 5 && line.length <= 240);
-  return lines.filter((line) => DECISION_TITLES.test(line)).slice(0, 50).map((line) => ({ text: line, sourceUrl }));
+  const signals = new Map<string, WebsiteLeadershipSignal>();
+  for (const line of lines.filter((line) => DECISION_TITLES.test(line)).slice(0, 50)) {
+    signals.set(line.toLowerCase(), { text: line, sourceUrl });
+  }
+  for (const person of extractJsonLdPeople(html)) {
+    if (!person.name || !person.jobTitle || !DECISION_TITLES.test(person.jobTitle)) continue;
+    const value = `${person.name} — ${person.jobTitle}`;
+    signals.set(value.toLowerCase(), { text:value, sourceUrl });
+  }
+  return [...signals.values()].slice(0, 50);
 }
 
 export function extractPropertySignals(html: string, sourceUrl: string): WebsitePropertySignal[] {
@@ -169,6 +199,22 @@ export function extractPropertySignals(html: string, sourceUrl: string): Website
       state: match[1]?.toUpperCase(),
       units: units && units <= 5000 ? units : undefined,
       grossSquareFeet: grossSquareFeet && grossSquareFeet <= 20_000_000 ? grossSquareFeet : undefined,
+      sourceUrl,
+    });
+  }
+  for (const item of extractJsonLdObjects(html)) {
+    if (!isPropertySchemaObject(item)) continue;
+    const address = schemaPostalAddress(item.address);
+    if (!address) continue;
+    const key = address.toLowerCase();
+    const existing = output.get(key);
+    const units = schemaUnits(item);
+    const grossSquareFeet = schemaFloorSquareFeet(item.floorSize);
+    output.set(key, {
+      address,
+      state: schemaRegion(item.address) ?? existing?.state,
+      units: units ?? existing?.units,
+      grossSquareFeet: grossSquareFeet ?? existing?.grossSquareFeet,
       sourceUrl,
     });
   }
@@ -286,6 +332,103 @@ function extractSocialUrls(html: string): string[] {
   return [...output];
 }
 
+type JsonLdPerson = { name?: string; jobTitle?: string; email?: string; telephone?: string };
+
+function extractJsonLdPeople(html: string): JsonLdPerson[] {
+  return extractJsonLdObjects(html)
+    .filter((item) => schemaTypes(item).some((type) => type.toLowerCase() === 'person'))
+    .map((item) => ({
+      name: schemaString(item.name),
+      jobTitle: schemaString(item.jobTitle),
+      email: schemaString(item.email),
+      telephone: schemaString(item.telephone),
+    }))
+    .filter((person) => Boolean(person.name));
+}
+
+function extractJsonLdObjects(html: string): Record<string, unknown>[] {
+  const output: Record<string, unknown>[] = [];
+  for (const match of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      flattenJsonLd(JSON.parse(decodeBasicEntities(match[1])), output);
+    } catch {
+      // Ignore malformed schema blocks.
+    }
+  }
+  return output;
+}
+
+function flattenJsonLd(value: unknown, output: Record<string, unknown>[]): void {
+  if (Array.isArray(value)) {
+    value.forEach((item) => flattenJsonLd(item, output));
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+  const record = value as Record<string, unknown>;
+  output.push(record);
+  if (Array.isArray(record['@graph'])) record['@graph'].forEach((item) => flattenJsonLd(item, output));
+}
+
+function schemaTypes(item: Record<string, unknown>): string[] {
+  const value = item['@type'];
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : typeof value === 'string' ? [value] : [];
+}
+
+function isPropertySchemaObject(item: Record<string, unknown>): boolean {
+  const types = schemaTypes(item).map((type) => type.toLowerCase());
+  const propertyType = types.some((type) => ['apartmentcomplex','apartment','residence','singlefamilyresidence','place','realestatelisting'].includes(type));
+  return propertyType && Boolean(item.address);
+}
+
+function schemaPostalAddress(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (!value || typeof value !== 'object') return undefined;
+  const item = value as Record<string, unknown>;
+  const parts = [
+    schemaString(item.streetAddress),
+    schemaString(item.addressLocality),
+    schemaString(item.addressRegion),
+    schemaString(item.postalCode),
+  ].filter((part): part is string => Boolean(part));
+  if (parts.length < 3) return undefined;
+  const street = parts[0];
+  const city = parts[1];
+  const region = parts[2];
+  const postal = parts[3];
+  return [street, city, [region, postal].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+}
+
+function schemaRegion(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  return schemaString((value as Record<string, unknown>).addressRegion)?.toUpperCase();
+}
+
+function schemaUnits(item: Record<string, unknown>): number | undefined {
+  const value = item.numberOfAccommodationUnits ?? item.numberOfUnits;
+  const parsed = schemaNumber(value);
+  return parsed && parsed > 0 && parsed <= 20_000 ? parsed : undefined;
+}
+
+function schemaFloorSquareFeet(value: unknown): number | undefined {
+  if (typeof value === 'number') return value > 0 && value <= 100_000_000 ? value : undefined;
+  if (!value || typeof value !== 'object') return undefined;
+  const item = value as Record<string, unknown>;
+  const amount = schemaNumber(item.value);
+  const unit = schemaString(item.unitText) ?? schemaString(item.unitCode);
+  if (!amount || amount <= 0 || amount > 100_000_000) return undefined;
+  if (unit && !/(sq\.?\s*ft|square\s*feet|ft2|ft²)/i.test(unit)) return undefined;
+  return amount;
+}
+
+function schemaString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function schemaNumber(value: unknown): number | undefined {
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.replace(/,/g, '')) : NaN;
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function nearbyContext(text: string, start: number, length: number): string | undefined {
   const context = text.slice(Math.max(0, start - 180), Math.min(text.length, start + length + 180)).replace(/\s+/g, ' ').trim();
   return context || undefined;
@@ -320,4 +463,60 @@ function decodeBasicEntities(value: string): string {
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&nbsp;/gi, ' ');
+}
+
+
+export function extractLikelySitemapUrls(xml: string, origin: string): string[] {
+  const normalizedOrigin = new URL(origin).origin;
+  const output = new Set<string>();
+  for (const match of xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)) {
+    try {
+      const url = new URL(decodeBasicEntities(match[1]));
+      if (url.origin !== normalizedOrigin || !isPublicHttpUrl(url.toString())) continue;
+      if (!/\b(about|team|leadership|management|people|staff|portfolio|properties|buildings|communities|contact)\b/i.test(url.pathname)) continue;
+      url.hash = '';
+      output.add(url.toString());
+    } catch {
+      // Ignore malformed sitemap entries.
+    }
+  }
+  return [...output];
+}
+
+async function fetchSitemap(origin: string, timeoutMs: number, outerSignal?: AbortSignal): Promise<string> {
+  const start = new URL('/sitemap.xml', origin);
+  const allowedHost = start.hostname.toLowerCase().replace(/^www\./, '');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const abort = () => controller.abort();
+  outerSignal?.addEventListener('abort', abort, { once:true });
+  try {
+    let current = start.toString();
+    for (let redirects = 0; redirects <= 3; redirects += 1) {
+      if (!isPublicHttpUrl(current)) throw new Error('Refused non-public sitemap URL.');
+      const currentUrl = new URL(current);
+      if (currentUrl.hostname.toLowerCase().replace(/^www\./, '') !== allowedHost) throw new Error('Refused cross-host sitemap redirect.');
+      await assertPublicNetworkTarget(current);
+      const response = await fetch(current, {
+        headers:{ Accept:'application/xml,text/xml;q=0.9,text/plain;q=0.8', 'User-Agent':'PumaUtilitiesResearch/1.3 public business research' },
+        redirect:'manual',
+        cache:'no-store',
+        signal:controller.signal,
+      });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) throw new Error(`Sitemap redirect ${response.status} had no location.`);
+        current = new URL(location, current).toString();
+        continue;
+      }
+      if (!response.ok) throw new Error(`Sitemap HTTP ${response.status}`);
+      const length = Number(response.headers.get('content-length') ?? 0);
+      if (length > 1_000_000) throw new Error('Sitemap is too large.');
+      return (await response.text()).slice(0, 1_000_000);
+    }
+    throw new Error('Too many sitemap redirects.');
+  } finally {
+    clearTimeout(timer);
+    outerSignal?.removeEventListener('abort', abort);
+  }
 }

@@ -96,25 +96,39 @@ function contextMatches(context: string | undefined, name: string): boolean {
 
 function extractTitle(text: string, name: string): string | undefined {
   const withoutName = text.replace(new RegExp(escapeRegex(name), 'i'), ' ').replace(/^[\s—–|,:-]+|[\s—–|,:-]+$/g, '').trim();
-  const match = withoutName.match(/\b(owner|founder|principal|managing principal|managing partner|president|chief executive officer|ceo|chief operating officer|coo|chief financial officer|cfo|head of property management|property manager|asset manager|director of operations|vice president|facilities director)\b/i);
+  const match = withoutName.match(/\b(owner|founder|principal|managing principal|managing partner|president|chief executive officer|ceo|chief operating officer|coo|chief property officer|chief financial officer|cfo|head of property management|regional property manager|property manager|director of asset management|asset manager|director of operations|vice president(?: of operations| of property management| of asset management)?|director of facilities|facilities director)\b/i);
   return match?.[0];
 }
 
 async function fetchHtml(url: string, signal?: AbortSignal): Promise<string> {
   if (!isPublicHttpUrl(url)) throw new Error('Refused non-public person URL.');
-  await assertPublicNetworkTarget(url);
-  const response = await fetch(url, {
-    headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'PumaUtilitiesResearch/1.2 public business research' },
-    redirect: 'follow',
-    cache: 'no-store',
-    signal,
-  });
-  if (!response.ok) throw new Error('First-party person page returned ' + response.status + '.');
-  const contentType = response.headers.get('content-type') ?? '';
-  if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) throw new Error('Person page was not HTML.');
-  const length = Number(response.headers.get('content-length') ?? 0);
-  if (length > 2_000_000) throw new Error('Person page exceeded safe crawl size.');
-  return (await response.text()).slice(0, 2_000_000);
+  const allowedHost = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+  let current = url;
+  for (let redirects = 0; redirects <= 4; redirects += 1) {
+    if (!isPublicHttpUrl(current)) throw new Error('Refused non-public person URL.');
+    const currentUrl = new URL(current);
+    if (currentUrl.hostname.toLowerCase().replace(/^www\./, '') !== allowedHost) throw new Error('Refused cross-host person redirect.');
+    await assertPublicNetworkTarget(current);
+    const response = await fetch(current, {
+      headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'PumaUtilitiesResearch/1.3 public business research' },
+      redirect: 'manual',
+      cache: 'no-store',
+      signal,
+    });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (!location) throw new Error('Person redirect ' + response.status + ' had no location.');
+      current = new URL(location, current).toString();
+      continue;
+    }
+    if (!response.ok) throw new Error('First-party person page returned ' + response.status + '.');
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) throw new Error('Person page was not HTML.');
+    const length = Number(response.headers.get('content-length') ?? 0);
+    if (length > 2_000_000) throw new Error('Person page exceeded safe crawl size.');
+    return (await response.text()).slice(0, 2_000_000);
+  }
+  throw new Error('Too many person-page redirects.');
 }
 
 function escapeRegex(value: string): string {

@@ -14,6 +14,11 @@ export type ParsedWaterRate = {
   sourceUnit: '1000-gallons' | 'ccf';
 };
 
+export type ParsedFixedWaterCharge = {
+  monthlyDollars: number;
+  sourceText: string;
+};
+
 export type PropertyWaterCostEstimate = {
   propertyId: string;
   utilityId: string;
@@ -26,8 +31,12 @@ export type PropertyWaterCostEstimate = {
   annualVariableCostLow?: number;
   annualVariableCostHigh?: number;
   monthlyVariableCost: number;
+  annualFixedWaterCharge?: number;
+  monthlyFixedWaterCharge?: number;
+  annualEstimatedWaterCost: number;
+  monthlyEstimatedWaterCost: number;
   dollarsPer1000Gallons: number;
-  includesFixedCharges: false;
+  includesFixedCharges: boolean;
   sourceUrls: string[];
   methodology: string;
 };
@@ -57,6 +66,17 @@ export function estimatePropertyWaterCost(graph: ResearchGraph, propertyId: stri
     .sort((left, right) => right.claim.confidence - left.claim.confidence)[0]?.claim;
   if (!rateClaim) return undefined;
 
+  const fixedChargeClaims = trustedClaims(graph, utility.id, 'utility.rateSchedule')
+    .flatMap((claim) => {
+      if (typeof claim.value !== 'string') return [];
+      const parsed = parseFixedWaterCharge(claim.value);
+      return parsed ? [{ claim, parsed }] : [];
+    });
+  const distinctFixedCharges = fixedChargeClaims.filter((item, index, all) =>
+    all.findIndex((other) => Math.abs(other.parsed.monthlyDollars - item.parsed.monthlyDollars) < 0.0001) === index
+  );
+  const fixedCharge = distinctFixedCharges.length === 1 ? distinctFixedCharges[0] : undefined;
+
   const squareFeetClaim = numericTrustedClaim(graph, propertyId, 'property.grossSquareFeet');
   const unitsClaim = numericTrustedClaim(graph, propertyId, 'property.units');
   const squareFeet = typeof squareFeetClaim?.value === 'number' ? squareFeetClaim.value : undefined;
@@ -82,9 +102,13 @@ export function estimatePropertyWaterCost(graph: ResearchGraph, propertyId: stri
   }
 
   const annualVariableCost = benchmarkAnnualGallons / 1000 * parsedRate.dollarsPer1000Gallons;
+  const monthlyFixedWaterCharge = fixedCharge?.parsed.monthlyDollars;
+  const annualFixedWaterCharge = monthlyFixedWaterCharge === undefined ? undefined : monthlyFixedWaterCharge * 12;
+  const annualEstimatedWaterCost = annualVariableCost + (annualFixedWaterCharge ?? 0);
   const sourceUrls = [...new Set([
     ...claimUrls(graph, providerClaim),
     ...claimUrls(graph, rateClaim),
+    ...(fixedCharge ? claimUrls(graph, fixedCharge.claim) : []),
     ...(unitsClaim ? claimUrls(graph, unitsClaim) : []),
     ...(squareFeetClaim ? claimUrls(graph, squareFeetClaim) : []),
     'https://www.energystar.gov/buildings/benchmark/understand-metrics/what-water-use-intensity-wui',
@@ -103,11 +127,42 @@ export function estimatePropertyWaterCost(graph: ResearchGraph, propertyId: stri
     annualVariableCostLow: low === undefined ? undefined : money(low / 1000 * parsedRate.dollarsPer1000Gallons),
     annualVariableCostHigh: high === undefined ? undefined : money(high / 1000 * parsedRate.dollarsPer1000Gallons),
     monthlyVariableCost: money(annualVariableCost / 12),
+    annualFixedWaterCharge: annualFixedWaterCharge === undefined ? undefined : money(annualFixedWaterCharge),
+    monthlyFixedWaterCharge: monthlyFixedWaterCharge === undefined ? undefined : money(monthlyFixedWaterCharge),
+    annualEstimatedWaterCost: money(annualEstimatedWaterCost),
+    monthlyEstimatedWaterCost: money(annualEstimatedWaterCost / 12),
     dollarsPer1000Gallons: parsedRate.dollarsPer1000Gallons,
-    includesFixedCharges: false,
+    includesFixedCharges: Boolean(fixedCharge),
     sourceUrls,
-    methodology: methodology + ' The estimate applies only the single parseable variable water-use rate; fixed, sewer, tax, demand, and tiered charges are excluded.',
+    methodology: methodology + (fixedCharge
+      ? ' A single unambiguous published monthly water service charge is included. Sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges are excluded.'
+      : ' Fixed, sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges are excluded.'),
   };
+}
+
+export function parseFixedWaterCharge(text: string): ParsedFixedWaterCharge | undefined {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (/\b(sewer|wastewater)\b/i.test(normalized)) return undefined;
+  if (/\b\d+(?:\/\d+)?\s*(?:inch|in\.?|")\s*meter\b/i.test(normalized)) return undefined;
+
+  const candidates: ParsedFixedWaterCharge[] = [];
+  const patterns = [
+    /monthly\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\s*[:\-]?\s*\$\s*(\d+(?:\.\d{1,2})?)/gi,
+    /(?:water\s+)?(?:service|base|customer|minimum)\s+charge(?:\s+of)?\s*\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*month\b/gi,
+    /\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*month\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\b/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of normalized.matchAll(pattern)) {
+      const amount = Number(match[1]);
+      if (Number.isFinite(amount) && amount > 0 && amount < 100_000) {
+        candidates.push({ monthlyDollars: amount, sourceText: match[0] });
+      }
+    }
+  }
+  const unique = candidates.filter((candidate, index, all) =>
+    all.findIndex((item) => Math.abs(item.monthlyDollars - candidate.monthlyDollars) < 0.0001) === index
+  );
+  return unique.length === 1 ? unique[0] : undefined;
 }
 
 export function parseVariableWaterRate(text: string): ParsedWaterRate | undefined {

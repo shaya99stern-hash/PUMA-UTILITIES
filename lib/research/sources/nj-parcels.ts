@@ -27,9 +27,18 @@ export async function lookupNjParcelByPin(pin: string, signal?: AbortSignal): Pr
 }
 
 export async function searchNjParcelsByAddress(address: string, signal?: AbortSignal): Promise<NjParcelRecord[]> {
-  const normalized = address.trim().replace(/\s+/g, ' ');
+  const normalized = normalizeNjPropertyLocationSearch(address);
   if (normalized.length < 4 || normalized.length > 120) throw new Error('Address search must be between 4 and 120 characters.');
   return queryParcels(`PROP_LOC LIKE '%${escapeArcgis(normalized)}%'`, signal);
+}
+
+export function normalizeNjPropertyLocationSearch(address: string): string {
+  const street = address.split(',')[0]?.trim() ?? '';
+  return street
+    .replace(/\b(?:apt|apartment|unit|suite|ste)\s*[A-Za-z0-9-]+\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
 }
 
 async function queryParcels(where: string, signal?: AbortSignal): Promise<NjParcelRecord[]> {

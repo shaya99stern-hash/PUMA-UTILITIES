@@ -12,6 +12,7 @@ import { ingestUtilityWebsite, researchUtilityWebsite } from './sources/utility-
 import { ingestSecCompanyResearch, researchSecCompany } from './sources/sec-edgar';
 import { resolvePersonFromCompanySite } from './sources/person-company';
 import { researchOfficialBusinessIdentity } from './sources/official-business';
+import { ingestAcrisOwnership, lookupAcrisOwnershipByAddress } from './sources/nyc-acris';
 
 export interface ResearchTaskResult {
   taskId: string;
@@ -141,8 +142,22 @@ async function executeSource(
   if (task.sourceId === 'nj-parcel-mod4') {
     if (entity.kind !== 'property') return { text: 'NJ parcel resolution requires a property entity.', blocked: true };
     const records = await searchNjParcelsByAddress(entity.label, options.signal);
-    records.slice(0, 10).forEach((record) => ingestNjParcel(graph, record));
-    return { text: `NJ parcel source returned ${records.length} matching record(s).` };
+    if (records.length === 1) ingestNjParcel(graph, records[0], undefined, undefined, entity.id);
+    return {
+      text: records.length === 1
+        ? 'NJ parcel source returned one unambiguous record and enriched the researched property.'
+        : `NJ parcel source returned ${records.length} candidate record(s); ownership/unit facts were withheld unless the match was unique.`,
+      blocked: records.length !== 1,
+      retryable: false,
+    };
+  }
+
+  if (task.sourceId === 'nyc-acris') {
+    if (entity.kind !== 'property') return { text: 'NYC ACRIS resolution requires a property entity.', blocked: true };
+    const ownership = await lookupAcrisOwnershipByAddress(entity.label, options.signal);
+    if (!ownership) return { text: 'NYC ACRIS did not return one unambiguous BBL with a deed grantee.', blocked: true, retryable: false };
+    ingestAcrisOwnership(graph, entity.id, ownership);
+    return { text: `NYC ACRIS resolved BBL ${ownership.bbl.borough}-${ownership.bbl.block}-${ownership.bbl.lot} and ${ownership.grantees.length} latest-deed grantee(s).` };
   }
 
   if (task.sourceId === 'nyc-hpd-registrations') {
@@ -150,7 +165,7 @@ async function executeSource(
     const bbl = parseBbl(entity.aliases ?? [], entity.label);
     if (!bbl) return { text: 'NYC HPD requires a resolved BBL before registration/contact lookup.', blocked: true, retryable: true };
     const result = await lookupHpdOwnershipByBbl(bbl.borough, bbl.block, bbl.lot, options.signal);
-    ingestHpdOwnership(graph, result, entity.label);
+    ingestHpdOwnership(graph, result, entity.label, undefined, entity.id);
     return { text: `NYC HPD returned ${result.contacts.length} registration contact(s).` };
   }
 

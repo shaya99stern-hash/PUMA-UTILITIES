@@ -9,10 +9,18 @@ export function ingestNjParcel(
   record: NjParcelRecord,
   sourceUrl = 'https://maps.nj.gov/arcgis/rest/services/Applications/NJ_TaxListSearch/MapServer/2',
   observedAt = new Date().toISOString(),
+  targetPropertyId?: string,
 ): string {
   const label = record.propertyLocation ?? record.pamsPin ?? 'New Jersey parcel';
-  const propertyId = `property:nj:${stableToken(record.pamsPin ?? label)}`;
-  upsertEntity(graph, { id: propertyId, kind: 'property', label, geography: 'NJ' });
+  const propertyId = targetPropertyId ?? `property:nj:${stableToken(record.pamsPin ?? label)}`;
+  const existingProperty = graph.entities.find((entity) => entity.id === propertyId && entity.kind === 'property');
+  upsertEntity(graph, {
+    id: propertyId,
+    kind: 'property',
+    label: existingProperty?.label ?? label,
+    geography: existingProperty?.geography ?? 'NJ',
+    aliases: mergeAliases(existingProperty?.aliases, record.pamsPin ? [`NJ PAMS ${record.pamsPin}`] : []),
+  });
   const evidenceId = `evidence:nj-parcel:${stableToken(record.pamsPin ?? label)}`;
   addEvidence(graph, {
     id: evidenceId,
@@ -23,16 +31,32 @@ export function ingestNjParcel(
     confidence: 0.94,
     excerpt: parcelExcerpt(record),
   });
-  addClaim(graph, {
-    id: `claim:${propertyId}:identity:nj-parcel`,
-    subjectId: propertyId,
-    fact: 'property.identity',
-    value: record.pamsPin ?? label,
-    state: 'VERIFIED',
-    confidence: 0.94,
-    evidenceIds: [evidenceId],
-    observedAt,
-  });
+  if (!targetPropertyId) {
+    addClaim(graph, {
+      id: `claim:${propertyId}:identity:nj-parcel`,
+      subjectId: propertyId,
+      fact: 'property.identity',
+      value: record.pamsPin ?? label,
+      state: 'VERIFIED',
+      confidence: 0.94,
+      evidenceIds: [evidenceId],
+      observedAt,
+    });
+  }
+
+  const officialUnits = resolvedNjUnitCount(record);
+  if (officialUnits !== undefined) {
+    addClaim(graph, {
+      id: `claim:${propertyId}:units:nj-parcel:${stableToken(record.pamsPin ?? label)}`,
+      subjectId: propertyId,
+      fact: 'property.units',
+      value: officialUnits,
+      state: 'VERIFIED',
+      confidence: 0.93,
+      evidenceIds: [evidenceId],
+      observedAt,
+    });
+  }
 
   if (record.ownerName?.trim()) {
     const ownerLabel = record.ownerName.trim();
@@ -68,13 +92,23 @@ export function ingestHpdOwnership(
   result: HpdOwnershipResult,
   label: string,
   observedAt = new Date().toISOString(),
+  targetPropertyId?: string,
 ): string {
   const registration = result.registration;
   const key = registration
     ? `${registration.boroughId}-${registration.block}-${registration.lot}`
     : label;
-  const propertyId = `property:nyc:${stableToken(key)}`;
-  upsertEntity(graph, { id: propertyId, kind: 'property', label, geography: 'NY' });
+  const propertyId = targetPropertyId ?? `property:nyc:${stableToken(key)}`;
+  const existingProperty = graph.entities.find((entity) => entity.id === propertyId && entity.kind === 'property');
+  upsertEntity(graph, {
+    id: propertyId,
+    kind: 'property',
+    label: existingProperty?.label ?? label,
+    geography: existingProperty?.geography ?? 'NY',
+    aliases: registration
+      ? mergeAliases(existingProperty?.aliases, [`BBL ${registration.boroughId}-${registration.block}-${registration.lot}`])
+      : existingProperty?.aliases,
+  });
 
   result.sourceUrls.forEach((url, index) => addEvidence(graph, {
     id: `evidence:hpd:${stableToken(key)}:${index}`,
@@ -86,7 +120,7 @@ export function ingestHpdOwnership(
     excerpt: registration ? `HPD registration ${registration.registrationId} for BBL ${key}` : `No current HPD registration resolved for ${label}`,
   }));
 
-  if (registration) {
+  if (registration && !targetPropertyId) {
     addClaim(graph, {
       id: `claim:${propertyId}:identity:hpd`,
       subjectId: propertyId,
@@ -196,7 +230,28 @@ export function ingestCompanyWebsite(
     });
   }
 
-  for (const property of research.propertySignals ?? []) {
+  const discoveredProperties = research.propertySignals ?? [];
+  if (discoveredProperties.length >= 2) {
+    const distinctAddresses = [...new Set(discoveredProperties.map((property) => normalizeLabel(property.address)).filter(Boolean))];
+    if (distinctAddresses.length >= 2) {
+      const evidenceIds = [...new Set(discoveredProperties.map((property) => ensureEvidence(property.sourceUrl)))];
+      addClaim(graph, {
+        id: `claim:${companyId}:portfolio:discovered-addresses:${distinctAddresses.length}`,
+        subjectId: companyId,
+        fact: 'company.portfolioLowerBound',
+        value: distinctAddresses.length,
+        state: 'SUPPORTED',
+        confidence: 0.78,
+        evidenceIds,
+        observedAt,
+        qualifier: 'at-least',
+        statement: `At least ${distinctAddresses.length} distinct property addresses were discovered on the company's first-party site.`,
+        metricLabel: 'properties',
+      });
+    }
+  }
+
+  for (const property of discoveredProperties) {
     const propertyId = `property:first-party:${stableToken(companyId)}:${stableToken(property.address)}`;
     upsertEntity(graph, { id: propertyId, kind: 'property', label: property.address, geography: property.state ?? company.geography });
     const evidenceId = ensureEvidence(property.sourceUrl);
@@ -393,4 +448,18 @@ function stableToken(value: string): string {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0).toString(36);
+}
+
+
+function resolvedNjUnitCount(record: NjParcelRecord): number | undefined {
+  const values = [record.dwellingUnits, record.commercialDwellingUnits]
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+  if (!values.length) return undefined;
+  const unique = [...new Set(values)];
+  return unique.length === 1 && unique[0] <= 20_000 ? unique[0] : undefined;
+}
+
+function mergeAliases(existing: string[] | undefined, incoming: string[]): string[] | undefined {
+  const values = [...new Set([...(existing ?? []), ...incoming].filter(Boolean))];
+  return values.length ? values : undefined;
 }
