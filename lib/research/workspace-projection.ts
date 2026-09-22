@@ -86,7 +86,7 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
     .filter((value): value is Property => Boolean(value))
     .map((property) => {
       const current = workspace.properties.find((item) => item.companyId === companyId && normalizeLabel(item.name) === normalizeLabel(property.name));
-      return current ? { ...property, id: current.id, createdAt: current.createdAt } : property;
+      return current ? { ...property, id: current.id, createdAt: current.createdAt, parcelIds: [...current.parcelIds] } : property;
     });
 
   const propertyIdMap = new Map(projectedProperties.map((property) => [normalizeLabel(property.name), property.id]));
@@ -99,7 +99,7 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
     const identifiers = parcelIdentifiers(entity.aliases ?? []);
     const parcelIds = identifiers.map((identifier) => `research_parcel_${token(propertyId + identifier)}`);
     const projected = projectedProperties.find((item) => item.id === propertyId);
-    if (projected) projected.parcelIds = parcelIds;
+    if (projected) projected.parcelIds = [...new Set([...projected.parcelIds, ...parcelIds])];
     identifiers.forEach((identifier, index) => projectedParcels.push({
       id: parcelIds[index],
       propertyId,
