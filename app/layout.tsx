@@ -8,7 +8,7 @@ import './bulk-outreach.css';
 import './ios-native.css';
 import './puma-responsive-v6.css';
 
-const APP_ICON = '/apple-touch-icon.png?v=20260910-3';
+const APPLE_ICON = '/apple-touch-icon?v=20260922-1';
 
 export const metadata: Metadata = {
   applicationName: 'Puma Utilities',
@@ -21,8 +21,11 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
   },
   icons: {
-    icon: [{ url: APP_ICON, sizes: '180x180', type: 'image/png' }],
-    apple: [{ url: APP_ICON, sizes: '180x180', type: 'image/png' }],
+    icon: [
+      { url: '/pwa-icon-192?v=20260922-1', sizes: '192x192', type: 'image/png' },
+      { url: '/pwa-icon-512?v=20260922-1', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: APPLE_ICON, sizes: '180x180', type: 'image/png' }],
   },
 };
 

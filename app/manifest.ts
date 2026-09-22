@@ -12,8 +12,14 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'portrait-primary',
     icons: [
       {
-        src: '/apple-touch-icon.png?v=20260910-3',
-        sizes: '180x180',
+        src: '/pwa-icon-192?v=20260922-1',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/pwa-icon-512?v=20260922-1',
+        sizes: '512x512',
         type: 'image/png',
         purpose: 'any',
       },

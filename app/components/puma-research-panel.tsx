@@ -201,7 +201,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
                 property.geography || 'State unresolved',
                 typeof units === 'number' ? `${units.toLocaleString()} units` : undefined,
                 typeof area === 'number' ? `${area.toLocaleString()} sq ft` : undefined,
-                estimate ? `~${Math.round(estimate.annualEstimatedWaterCost).toLocaleString()}/yr water benchmark${estimate.includesFixedCharges ? ' incl. fixed water charge' : ''}` : undefined,
+                estimate ? `~$${Math.round(estimate.annualEstimatedWaterCost).toLocaleString()}/yr water benchmark${estimate.includesFixedCharges ? ' incl. fixed water charge' : ''}` : undefined,
               ].filter(Boolean).join(' · ')}</small>
             </div>;
           })}
@@ -211,7 +211,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
           <span>Defensible water-cost benchmarks</span>
           {waterEstimates.slice(0, 12).map((estimate) => <div key={estimate.propertyId}>
             <strong>{result.graph.entities.find((entity) => entity.id === estimate.propertyId)?.label ?? estimate.provider}</strong>
-            <small>{`~${Math.round(estimate.annualEstimatedWaterCost).toLocaleString()}/yr water · ${Math.round(estimate.monthlyEstimatedWaterCost).toLocaleString()}/mo · ${estimate.includesFixedCharges ? 'published fixed water charge included · ' : ''}sewer/tax/demand excluded`}</small>
+            <small>{`~$${Math.round(estimate.annualEstimatedWaterCost).toLocaleString()}/yr water · $${Math.round(estimate.monthlyEstimatedWaterCost).toLocaleString()}/mo · ${estimate.includesFixedCharges ? 'published fixed water charge included · ' : ''}sewer/tax/demand excluded`}</small>
           </div>)}
         </div>}
 
@@ -235,19 +235,21 @@ export default function PumaResearchPanel({ onSave }: Props) {
           })}
         </div>}
 
-        <div className="pm-research-evidence">
-          <span>Evidence</span>
-          {result.graph.evidence.slice(0, 12).map((evidence) => <a key={evidence.id} href={evidence.url} target="_blank" rel="noreferrer">
-            <strong>{evidence.sourceId}</strong>
-            <small>{evidence.excerpt || evidence.url}</small>
-            <ExternalLink size={12} />
-          </a>)}
-        </div>
+        <details className="pm-research-evidence">
+          <summary>Evidence <span>{result.graph.evidence.length}</span></summary>
+          <div className="pm-research-evidence-list">
+            {result.graph.evidence.slice(0, 12).map((evidence) => <a key={evidence.id} href={evidence.url} target="_blank" rel="noreferrer">
+              <strong>{evidence.sourceId}</strong>
+              <small>{evidence.excerpt || evidence.url}</small>
+              <ExternalLink size={12} />
+            </a>)}
+          </div>
+        </details>
 
         <button className="pm-research-save" type="button" onClick={save}>
           {status === 'saved' ? <><CheckCircle2 size={16} /> Saved to Prospects</> : 'Save to Prospects'}
         </button>
-        <p className="pm-research-capability">Water-cost estimates appear only when Puma has sourced residential unit evidence plus one unambiguous published variable water rate; sourced gross floor area can refine the multifamily benchmark range. One unambiguous monthly water service charge may be included. Sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges remain excluded.</p>
+        <p className="pm-research-capability">Water-cost estimates appear only when Puma has sourced residential unit evidence plus one unambiguous published variable water rate; sourced gross floor area can refine the multifamily benchmark range. One unambiguous published water service charge may be normalized to a monthly amount and included. Sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges remain excluded.</p>
       </section>}
     </div>
   );

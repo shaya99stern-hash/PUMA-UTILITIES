@@ -408,7 +408,7 @@ function ingestHpdContact(
 
 function parseLeadershipSignal(text: string): { name: string; title: string } | undefined {
   const cleaned = text.replace(/\s+/g, ' ').trim();
-  const titlePattern = '(?:Owner|Founder|Principal|Managing Principal|Managing Partner|President|Chief Executive Officer|CEO|Chief Operating Officer|COO|Head of Property Management|Property Manager|Asset Manager|Director of Operations|Vice President)';
+  const titlePattern = '(?:Owner|Founder|Principal|Managing Principal|Managing Partner|President|Chief Executive Officer|CEO|Chief Operating Officer|COO|Chief Property Officer|Head of Property Management|Regional Property Manager|Property Manager|Director of Asset Management|Asset Manager|Director of Operations|Vice President(?: of Operations| of Property Management| of Asset Management)?|Director of Facilities|Facilities Director)';
   const patterns = [
     new RegExp(`^([A-Z][A-Za-z'.-]+(?:\\s+[A-Z][A-Za-z'.-]+){1,3})\\s*[-–—|,]\\s*(${titlePattern})\\b`, 'i'),
     new RegExp(`^(${titlePattern})\\s*[-–—|,:]\\s*([A-Z][A-Za-z'.-]+(?:\\s+[A-Z][A-Za-z'.-]+){1,3})\\b`, 'i'),

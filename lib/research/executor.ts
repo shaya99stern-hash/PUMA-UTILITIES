@@ -14,6 +14,7 @@ import { resolvePersonFromCompanySite } from './sources/person-company';
 import { researchOfficialBusinessIdentity } from './sources/official-business';
 import { ingestAcrisOwnership, lookupAcrisOwnershipByAddress } from './sources/nyc-acris';
 import { ingestNycPluto, lookupNycPlutoByBbl } from './sources/nyc-pluto';
+import { ingestPhiladelphiaOpa, lookupPhiladelphiaOpaByAddress } from './sources/philadelphia-opa';
 
 export interface ResearchTaskResult {
   taskId: string;
@@ -182,6 +183,15 @@ async function executeSource(
     const result = await lookupHpdOwnershipByBbl(bbl.borough, bbl.block, bbl.lot, options.signal);
     ingestHpdOwnership(graph, result, entity.label, undefined, entity.id);
     return { text: `NYC HPD returned ${result.contacts.length} registration contact(s).` };
+  }
+
+  if (task.sourceId === 'phila-opa-properties') {
+    if (entity.kind !== 'property') return { text: 'Philadelphia OPA resolution requires a property entity.', blocked: true };
+    if (!/\bphiladelphia\b/i.test(entity.label)) return { text: 'Philadelphia OPA applies only to Philadelphia property addresses.', blocked: true, retryable: false };
+    const record = await lookupPhiladelphiaOpaByAddress(entity.label, options.signal);
+    if (!record) return { text: 'Philadelphia OPA did not return one unambiguous exact-address record.', blocked: true, retryable: false };
+    ingestPhiladelphiaOpa(graph, entity.id, record);
+    return { text: `Philadelphia OPA corroborated parcel ${record.parcelNumber ?? 'identity'} and ${[record.owner1, record.owner2].filter(Boolean).length} owner-of-record name(s).` };
   }
 
   if (task.sourceId === 'epa-water-service-areas' || task.sourceId === 'njdep-water-purveyor' || task.sourceId === 'padep-water-service') {

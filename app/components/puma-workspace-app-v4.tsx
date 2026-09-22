@@ -60,7 +60,6 @@ type SpeechRecognitionLike = {
 };
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
-const APP_ICON = '/apple-touch-icon.png?v=20260910-3';
 const PROFILE_KEY = 'puma-profile-name';
 const LIFECYCLE_TO_STAGE: Record<CompanyLifecycle, PipelineStage> = {
   Prospects: 'Target',
@@ -123,7 +122,14 @@ function utilityCapabilityLabel(utility?: UtilityService) {
 function BrandMark({ size = 28 }: { size?: number }) {
   return (
     <span className="pm-brand-mark" style={{ width: size, height: size }} aria-hidden="true">
-      <img src={APP_ICON} width={size * 2} height={size * 2} alt="" />
+      <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
+        <circle cx="18" cy="18" r="15.2" fill="rgba(16,18,20,0.58)" stroke="#86aeb6" strokeWidth="1.1" />
+        <circle cx="18" cy="18" r="10.6" stroke="#c7e0e5" strokeWidth="1.35" />
+        <path d="M11.6 20.5a6.8 6.8 0 0 1 12.8 0" stroke="#c7e0e5" strokeWidth="1.35" strokeLinecap="round" />
+        <path d="M18 18l4.5-4.2" stroke="#c7e0e5" strokeWidth="1.35" strokeLinecap="round" />
+        <circle cx="18" cy="18" r="1.45" fill="#86aeb6" />
+        <path d="M18 7.4c-1.5 2.2-2.6 3.7-2.6 5.1a2.6 2.6 0 0 0 5.2 0c0-1.4-1.1-2.9-2.6-5.1Z" stroke="#c7e0e5" strokeWidth="1.35" strokeLinejoin="round" />
+      </svg>
     </span>
   );
 }
@@ -591,7 +597,7 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
             <div><span>Building Meter</span><strong>{utilityCapabilityLabel(utility)}</strong></div>
             {utility.amiProgram?.status !== 'unknown' && utility.amiProgram?.value && <div><span>Utility AMI Program</span><strong>{utility.amiProgram.value}</strong></div>}
             {utility.rateSummary?.status !== 'unknown' && utility.rateSummary?.value && <div><span>Published Rate Evidence</span><strong>{utility.rateSummary.value}</strong></div>}
-            {utility.benchmarkCost && <div><span>Benchmark Water Cost</span><strong>{`~${Math.round(utility.benchmarkCost.annualEstimatedWaterCost).toLocaleString()}/yr water${utility.benchmarkCost.includesFixedCharges ? ' incl. fixed water charge' : ''}`}</strong></div>}
+            {utility.benchmarkCost && <div><span>Benchmark Water Cost</span><strong>{`~$${Math.round(utility.benchmarkCost.annualEstimatedWaterCost).toLocaleString()}/yr water${utility.benchmarkCost.includesFixedCharges ? ' incl. fixed water charge' : ''}`}</strong></div>}
           </div>)}
           {selectedCompany.stage === 'Client' && <Link className="pm-detail-link" href="/monitor"><span><strong>Monitor</strong><small>Open client-authorized readings and alerts</small></span><ChevronRight size={17} /></Link>}
         </div>
@@ -732,8 +738,8 @@ button,input,textarea,select { font:inherit; }
 .pm-brand > span:last-child { min-width:0; display:flex; flex-direction:column; gap:1px; }
 .pm-brand strong { font-size:14px; font-weight:620; letter-spacing:-.01em; white-space:nowrap; }
 .pm-brand small { font-size:10.5px; color:var(--pm-muted); }
-.pm-brand-mark { position:relative; display:inline-block; overflow:hidden; flex:0 0 auto; background:var(--pm-bg); border-radius:0; }
-.pm-brand-mark img { position:absolute; width:148%; height:148%; max-width:none; object-fit:cover; object-position:center 3%; left:-24%; top:-9%; }
+.pm-brand-mark { display:inline-grid; place-items:center; overflow:visible; flex:0 0 auto; background:transparent; border:0; border-radius:0; box-shadow:none; }
+.pm-brand-mark svg { display:block; width:100%; height:100%; overflow:visible; }
 .pm-content { width:min(100%,760px); margin:0 auto; }
 .pm-page { padding:24px 16px 28px; }
 .pm-home { padding-top:30px; }

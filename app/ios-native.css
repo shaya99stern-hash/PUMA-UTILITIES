@@ -63,11 +63,18 @@ html body .pm-company-copy {
 }
 
 html body .pm-brand-mark {
-  background: var(--pm-bg) !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  background: transparent !important;
+  border: 0 !important;
   border-radius: 0 !important;
-  overflow: hidden !important;
+  overflow: visible !important;
+  box-shadow: none !important;
 }
 
-html body .pm-brand-mark img {
-  filter: none !important;
+html body .pm-brand-mark svg {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: visible !important;
 }
