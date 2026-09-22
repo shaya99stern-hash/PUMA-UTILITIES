@@ -2,6 +2,7 @@ import type { ResearchRunResult } from './runner';
 import type { ResearchClaim, ResearchGraph } from './types';
 import { rankDecisionMakers } from './decision-maker';
 import { estimatePropertyWaterCost } from './water-cost';
+import { linkedCompanyPropertyIds } from './portfolio-links';
 
 export type ProspectAssessment = {
   fit: number;
@@ -56,17 +57,11 @@ export function assessResearchRun(result: ResearchRunResult): ProspectAssessment
     reasons.push('Company is in Puma\'s core NJ/NY/PA geography.');
   }
 
-  const linkedProperties = graph.claims.filter((claim) =>
-    claim.objectEntityId === root.id &&
-    (claim.fact === 'property.manager' || claim.fact === 'property.owner') &&
-    trusted(claim)
-  );
-  if (linkedProperties.length) {
-    fit += Math.min(10, linkedProperties.length);
-    reasons.push(`${linkedProperties.length} property relationship(s) are sourced.`);
+  const linkedPropertyIds = linkedCompanyPropertyIds(graph, root.id);
+  if (linkedPropertyIds.length) {
+    fit += Math.min(10, linkedPropertyIds.length);
+    reasons.push(`${linkedPropertyIds.length} property relationship(s) survive conservative entity reconciliation.`);
   }
-
-  const linkedPropertyIds = [...new Set(linkedProperties.map((claim) => claim.subjectId))];
   const officialOwnershipCount = linkedPropertyIds.filter((propertyId) =>
     trustedClaims(graph, propertyId, 'property.owner').some((claim) =>
       claim.evidenceIds.some((evidenceId) => graph.evidence.find((evidence) => evidence.id === evidenceId)?.authority === 'official')
@@ -94,7 +89,7 @@ export function assessResearchRun(result: ResearchRunResult): ProspectAssessment
       reasons.push('Top-ranked decision-maker has a sourced public business phone.');
     }
   }
-  if (linkedProperties.length) actionability += 10;
+  if (linkedPropertyIds.length) actionability += 10;
 
   const utilityEvidence = graph.claims.some((claim) => claim.fact === 'utility.provider' && trusted(claim));
   if (utilityEvidence) {
@@ -102,8 +97,7 @@ export function assessResearchRun(result: ResearchRunResult): ProspectAssessment
     reasons.push('Water utility evidence is available for at least one researched property.');
   }
 
-  const estimatedProperties = [...new Set(linkedProperties.map((claim) => claim.subjectId))]
-    .filter((propertyId) => Boolean(estimatePropertyWaterCost(graph, propertyId)));
+  const estimatedProperties = linkedPropertyIds.filter((propertyId) => Boolean(estimatePropertyWaterCost(graph, propertyId)));
   if (estimatedProperties.length) {
     actionability += 8;
     reasons.push(`${estimatedProperties.length} property water-cost benchmark estimate(s) have sourced residential inputs and a parseable published variable rate.`);

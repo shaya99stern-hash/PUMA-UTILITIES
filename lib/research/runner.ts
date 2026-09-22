@@ -3,6 +3,7 @@ import { executeResearchTask as defaultExecutor, type ResearchTaskResult } from 
 import { SOURCE_REGISTRY } from './source-registry';
 import { sourceCostUnits } from './planner';
 import { planEntityTasks } from './task-planner';
+import { linkedCompanyPropertyIds } from './portfolio-links';
 import type { ResearchGraph, ResearchTask } from './types';
 
 export interface ResearchRunOptions {
@@ -37,9 +38,9 @@ export async function runResearch(
   options: ResearchRunOptions = {},
 ): Promise<ResearchRunResult> {
   const maxTasks = clampInteger(options.maxTasks ?? 60, 1, 200);
-  const maxDepth = clampInteger(options.maxDepth ?? 3, 0, 8);
+  const maxDepth = clampInteger(options.maxDepth ?? 4, 0, 8);
   const concurrency = clampInteger(options.concurrency ?? 5, 1, 12);
-  const perNeed = clampInteger(options.perNeed ?? 4, 1, 10);
+  const perNeed = clampInteger(options.perNeed ?? 6, 1, 10);
   const targetCompleteness = Math.max(0.25, Math.min(1, options.targetCompleteness ?? 0.82));
   const maxBudgetUnits = Math.max(1, Math.min(400, options.maxBudgetUnits ?? Math.max(16, maxTasks * 1.6)));
   const executor = options.executor ?? defaultExecutor;
@@ -57,7 +58,7 @@ export async function runResearch(
     pruneResolvedTasks();
     if (!queue.length) return summarize('source-exhausted');
     if (options.signal?.aborted) return summarize('aborted');
-    if (graphCompleteness(graph, rootEntityId) >= targetCompleteness && rootIsActionable(graph, rootEntityId)) {
+    if (graphCompleteness(graph, rootEntityId) >= targetCompleteness && rootIsActionable(graph, rootEntityId) && rootHasOperationalCoverage(graph, rootEntityId)) {
       return summarize('target-completeness');
     }
 
@@ -195,6 +196,30 @@ function rootIsActionable(graph: ResearchGraph, rootEntityId: string): boolean {
     personIds.has(claim.subjectId) && (claim.fact === 'person.email' || claim.fact === 'person.phone') &&
     (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7
   );
+}
+
+function rootHasOperationalCoverage(graph: ResearchGraph, rootEntityId: string): boolean {
+  const root = graph.entities.find((entity) => entity.id === rootEntityId);
+  if (root?.kind !== 'company') return true;
+  const linked = linkedCompanyPropertyIds(graph, rootEntityId);
+  if (!linked.length) return true;
+  const sample = linked.slice(0, 3);
+  let providersResolved = 0;
+  let rateResolved = false;
+  for (const propertyId of sample) {
+    const providers = graph.claims
+      .filter((claim) => claim.subjectId === propertyId && claim.fact === 'utility.provider' && claim.objectEntityId && trusted(claim))
+      .map((claim) => claim.objectEntityId as string);
+    const uniqueProviders = [...new Set(providers)];
+    if (uniqueProviders.length !== 1) continue;
+    providersResolved += 1;
+    if (graph.claims.some((claim) => claim.subjectId === uniqueProviders[0] && claim.fact === 'utility.rateSchedule' && trusted(claim))) rateResolved = true;
+  }
+  return providersResolved >= Math.min(2, sample.length) && rateResolved;
+}
+
+function trusted(claim: ResearchGraph['claims'][number]): boolean {
+  return (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7;
 }
 
 function clampInteger(value: number, minimum: number, maximum: number): number {
