@@ -92,7 +92,7 @@ test('research effort budget stops expensive low-value work before task count ex
       message: 'synthetic',
     }),
   });
-  assert.ok(result.budgetUnitsSpent <= 3);
+  assert.ok((result.budgetUnitsSpent ?? Number.POSITIVE_INFINITY) <= 3);
   assert.equal(result.stopReason, 'research-budget');
 });
 
