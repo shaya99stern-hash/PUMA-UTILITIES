@@ -155,7 +155,7 @@ export function parseFixedWaterCharge(text: string): ParsedFixedWaterCharge | un
   };
 
   const patterns: Array<{ pattern: RegExp; divisor: number }> = [
-    { pattern:/monthly\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\s*[:\-]?\s*\$\s*(\d+(?:\.\d{1,2})?)/gi, divisor:1 },
+    { pattern:/\bmonthly\b\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\s*[:\-]?\s*\$\s*(\d+(?:\.\d{1,2})?)/gi, divisor:1 },
     { pattern:/(?:water\s+)?(?:service|base|customer|minimum)\s+charge(?:\s+of)?\s*\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*month\b/gi, divisor:1 },
     { pattern:/\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*month\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\b/gi, divisor:1 },
     { pattern:/quarterly\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\s*[:\-]?\s*\$\s*(\d+(?:\.\d{1,2})?)/gi, divisor:3 },
