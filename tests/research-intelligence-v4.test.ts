@@ -146,3 +146,13 @@ test('water-cost estimate is withheld when separate trusted rate lines imply mul
   addClaim(graph, { id:'rate-tier-2', subjectId:'utility:tiered', fact:'utility.rateSchedule', value:'Second block $8.00 per CCF', state:'SUPPORTED', confidence:.9, evidenceIds:[], observedAt:'2026-09-22T18:01:00Z' });
   assert.equal(estimatePropertyWaterCost(graph, 'property:tiered'), undefined);
 });
+
+
+test('company identity claims that differ only by legal suffix do not create a false conflict', () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id:'company:identity', kind:'company', label:'Acme Properties', geography:'NJ' });
+  const first = addClaim(graph, { id:'identity-1', subjectId:'company:identity', fact:'company.identity', value:'Acme Properties LLC', state:'SUPPORTED', confidence:.9, evidenceIds:[], observedAt:'2026-09-22T18:00:00Z' });
+  const second = addClaim(graph, { id:'identity-2', subjectId:'company:identity', fact:'company.identity', value:'Acme Properties', state:'SUPPORTED', confidence:.9, evidenceIds:[], observedAt:'2026-09-22T18:01:00Z' });
+  assert.equal(first.state, 'SUPPORTED');
+  assert.equal(second.state, 'SUPPORTED');
+});
