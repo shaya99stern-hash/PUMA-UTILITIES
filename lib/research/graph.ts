@@ -7,6 +7,7 @@ const FACT_IMPORTANCE: Record<ResearchFact, number> = {
   'company.email': 82,
   'company.ownerOperator': 98,
   'company.portfolio': 96,
+  'company.portfolioLowerBound': 88,
   'person.decisionMaker': 100,
   'person.title': 90,
   'person.phone': 84,
@@ -14,6 +15,8 @@ const FACT_IMPORTANCE: Record<ResearchFact, number> = {
   'property.identity': 94,
   'property.owner': 96,
   'property.manager': 95,
+  'property.units': 84,
+  'property.grossSquareFeet': 72,
   'utility.provider': 92,
   'utility.amiCapability': 80,
   'utility.rateSchedule': 76,
@@ -55,8 +58,10 @@ const SINGLE_VALUED_FACTS = new Set<ResearchFact>([
   'company.website',
   'company.ownerOperator',
   'company.portfolio',
+  'company.portfolioLowerBound',
   'property.identity',
   'utility.amiCapability',
+  'utility.rateSchedule',
   'utility.buildingMeterStatus',
 ]);
 

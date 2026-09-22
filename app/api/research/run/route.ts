@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     const result = await runResearch(graph, rootEntityId, {
       maxTasks: boundedInteger(input.maxTasks, 36, 1, 60),
       maxDepth: boundedInteger(input.maxDepth, 3, 0, 5),
+      maxBudgetUnits: boundedNumber(input.maxBudgetUnits, 58, 5, 120),
       concurrency: boundedInteger(input.concurrency, 4, 1, 8),
       perNeed: boundedInteger(input.perNeed, 4, 1, 6),
       targetCompleteness: boundedNumber(input.targetCompleteness, 0.82, 0.25, 1),

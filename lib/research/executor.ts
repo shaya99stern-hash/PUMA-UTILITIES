@@ -9,6 +9,8 @@ import { lookupHpdOwnershipByBbl } from './sources/nyc-hpd';
 import { searchNjParcelsByAddress } from './sources/nj-parcels';
 import { geocodeUsAddress, lookupEpaWaterSystems, lookupNjPurveyors, lookupPaWaterSuppliers } from './sources/water-service';
 import { ingestUtilityWebsite, researchUtilityWebsite } from './sources/utility-website';
+import { ingestSecCompanyResearch, researchSecCompany } from './sources/sec-edgar';
+import { resolvePersonFromCompanySite } from './sources/person-company';
 
 export interface ResearchTaskResult {
   taskId: string;
@@ -65,6 +67,24 @@ async function executeSource(
 ): Promise<{ text: string; blocked?: boolean; retryable?: boolean }> {
   const entity = graph.entities.find((item) => item.id === task.subjectId);
   if (!entity) return { text: 'Research subject no longer exists.', blocked: true };
+
+  if (task.sourceId === 'sec-edgar') {
+    if (entity.kind !== 'company') return { text: 'SEC EDGAR research requires a company entity.', blocked: true };
+    const research = await researchSecCompany(entity.label, options.signal);
+    if (!research) return { text: 'No sufficiently strong SEC filer match was found.', blocked: true, retryable: false };
+    ingestSecCompanyResearch(graph, entity.id, research);
+    return { text: 'SEC EDGAR matched CIK ' + research.cik + ' and found ' + research.executives.length + ' executive signal(s).' };
+  }
+
+  if (task.sourceId === 'person-company-first-party') {
+    if (entity.kind !== 'person') return { text: 'Named-person resolution requires a person entity.', blocked: true };
+    try {
+      const result = await resolvePersonFromCompanySite(graph, entity.id, options.signal);
+      return { text: result.message, blocked: result.pages === 0 || (result.contacts === 0 && result.titles === 0) };
+    } catch (error) {
+      return { text: error instanceof Error ? error.message : String(error), blocked: true, retryable: false };
+    }
+  }
 
   if (task.sourceId === 'contactout-public-directory') {
     if (entity.kind !== 'company') return { text: 'Contact directory enrichment requires a company entity.', blocked: true };

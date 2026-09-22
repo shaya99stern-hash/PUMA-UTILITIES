@@ -155,6 +155,34 @@ export function ingestCompanyWebsite(
     });
   }
 
+  for (const signal of research.portfolioSignals ?? []) {
+    const evidenceId = ensureEvidence(signal.sourceUrl);
+    addClaim(graph, {
+      id: `claim:${companyId}:portfolio:${signal.qualifier}:${signal.count}:${stableToken(signal.label)}`,
+      subjectId: companyId,
+      fact: signal.qualifier === 'exact' ? 'company.portfolio' : 'company.portfolioLowerBound',
+      value: signal.count,
+      state: 'SUPPORTED',
+      confidence: signal.qualifier === 'exact' ? 0.86 : 0.82,
+      evidenceIds: [evidenceId],
+      observedAt,
+    });
+  }
+
+  for (const signal of research.ownerOperatorSignals ?? []) {
+    const evidenceId = ensureEvidence(signal.sourceUrl);
+    addClaim(graph, {
+      id: `claim:${companyId}:owner-operator:${stableToken(signal.text)}`,
+      subjectId: companyId,
+      fact: 'company.ownerOperator',
+      value: signal.text,
+      state: 'SUPPORTED',
+      confidence: 0.86,
+      evidenceIds: [evidenceId],
+      observedAt,
+    });
+  }
+
   for (const property of research.propertySignals ?? []) {
     const propertyId = `property:first-party:${stableToken(companyId)}:${stableToken(property.address)}`;
     upsertEntity(graph, { id: propertyId, kind: 'property', label: property.address, geography: property.state ?? company.geography });
@@ -179,6 +207,30 @@ export function ingestCompanyWebsite(
       evidenceIds: [evidenceId],
       observedAt,
     });
+    if (typeof property.units === 'number') {
+      addClaim(graph, {
+        id: `claim:${propertyId}:units:first-party`,
+        subjectId: propertyId,
+        fact: 'property.units',
+        value: property.units,
+        state: 'SUPPORTED',
+        confidence: 0.82,
+        evidenceIds: [evidenceId],
+        observedAt,
+      });
+    }
+    if (typeof property.grossSquareFeet === 'number') {
+      addClaim(graph, {
+        id: `claim:${propertyId}:gross-sqft:first-party`,
+        subjectId: propertyId,
+        fact: 'property.grossSquareFeet',
+        value: property.grossSquareFeet,
+        state: 'SUPPORTED',
+        confidence: 0.8,
+        evidenceIds: [evidenceId],
+        observedAt,
+      });
+    }
   }
 
   for (const signal of research.leadershipSignals) {

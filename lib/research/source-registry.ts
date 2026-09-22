@@ -111,6 +111,27 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     notes: ['Current public-water-supplier service-area polygons; boundaries are approximate and should be treated as service-territory evidence, not customer-account confirmation.']
   },
   {
+    id: 'sec-edgar',
+    label: 'SEC EDGAR filings and submissions',
+    url: 'https://www.sec.gov/edgar',
+    geographies: ['US'],
+    authority: 'official',
+    strategy: 'structured',
+    capabilities: ['company.identity','person.decisionMaker','person.title'],
+    reliability: 0.97, evidenceStrength: 0.97, expectedLatencyMs: 700, freshnessDays: 7, maxConcurrency: 2,
+    notes: ['Applies only to SEC filers. Prefer recent DEF 14A, then 10-K/8-K leadership disclosures.']
+  },
+  {
+    id: 'person-company-first-party',
+    label: 'Named person on company first-party website',
+    geographies: ['US'],
+    authority: 'first-party',
+    strategy: 'http',
+    capabilities: ['person.title','person.phone','person.email'],
+    reliability: 0.9, evidenceStrength: 0.88, expectedLatencyMs: 850, freshnessDays: 30, maxConcurrency: 3,
+    notes: ['Search only the resolved company domain for the named person; never infer an email pattern as a verified contact.']
+  },
+  {
     id: 'company-first-party-web',
     label: 'Company first-party website',
     geographies: ['US'],
