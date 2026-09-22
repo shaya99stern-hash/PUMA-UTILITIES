@@ -8,6 +8,8 @@ import { ingestCompanyWebsite } from '../lib/research/ingest';
 import { ingestNysTaxParcel, normalizeNysParcelStreet, type NysTaxParcelRecord } from '../lib/research/sources/nys-tax-parcels';
 import { buildOpportunityIntelligence } from '../lib/research/opportunity';
 import { estimatePropertyWaterCost, parseFixedWaterCharge, parseVariableWaterRate } from '../lib/research/water-cost';
+import { mergeResearchRunIntoWorkspace } from '../lib/research/workspace-projection';
+import type { Workspace } from '../lib/types';
 
 test('multi-market discovery accepts a bounded set of state codes and removes duplicates', () => {
   assert.deepEqual(parseDiscoveryGeographies('NJ, NY PA; NJ'), ['NJ','NY','PA']);
@@ -160,4 +162,23 @@ test('NYS source is registered as official owner and gross-area corroboration on
   assert.match(block, /property\.owner/);
   assert.match(block, /property\.grossSquareFeet/);
   assert.doesNotMatch(block, /property\.units/);
+});
+
+
+test('workspace projection preserves official parcel aliases and opportunity intelligence', () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id:'company:root', kind:'company', label:'Acme Properties', geography:'NY' });
+  upsertEntity(graph, { id:'property:one', kind:'property', label:'123 Main St, Albany, NY 12207', geography:'NY', aliases:['NYS tax parcel 76.10-1-12'] });
+  addEvidence(graph, { id:'ev:first', sourceId:'company-first-party-web', url:'https://acme.example', observedAt:'2026-09-22T21:00:00Z', authority:'first-party', confidence:.9 });
+  addEvidence(graph, { id:'ev:official', sourceId:'nys-tax-parcels-public', url:'https://gisservices.its.ny.gov/', observedAt:'2026-09-22T21:00:00Z', authority:'official', confidence:.95 });
+  addClaim(graph, { id:'manager', subjectId:'property:one', fact:'property.manager', objectEntityId:'company:root', state:'SUPPORTED', confidence:.9, evidenceIds:['ev:first'], observedAt:'2026-09-22T21:00:00Z' });
+  addClaim(graph, { id:'owner', subjectId:'property:one', fact:'property.owner', objectEntityId:'company:root', state:'VERIFIED', confidence:.95, evidenceIds:['ev:official'], observedAt:'2026-09-22T21:00:00Z' });
+  const run = { graph, rootEntityId:'company:root', tasksExecuted:2, complete:2, blocked:0, failed:0, results:[], rootCompleteness:.4, stopReason:'source-exhausted' as const };
+  const workspace: Workspace = { version:1, companies:[], properties:[], parcels:[], utilities:[], meters:[], tariffs:[], monitorSettings:{}, updatedAt:'2026-09-22T20:00:00Z' };
+  const merged = mergeResearchRunIntoWorkspace(workspace, run);
+  assert.equal(merged.workspace.properties.length, 1);
+  assert.equal(merged.workspace.parcels.length, 1);
+  assert.match(merged.workspace.parcels[0].identifier, /76\.10-1-12/);
+  assert.equal(merged.workspace.properties[0].parcelIds.length, 1);
+  assert.ok(merged.workspace.companies[0].opportunityIntelligence);
 });
