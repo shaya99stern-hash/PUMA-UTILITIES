@@ -116,9 +116,23 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     geographies: ['US'],
     authority: 'first-party',
     strategy: 'http',
-    capabilities: ['company.identity','company.website','company.phone','company.email','company.ownerOperator','company.portfolio','person.decisionMaker','person.title','person.phone','person.email'],
+    capabilities: ['company.identity','company.website','company.phone','company.email','company.ownerOperator','company.portfolio','person.decisionMaker','person.title','person.phone','person.email','property.identity','property.manager'],
     reliability: 0.86, evidenceStrength: 0.82, expectedLatencyMs: 900, freshnessDays: 45, maxConcurrency: 4,
     notes: ['Crawl a bounded set of likely pages such as home, about, team/leadership, portfolio/properties and contact.']
+  },
+  {
+    id: 'contactout-public-directory',
+    label: 'ContactOut public company/people directory',
+    url: 'https://contactout.com/',
+    geographies: ['US'],
+    authority: 'reputable-secondary',
+    strategy: 'browser',
+    capabilities: ['person.decisionMaker','person.title'],
+    reliability: 0.74, evidenceStrength: 0.68, expectedLatencyMs: 1800, freshnessDays: 30, maxConcurrency: 2,
+    notes: [
+      'Use only names and roles visibly available without bypassing authentication, a paywall, or a contact-credit gate.',
+      'Treat directory roles as candidate evidence and cross-check current first-party sources before outreach-critical use.'
+    ]
   },
   {
     id: 'open-web-discovery',

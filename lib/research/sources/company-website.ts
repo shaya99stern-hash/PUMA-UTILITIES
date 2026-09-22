@@ -15,11 +15,18 @@ export interface WebsiteLeadershipSignal {
   sourceUrl: string;
 }
 
+export interface WebsitePropertySignal {
+  address: string;
+  state?: string;
+  sourceUrl: string;
+}
+
 export interface CompanyWebsiteResearch {
   seedUrl: string;
   visitedUrls: string[];
   contacts: WebsiteContact[];
   leadershipSignals: WebsiteLeadershipSignal[];
+  propertySignals?: WebsitePropertySignal[];
   socialUrls: string[];
   warnings: string[];
 }
@@ -37,6 +44,7 @@ export async function crawlCompanyWebsite(
   const contacts = new Map<string, WebsiteContact>();
   const leadershipSignals = new Map<string, WebsiteLeadershipSignal>();
   const socialUrls = new Set<string>();
+  const propertySignals = new Map<string, WebsitePropertySignal>();
   const warnings: string[] = [];
 
   while (queue.length && visited.size < maxPages) {
@@ -47,6 +55,7 @@ export async function crawlCompanyWebsite(
       const { html, finalUrl } = await fetchHtml(next, timeoutMs, options.signal);
       for (const contact of extractContacts(html, finalUrl)) contacts.set(`${contact.type}:${contact.value}`, contact);
       for (const signal of extractLeadershipSignals(html, finalUrl)) leadershipSignals.set(`${finalUrl}:${signal.text}`, signal);
+      for (const property of extractPropertySignals(html, finalUrl)) propertySignals.set(property.address.toLowerCase(), property);
       for (const social of extractSocialUrls(html)) socialUrls.add(social);
 
       for (const discovered of extractLikelyInternalPages(html, seed)) {
@@ -62,6 +71,7 @@ export async function crawlCompanyWebsite(
     visitedUrls: [...visited],
     contacts: [...contacts.values()],
     leadershipSignals: [...leadershipSignals.values()].slice(0, 50),
+    propertySignals: [...propertySignals.values()].slice(0, 100),
     socialUrls: [...socialUrls],
     warnings,
   };
@@ -89,6 +99,19 @@ export function extractLeadershipSignals(html: string, sourceUrl: string): Websi
   const text = htmlToText(html);
   const lines = text.split(/\n+/).map((line) => line.trim()).filter((line) => line.length >= 5 && line.length <= 240);
   return lines.filter((line) => DECISION_TITLES.test(line)).slice(0, 50).map((line) => ({ text: line, sourceUrl }));
+}
+
+export function extractPropertySignals(html: string, sourceUrl: string): WebsitePropertySignal[] {
+  const text = htmlToText(html);
+  const statePattern = 'AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC';
+  const addressPattern = new RegExp('\\b\\d{1,6}\\s+[A-Za-z0-9][A-Za-z0-9 .\\\'-]{2,70}\\s(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Place|Pl|Parkway|Pkwy|Highway|Hwy|Way)\\b(?:[^\\n,]{0,40})?,?\\s+[A-Za-z .\\\'-]{2,40},?\\s+(' + statePattern + ')\\s+\\d{5}(?:-\\d{4})?\\b', 'gi');
+  const output = new Map<string, WebsitePropertySignal>();
+  for (const match of text.matchAll(addressPattern)) {
+    const address = match[0].replace(/\\s+/g, ' ').trim().replace(/^[,;: -]+|[,;: -]+$/g, '');
+    if (address.length < 12 || address.length > 180) continue;
+    output.set(address.toLowerCase(), { address, state: match[1]?.toUpperCase(), sourceUrl });
+  }
+  return [...output.values()];
 }
 
 async function fetchHtml(url: string, timeoutMs: number, outerSignal?: AbortSignal): Promise<{ html: string; finalUrl: string }> {
