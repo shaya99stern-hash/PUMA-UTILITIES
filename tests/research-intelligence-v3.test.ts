@@ -99,3 +99,18 @@ test('research effort budget stops expensive low-value work before task count ex
 test('browser sources cost materially more budget than structured official sources', () => {
   assert.ok(sourceCostUnits({ strategy:'browser' } as never) > sourceCostUnits({ strategy:'structured' } as never));
 });
+
+
+test('multiple lower-bound observations and rate lines remain source evidence rather than artificial conflicts', () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id:'company:multi', kind:'company', label:'Multi Properties', geography:'NJ' });
+  upsertEntity(graph, { id:'utility:multi', kind:'utility', label:'Multi Water', geography:'NJ' });
+  const lowerOne = addClaim(graph, { id:'lower1', subjectId:'company:multi', fact:'company.portfolioLowerBound', value:40, state:'SUPPORTED', confidence:.8, evidenceIds:[], observedAt:'2026-09-22T12:00:00Z' });
+  const lowerTwo = addClaim(graph, { id:'lower2', subjectId:'company:multi', fact:'company.portfolioLowerBound', value:60, state:'SUPPORTED', confidence:.85, evidenceIds:[], observedAt:'2026-09-22T12:01:00Z' });
+  const rateOne = addClaim(graph, { id:'rate1', subjectId:'utility:multi', fact:'utility.rateSchedule', value:'Base charge $12 per month', state:'SUPPORTED', confidence:.8, evidenceIds:[], observedAt:'2026-09-22T12:00:00Z' });
+  const rateTwo = addClaim(graph, { id:'rate2', subjectId:'utility:multi', fact:'utility.rateSchedule', value:'Usage $8.42 per 1,000 gallons', state:'SUPPORTED', confidence:.85, evidenceIds:[], observedAt:'2026-09-22T12:01:00Z' });
+  assert.equal(lowerOne.state, 'SUPPORTED');
+  assert.equal(lowerTwo.state, 'SUPPORTED');
+  assert.equal(rateOne.state, 'SUPPORTED');
+  assert.equal(rateTwo.state, 'SUPPORTED');
+});
