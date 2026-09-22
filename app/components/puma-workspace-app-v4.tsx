@@ -512,7 +512,7 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
             <div className="pm-company-row" key={company.id}>
               {bulkMode && <button type="button" className={`pm-check ${checked ? 'active' : ''}`} aria-label={`Select ${company.name}`} onClick={() => setSelectedCompanyIds((current) => checked ? current.filter((id) => id !== company.id) : [...current, company.id])}>{checked && <Check size={14} />}</button>}
               <Link href={companyPath(company.id)}>
-                <span className="pm-company-copy"><strong>{company.name}</strong><small>{company.market || 'Location not verified'} · {portfolioSummary(company)}</small></span>
+                <span className="pm-company-copy"><strong>{company.name}</strong><small>{company.market || 'Location not verified'} · {portfolioSummary(company)}{company.opportunityIntelligence ? ` · Priority ${company.opportunityIntelligence.priority}/100` : ''}</small></span>
                 <ChevronRight size={17} />
               </Link>
             </div>
@@ -547,6 +547,12 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
           <div className="pm-detail-stack">
             <div className="pm-detail-row"><span>Status</span><select value={status} onChange={(event) => setCompanyLifecycle(company, event.target.value as CompanyLifecycle)}>{COMPANY_LIFECYCLES.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
             <div className="pm-detail-row"><span>Portfolio</span><strong>{portfolioSummary(company)}</strong></div>
+            {company.opportunityIntelligence && <>
+              <div className="pm-detail-row"><span>Opportunity</span><strong>{company.opportunityIntelligence.priority}/100 · {company.opportunityIntelligence.confidence}</strong></div>
+              <div className="pm-detail-row"><span>Water benchmark</span><strong>{company.opportunityIntelligence.annualWaterSpendBenchmark ? `~${money(company.opportunityIntelligence.annualWaterSpendBenchmark)}/yr modeled` : 'Not enough sourced inputs'}</strong></div>
+              <div className="pm-detail-row"><span>Coverage</span><strong>{company.opportunityIntelligence.officialOwnershipProperties}/{company.opportunityIntelligence.linkedProperties} owners · {company.opportunityIntelligence.utilityResolvedProperties} utilities · {company.opportunityIntelligence.rateResolvedProperties} rates</strong></div>
+              <div className="pm-detail-row"><span>Next best action</span><strong>{company.opportunityIntelligence.nextActions[0] ?? company.nextAction ?? 'Continue evidence-backed research'}</strong></div>
+            </>}
             <div className="pm-detail-row"><span>Follow-up</span><div className="pm-followup"><span>{formatShortDate(company.followUpAt)}</span><input type="date" value={company.followUpAt?.slice(0, 10) ?? ''} onChange={(event) => updateCompany(company.id, { followUpAt: event.target.value || undefined })} aria-label="Follow-up date" /></div></div>
             <Link className="pm-detail-link" href={buildingListPath(company.id)}><span><strong>Buildings</strong><small>{properties.length} building records currently saved</small></span><ChevronRight size={17} /></Link>
           </div>
@@ -582,11 +588,15 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
   const renderBuilding = () => {
     if (!selectedCompany || !selectedProperty) return <div className="pm-page"><div className="pm-empty"><strong>Building not found.</strong></div></div>;
     const utilities = propertyUtilities(selectedProperty, workspace);
+    const parcels = workspace.parcels.filter((parcel) => selectedProperty.parcelIds.includes(parcel.id));
     return (
       <div className="pm-page">
         <Link className="pm-back" href={buildingListPath(selectedCompany.id)}><ChevronLeft size={17} /> Buildings</Link>
         <div className="pm-record-head"><h1>{selectedProperty.name}</h1><div className="pm-office"><span>Address</span><strong>{selectedProperty.address.status !== 'unknown' && selectedProperty.address.value ? selectedProperty.address.value : `${selectedProperty.state} · address not verified`}</strong></div></div>
         <div className="pm-detail-stack">
+          {parcels.length > 0 && <div className="pm-utility">
+            {parcels.map((parcel) => <div key={parcel.id}><span>Official Parcel</span><strong>{parcel.identifier}</strong></div>)}
+          </div>}
           {(selectedProperty.units?.value || selectedProperty.grossSquareFeet?.value) && <div className="pm-utility">
             {selectedProperty.units?.value && <div><span>Residential Units</span><strong>{selectedProperty.units.value.toLocaleString()}</strong></div>}
             {selectedProperty.grossSquareFeet?.value && <div><span>Gross Area</span><strong>{selectedProperty.grossSquareFeet.value.toLocaleString()} sq ft</strong></div>}

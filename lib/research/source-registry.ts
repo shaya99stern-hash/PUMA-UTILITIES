@@ -38,6 +38,20 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     notes: ['Resolve the building through HPD Registrations (tesw-yqqr), then join Registration Contacts (feu5-w2e2) by registrationid. Preserve the exact contact type such as CorporateOwner, Agent or HeadOfficer.']
   },
   {
+    id: 'nys-tax-parcels-public',
+    label: 'New York State Public Tax Parcels',
+    url: 'https://gisservices.its.ny.gov/arcgis/rest/services/NYS_Tax_Parcels_Public/FeatureServer/1',
+    geographies: ['NY'],
+    authority: 'official',
+    strategy: 'structured',
+    capabilities: ['property.owner','property.grossSquareFeet'],
+    reliability: 0.93, evidenceStrength: 0.94, expectedLatencyMs: 600, freshnessDays: 365, maxConcurrency: 5,
+    notes: [
+      'Annual statewide publication currently covers participating counties only; absence from this layer is never treated as negative ownership evidence.',
+      'Use a unique exact street-address match and preserve parcel/roll provenance. GFA may be used as gross-area evidence; this adapter does not infer unit counts.'
+    ]
+  },
+  {
     id: 'nys-dos-business',
     label: 'New York Department of State Business Entity Database',
     url: 'https://dos.ny.gov/corporation-and-business-entity-search-database',

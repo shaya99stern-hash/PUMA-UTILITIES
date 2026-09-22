@@ -89,6 +89,34 @@ export type Person = {
   provenanceId?: string;
 };
 
+export type OpportunityIntelligence = {
+  priority: number;
+  confidence: 'high' | 'medium' | 'developing';
+  annualWaterSpendBenchmark?: number;
+  linkedProperties: number;
+  officialOwnershipProperties: number;
+  utilityResolvedProperties: number;
+  rateResolvedProperties: number;
+  benchmarkedProperties: number;
+  directContactCount: number;
+  coverage: {
+    ownershipPercent: number;
+    utilityPercent: number;
+    ratePercent: number;
+    benchmarkPercent: number;
+    contactPercent: number;
+  };
+  topContact?: {
+    name: string;
+    title?: string;
+    score: number;
+    contactStatus: 'email' | 'phone' | 'company-only' | 'none';
+  };
+  nextActions: string[];
+  gaps: string[];
+  rationale: string[];
+};
+
 export type ActivityNote = {
   id: string;
   text: string;
@@ -117,6 +145,7 @@ export type Company = {
     actionability: number;
     reasons: string[];
   };
+  opportunityIntelligence?: OpportunityIntelligence;
   researchPathways?: string[];
   nextAction?: string;
   notes?: string;

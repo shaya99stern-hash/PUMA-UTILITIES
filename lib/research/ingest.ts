@@ -328,7 +328,7 @@ export function ingestCompanyWebsite(
       observedAt,
     });
 
-    for (const contact of research.contacts.filter((item) => item.sourceUrl === signal.sourceUrl && contactMatchesPerson(item.context, person.name))) {
+    for (const contact of research.contacts.filter((item) => contactMatchesPerson(item, person.name))) {
       const contactEvidenceId = ensureEvidence(contact.sourceUrl);
       addClaim(graph, {
         id: `claim:${personId}:${contact.type}:${stableToken(contact.value)}`,
@@ -420,13 +420,20 @@ function parseLeadershipSignal(text: string): { name: string; title: string } | 
   return undefined;
 }
 
-function contactMatchesPerson(context: string | undefined, name: string): boolean {
-  if (!context) return false;
-  const normalizedContext = normalizeLabel(context);
+function contactMatchesPerson(contact: { type: 'email' | 'phone'; value: string; context?: string }, name: string): boolean {
   const normalizedName = normalizeLabel(name);
-  if (normalizedContext.includes(normalizedName)) return true;
-  const tokens = normalizedName.split(' ').filter((token) => token.length >= 3);
-  return tokens.length >= 2 && tokens.every((token) => normalizedContext.includes(token));
+  const tokens = normalizedName.split(' ').filter((token) => token.length >= 2);
+  if (contact.context) {
+    const normalizedContext = normalizeLabel(contact.context);
+    if (normalizedContext.includes(normalizedName)) return true;
+    const contextualTokens = tokens.filter((token) => token.length >= 3);
+    if (contextualTokens.length >= 2 && contextualTokens.every((token) => normalizedContext.includes(token))) return true;
+  }
+  if (contact.type !== 'email' || tokens.length < 2) return false;
+  const localPart = contact.value.split('@')[0]?.toLowerCase().replace(/[^a-z0-9]/g, '') ?? '';
+  const first = tokens[0].replace(/[^a-z0-9]/g, '');
+  const last = tokens[tokens.length - 1].replace(/[^a-z0-9]/g, '');
+  return first.length >= 2 && last.length >= 2 && localPart.includes(first + last);
 }
 
 function titleCaseName(value: string): string {

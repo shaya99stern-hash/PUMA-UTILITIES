@@ -2,9 +2,11 @@ import { normalizeLabel } from './graph';
 import { assessResearchRun } from './qualification';
 import { rankDecisionMakers } from './decision-maker';
 import { estimatePropertyWaterCost } from './water-cost';
+import { linkedCompanyPropertyIds } from './portfolio-links';
+import { buildOpportunityIntelligence } from './opportunity';
 import type { ResearchRunResult } from './runner';
 import type { ResearchClaim, ResearchEvidence, ResearchGraph } from './types';
-import type { Company, Person, PortfolioMetric, Property, Provenance, UtilityService, Workspace } from '../types';
+import type { Company, Parcel, Person, PortfolioMetric, Property, Provenance, UtilityService, Workspace } from '../types';
 
 export type ResearchMergeSummary = {
   companyId: string;
@@ -12,6 +14,7 @@ export type ResearchMergeSummary = {
   peopleAdded: number;
   propertiesAdded: number;
   utilitiesAdded: number;
+  parcelsAdded: number;
 };
 
 export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: ResearchRunResult): { workspace: Workspace; summary: ResearchMergeSummary } {
@@ -40,6 +43,7 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
   );
   const exactUnits = portfolioMetrics.find((metric) => metric.label === 'apartments' && metric.qualifier !== 'at-least');
   const assessment = assessResearchRun(result);
+  const opportunityIntelligence = buildOpportunityIntelligence(result);
 
   const company: Company = {
     ...(existing ?? {
@@ -61,6 +65,8 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
     publicEmail: publicEmail ?? existing?.publicEmail,
     publicPhone: publicPhone ?? existing?.publicPhone,
     prospectAssessment: assessment,
+    opportunityIntelligence,
+    nextAction: existing?.nextAction ?? opportunityIntelligence.nextActions[0],
     portfolioBuildings: exactBuildings
       ? { value: exactBuildings.value, status: 'verified-public', provenanceId: exactBuildings.provenanceId, updatedAt: now }
       : existing?.portfolioBuildings ?? { status: 'unknown' },
@@ -73,17 +79,36 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
     updatedAt: now,
   };
 
-  const linkedPropertyIds = new Set(
-    graph.claims
-      .filter((claim) => claim.objectEntityId === root.id && (claim.fact === 'property.manager' || claim.fact === 'property.owner') && trusted(claim))
-      .map((claim) => claim.subjectId)
-  );
+  const linkedPropertyIds = linkedCompanyPropertyIds(graph, root.id);
 
-  const projectedProperties = [...linkedPropertyIds]
+  const projectedProperties = linkedPropertyIds
     .map((id) => projectProperty(graph, id, companyId, now))
-    .filter((value): value is Property => Boolean(value));
+    .filter((value): value is Property => Boolean(value))
+    .map((property) => {
+      const current = workspace.properties.find((item) => item.companyId === companyId && normalizeLabel(item.name) === normalizeLabel(property.name));
+      return current ? { ...property, id: current.id, createdAt: current.createdAt, parcelIds: [...current.parcelIds] } : property;
+    });
 
   const propertyIdMap = new Map(projectedProperties.map((property) => [normalizeLabel(property.name), property.id]));
+  const projectedParcels: Parcel[] = [];
+  for (const propertyEntityId of linkedPropertyIds) {
+    const entity = graph.entities.find((item) => item.id === propertyEntityId && item.kind === 'property');
+    if (!entity) continue;
+    const propertyId = propertyIdMap.get(normalizeLabel(entity.label));
+    if (!propertyId) continue;
+    const identifiers = parcelIdentifiers(entity.aliases ?? []);
+    const parcelIds = identifiers.map((identifier) => `research_parcel_${token(propertyId + identifier)}`);
+    const projected = projectedProperties.find((item) => item.id === propertyId);
+    if (projected) projected.parcelIds = [...new Set([...projected.parcelIds, ...parcelIds])];
+    identifiers.forEach((identifier, index) => projectedParcels.push({
+      id: parcelIds[index],
+      propertyId,
+      identifier,
+      jurisdiction: entity.geography,
+      status: 'verified-public',
+      provenanceId: firstProvenanceId(graph, propertyEntityId),
+    }));
+  }
   const projectedUtilities: UtilityService[] = [];
 
   for (const propertyEntityId of linkedPropertyIds) {
@@ -134,6 +159,7 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
       ? workspace.companies.map((item) => item.id === companyId ? company : item)
       : [...workspace.companies, company],
     properties: mergeProperties(workspace.properties, projectedProperties),
+    parcels: mergeParcels(workspace.parcels, projectedParcels),
     utilities: mergeUtilities(workspace.utilities, projectedUtilities),
     updatedAt: now,
   };
@@ -146,6 +172,7 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
       peopleAdded: Math.max(0, company.people.length - (existing?.people.length ?? 0)),
       propertiesAdded: projectedProperties.filter((property) => !workspace.properties.some((item) => item.companyId === companyId && normalizeLabel(item.name) === normalizeLabel(property.name))).length,
       utilitiesAdded: projectedUtilities.filter((utility) => !workspace.utilities.some((item) => item.propertyId === utility.propertyId && normalizeLabel(item.provider) === normalizeLabel(utility.provider))).length,
+      parcelsAdded: projectedParcels.filter((parcel) => !workspace.parcels.some((item) => item.propertyId === parcel.propertyId && normalizeLabel(item.identifier) === normalizeLabel(parcel.identifier))).length,
     },
   };
 }
@@ -306,6 +333,20 @@ function mergeProperties(existing: Property[], incoming: Property[]): Property[]
     const index = next.findIndex((item) => item.companyId === property.companyId && normalizeLabel(item.name) === normalizeLabel(property.name));
     if (index >= 0) next[index] = { ...next[index], ...property, id: next[index].id, createdAt: next[index].createdAt };
     else next.push(property);
+  }
+  return next;
+}
+
+function parcelIdentifiers(aliases: string[]): string[] {
+  return [...new Set(aliases.filter((alias) => /^(?:BBL\s|NJ PAMS\s|Philadelphia OPA\s|NYS tax parcel\s)/i.test(alias.trim())).map((alias) => alias.trim()))];
+}
+
+function mergeParcels(existing: Parcel[], incoming: Parcel[]): Parcel[] {
+  const next = [...existing];
+  for (const parcel of incoming) {
+    const index = next.findIndex((item) => item.propertyId === parcel.propertyId && normalizeLabel(item.identifier) === normalizeLabel(parcel.identifier));
+    if (index >= 0) next[index] = { ...next[index], ...parcel, id: next[index].id };
+    else next.push(parcel);
   }
   return next;
 }
