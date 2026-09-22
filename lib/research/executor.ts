@@ -8,6 +8,7 @@ import { crawlCompanyWebsite } from './sources/company-website';
 import { lookupHpdOwnershipByBbl } from './sources/nyc-hpd';
 import { searchNjParcelsByAddress } from './sources/nj-parcels';
 import { geocodeUsAddress, lookupEpaWaterSystems, lookupNjPurveyors, lookupPaWaterSuppliers } from './sources/water-service';
+import { ingestUtilityWebsite, researchUtilityWebsite } from './sources/utility-website';
 
 export interface ResearchTaskResult {
   taskId: string;
@@ -96,6 +97,18 @@ async function executeSource(
     const research = await crawlCompanyWebsite(url, { maxPages: 6, signal: options.signal });
     ingestCompanyWebsite(graph, entity.id, research);
     return { text: `Crawled ${research.visitedUrls.length} first-party page(s); found ${research.contacts.length} public business contact(s) and ${research.leadershipSignals.length} leadership signal(s).` };
+  }
+
+  if (task.sourceId === 'utility-first-party-web') {
+    if (entity.kind !== 'utility') return { text: 'Utility first-party research requires a utility entity.', blocked: true };
+    const research = await researchUtilityWebsite(entity.label, { maxPages: 8, signal: options.signal });
+    if (!research.seedUrl) return { text: research.warnings[0] ?? 'No credible utility website was found.', blocked: true, retryable: true };
+    ingestUtilityWebsite(graph, entity.id, research);
+    return {
+      text: `Crawled ${research.visitedUrls.length} utility page(s); found ${research.amiSignals.length} AMI/smart-meter program signal(s) and ${research.rateSignals.length} rate signal(s).`,
+      blocked: research.amiSignals.length === 0 && research.rateSignals.length === 0,
+      retryable: research.amiSignals.length === 0 && research.rateSignals.length === 0,
+    };
   }
 
   if (task.sourceId === 'nj-parcel-mod4') {

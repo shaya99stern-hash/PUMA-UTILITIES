@@ -20,14 +20,19 @@ export async function executeBrowserDirectoryResearch(
   options: { signal?: AbortSignal } = {},
 ): Promise<{ peopleAdded: number; message: string }> {
   const endpoint = process.env.PUMA_BROWSER_RESEARCH_URL;
-  if (!endpoint) throw new Error('Browser enrichment is not configured. Set PUMA_BROWSER_RESEARCH_URL to the authorized Playwright worker.');
+  const token = process.env.PUMA_BROWSER_RESEARCH_TOKEN;
+  if (!endpoint || !token) throw new Error('Browser enrichment is not configured. Set PUMA_BROWSER_RESEARCH_URL and PUMA_BROWSER_RESEARCH_TOKEN for the authorized Playwright worker.');
   const safeEndpoint = validateSearchEndpoint(endpoint);
   const entity = graph.entities.find((item) => item.id === task.subjectId);
   if (!entity || entity.kind !== 'company') throw new Error('Contact directory research requires a company entity.');
 
   const response = await fetch(safeEndpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify({
       adapter: 'contactout-public-directory',
       company: entity.label,

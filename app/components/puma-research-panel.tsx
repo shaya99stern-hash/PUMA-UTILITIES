@@ -8,7 +8,11 @@ import { assessResearchRun } from '@/lib/research/qualification';
 import type { ResearchMergeSummary } from '@/lib/research/workspace-projection';
 
 type Candidate = { name: string; website: string; snippet?: string; sourceUrl: string; confidence: number };
-type Capability = { webDiscoveryConfigured: boolean; browserEnrichmentConfigured: boolean };
+type Capability = {
+  webDiscoveryConfigured: boolean;
+  webDiscoveryBackend?: 'searxng' | 'duckduckgo-html';
+  browserEnrichmentConfigured: boolean;
+};
 type Props = { onSave: (result: ResearchRunResult) => ResearchMergeSummary };
 
 export default function PumaResearchPanel({ onSave }: Props) {
@@ -110,7 +114,9 @@ export default function PumaResearchPanel({ onSave }: Props) {
           <Search size={16} /> {status === 'discovering' ? 'Finding candidates…' : 'Find 10 candidates'}
         </button>
         {capability && <p className="pm-research-capability">
-          Web discovery: {capability.webDiscoveryConfigured ? 'connected' : 'not configured'} · Browser/ContactOut enrichment: {capability.browserEnrichmentConfigured ? 'connected' : 'optional worker not configured'}
+          Web discovery: {capability.webDiscoveryConfigured
+            ? (capability.webDiscoveryBackend === 'searxng' ? 'SearXNG' : 'built-in public-web fallback')
+            : 'not available'} · Browser/ContactOut enrichment: {capability.browserEnrichmentConfigured ? 'connected' : 'optional worker not configured'}
         </p>}
       </section>
 
@@ -161,14 +167,27 @@ export default function PumaResearchPanel({ onSave }: Props) {
 
         {decisionMakers.length > 0 && <div className="pm-research-section">
           <span>People to reach</span>
-          {decisionMakers.map((person) => <div key={person.id}>
-            <strong>{person.label}</strong>
-            <small>{result.graph.claims.find((claim) =>
+          {decisionMakers.map((person) => {
+            const role = result.graph.claims.find((claim) =>
               claim.subjectId === person.id &&
               claim.fact === 'person.title' &&
               (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED')
-            )?.value?.toString() || 'Role needs verification'}</small>
-          </div>)}
+            )?.value?.toString();
+            const email = result.graph.claims.find((claim) =>
+              claim.subjectId === person.id &&
+              claim.fact === 'person.email' &&
+              (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED')
+            )?.value?.toString();
+            const phone = result.graph.claims.find((claim) =>
+              claim.subjectId === person.id &&
+              claim.fact === 'person.phone' &&
+              (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED')
+            )?.value?.toString();
+            return <div key={person.id}>
+              <strong>{person.label}</strong>
+              <small>{[role || 'Role needs verification', email, phone].filter(Boolean).join(' · ')}</small>
+            </div>;
+          })}
         </div>}
 
         {properties.length > 0 && <div className="pm-research-section">
@@ -178,7 +197,22 @@ export default function PumaResearchPanel({ onSave }: Props) {
 
         {utilities.length > 0 && <div className="pm-research-section">
           <span>Water providers</span>
-          {utilities.slice(0, 12).map((utility) => <div key={utility.id}><strong>{utility.label}</strong><small>{utility.geography || 'Service area evidence'}</small></div>)}
+          {utilities.slice(0, 12).map((utility) => {
+            const ami = result.graph.claims.find((claim) =>
+              claim.subjectId === utility.id &&
+              claim.fact === 'utility.amiCapability' &&
+              (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED')
+            )?.value?.toString();
+            const rate = result.graph.claims.find((claim) =>
+              claim.subjectId === utility.id &&
+              claim.fact === 'utility.rateSchedule' &&
+              (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED')
+            )?.value?.toString();
+            return <div key={utility.id}>
+              <strong>{utility.label}</strong>
+              <small>{[utility.geography || 'Service area evidence', ami ? 'AMI evidence found' : 'AMI unknown', rate ? 'Rate evidence found' : 'Rate unresolved'].join(' · ')}</small>
+            </div>;
+          })}
         </div>}
 
         <div className="pm-research-evidence">

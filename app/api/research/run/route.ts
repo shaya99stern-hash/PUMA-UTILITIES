@@ -11,8 +11,9 @@ const MAX_BODY_BYTES = 16_384;
 
 export async function GET() {
   return NextResponse.json({
-    webDiscoveryConfigured: Boolean(process.env.PUMA_SEARXNG_URL),
-    browserEnrichmentConfigured: Boolean(process.env.PUMA_BROWSER_RESEARCH_URL),
+    webDiscoveryConfigured: true,
+    webDiscoveryBackend: process.env.PUMA_SEARXNG_URL ? 'searxng' : 'duckduckgo-html',
+    browserEnrichmentConfigured: Boolean(process.env.PUMA_BROWSER_RESEARCH_URL && process.env.PUMA_BROWSER_RESEARCH_TOKEN),
     browserAdapters: ['contactout-public-directory'],
     rules: { publicOnly: true, paywallBypass: false, contactCreditsBypass: false },
   }, { headers: { 'Cache-Control': 'no-store' } });

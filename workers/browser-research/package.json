@@ -1,0 +1,17 @@
+{
+  "name": "puma-browser-research-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test parser.test.mjs",
+    "install:chromium": "playwright install --with-deps chromium"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "dependencies": {
+    "playwright": "1.63.0"
+  }
+}

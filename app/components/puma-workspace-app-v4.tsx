@@ -554,7 +554,12 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
         <div className="pm-record-head"><h1>{selectedProperty.name}</h1><div className="pm-office"><span>Address</span><strong>{selectedProperty.address.status !== 'unknown' && selectedProperty.address.value ? selectedProperty.address.value : `${selectedProperty.state} · address not verified`}</strong></div></div>
         <div className="pm-detail-stack">
           {utilities.length === 0 && <div className="pm-empty"><strong>No water utility record saved.</strong></div>}
-          {utilities.map((utility) => <div className="pm-utility" key={utility.id}><div><span>Water Utility</span><strong>{utility.provider}</strong></div><div><span>Meter</span><strong>{utilityCapabilityLabel(utility)}</strong></div></div>)}
+          {utilities.map((utility) => <div className="pm-utility" key={utility.id}>
+            <div><span>Water Utility</span><strong>{utility.provider}</strong></div>
+            <div><span>Building Meter</span><strong>{utilityCapabilityLabel(utility)}</strong></div>
+            {utility.amiProgram?.status !== 'unknown' && utility.amiProgram?.value && <div><span>Utility AMI Program</span><strong>{utility.amiProgram.value}</strong></div>}
+            {utility.rateSummary?.status !== 'unknown' && utility.rateSummary?.value && <div><span>Published Rate Evidence</span><strong>{utility.rateSummary.value}</strong></div>}
+          </div>)}
           {selectedCompany.stage === 'Client' && <Link className="pm-detail-link" href="/monitor"><span><strong>Monitor</strong><small>Open client-authorized readings and alerts</small></span><ChevronRight size={17} /></Link>}
         </div>
         <div className="pm-note-box"><textarea value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} placeholder="Add a building note…" /><button type="button" disabled={!noteDraft.trim()} onClick={() => { addNote(noteDraft, 'typed', selectedCompany.id, selectedProperty.id); setNoteDraft(''); }}>Add note</button></div>
@@ -745,7 +750,7 @@ button,input,textarea,select { font:inherit; }
 .pm-timeline article p { margin:5px 0 0; font-size:12.5px; line-height:1.5; }
 .pm-building-list a { min-height:60px; display:flex; align-items:center; justify-content:space-between; gap:10px; border-bottom:1px solid var(--pm-line); color:inherit; text-decoration:none; }
 .pm-building-list a > span { min-width:0; display:flex; flex-direction:column; gap:4px; }
-.pm-utility { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:15px 1px; border-bottom:1px solid var(--pm-line); }
+.pm-utility { display:grid; grid-template-columns:1fr 1fr; gap:12px 10px; padding:15px 1px; border-bottom:1px solid var(--pm-line); }
 .pm-utility > div { display:flex; flex-direction:column; gap:5px; }
 .pm-utility strong { font-size:12.5px; font-weight:560; }
 .pm-alert-list article { min-height:66px; display:flex; align-items:flex-start; gap:11px; padding:13px 2px; border-bottom:1px solid var(--pm-line); }

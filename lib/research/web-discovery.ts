@@ -28,6 +28,7 @@ export function researchQuery(graph: ResearchGraph, task: ResearchTask): string 
     'property.manager': 'property manager management company',
     'utility.provider': 'water utility water provider service area',
     'utility.amiCapability': 'water AMI smart meter advanced metering',
+    'utility.rateSchedule': 'water rates tariff rate schedule usage charge',
     'utility.buildingMeterStatus': 'water meter smart meter building',
   };
   const geography = task.need.geography ? ` ${task.need.geography}` : '';

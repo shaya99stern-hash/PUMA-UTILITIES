@@ -16,6 +16,7 @@ const FACT_IMPORTANCE: Record<ResearchFact, number> = {
   'property.manager': 95,
   'utility.provider': 92,
   'utility.amiCapability': 80,
+  'utility.rateSchedule': 76,
   'utility.buildingMeterStatus': 70,
 };
 
@@ -46,6 +47,7 @@ const PERSON_REQUIRED_FACTS: ResearchFact[] = [
 const UTILITY_REQUIRED_FACTS: ResearchFact[] = [
   'utility.provider',
   'utility.amiCapability',
+  'utility.rateSchedule',
 ];
 
 const SINGLE_VALUED_FACTS = new Set<ResearchFact>([
