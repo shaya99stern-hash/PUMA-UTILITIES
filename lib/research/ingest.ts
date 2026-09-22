@@ -230,7 +230,28 @@ export function ingestCompanyWebsite(
     });
   }
 
-  for (const property of research.propertySignals ?? []) {
+  const discoveredProperties = research.propertySignals ?? [];
+  if (discoveredProperties.length >= 2) {
+    const distinctAddresses = [...new Set(discoveredProperties.map((property) => normalizeLabel(property.address)).filter(Boolean))];
+    if (distinctAddresses.length >= 2) {
+      const evidenceIds = [...new Set(discoveredProperties.map((property) => ensureEvidence(property.sourceUrl)))];
+      addClaim(graph, {
+        id: `claim:${companyId}:portfolio:discovered-addresses:${distinctAddresses.length}`,
+        subjectId: companyId,
+        fact: 'company.portfolioLowerBound',
+        value: distinctAddresses.length,
+        state: 'SUPPORTED',
+        confidence: 0.78,
+        evidenceIds,
+        observedAt,
+        qualifier: 'at-least',
+        statement: `At least ${distinctAddresses.length} distinct property addresses were discovered on the company's first-party site.`,
+        metricLabel: 'properties',
+      });
+    }
+  }
+
+  for (const property of discoveredProperties) {
     const propertyId = `property:first-party:${stableToken(companyId)}:${stableToken(property.address)}`;
     upsertEntity(graph, { id: propertyId, kind: 'property', label: property.address, geography: property.state ?? company.geography });
     const evidenceId = ensureEvidence(property.sourceUrl);

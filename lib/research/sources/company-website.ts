@@ -58,6 +58,13 @@ export async function crawlCompanyWebsite(
   const maxPages = Math.max(1, Math.min(10, Math.floor(options.maxPages ?? 6)));
   const timeoutMs = Math.max(1000, Math.min(15_000, Math.floor(options.timeoutMs ?? 7000)));
   const queue = prioritizedUrls(seed).slice(0, maxPages * 2);
+  try {
+    const sitemapXml = await fetchSitemap(seed.origin, timeoutMs, options.signal);
+    const sitemapUrls = extractLikelySitemapUrls(sitemapXml, seed.origin).slice(0, maxPages * 2);
+    queue.splice(1, 0, ...sitemapUrls.filter((url) => !queue.includes(url)));
+  } catch {
+    // Sitemaps are optional; continue with bounded page discovery.
+  }
   const visited = new Set<string>();
   const contacts = new Map<string, WebsiteContact>();
   const leadershipSignals = new Map<string, WebsiteLeadershipSignal>();
@@ -456,4 +463,47 @@ function decodeBasicEntities(value: string): string {
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&nbsp;/gi, ' ');
+}
+
+
+export function extractLikelySitemapUrls(xml: string, origin: string): string[] {
+  const normalizedOrigin = new URL(origin).origin;
+  const output = new Set<string>();
+  for (const match of xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)) {
+    try {
+      const url = new URL(decodeBasicEntities(match[1]));
+      if (url.origin !== normalizedOrigin || !isPublicHttpUrl(url.toString())) continue;
+      if (!/\b(about|team|leadership|management|people|staff|portfolio|properties|buildings|communities|contact)\b/i.test(url.pathname)) continue;
+      url.hash = '';
+      output.add(url.toString());
+    } catch {
+      // Ignore malformed sitemap entries.
+    }
+  }
+  return [...output];
+}
+
+async function fetchSitemap(origin: string, timeoutMs: number, outerSignal?: AbortSignal): Promise<string> {
+  const url = new URL('/sitemap.xml', origin).toString();
+  if (!isPublicHttpUrl(url)) throw new Error('Refused non-public sitemap URL.');
+  await assertPublicNetworkTarget(url);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const abort = () => controller.abort();
+  outerSignal?.addEventListener('abort', abort, { once:true });
+  try {
+    const response = await fetch(url, {
+      headers:{ Accept:'application/xml,text/xml;q=0.9,text/plain;q=0.8', 'User-Agent':'PumaUtilitiesResearch/1.3 public business research' },
+      redirect:'follow',
+      cache:'no-store',
+      signal:controller.signal,
+    });
+    if (!response.ok) throw new Error(`Sitemap HTTP ${response.status}`);
+    const length = Number(response.headers.get('content-length') ?? 0);
+    if (length > 1_000_000) throw new Error('Sitemap is too large.');
+    return (await response.text()).slice(0, 1_000_000);
+  } finally {
+    clearTimeout(timer);
+    outerSignal?.removeEventListener('abort', abort);
+  }
 }
