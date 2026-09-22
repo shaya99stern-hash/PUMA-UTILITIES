@@ -6,9 +6,10 @@ import type { ResearchRunResult } from '@/lib/research/runner';
 import { assessResearchRun } from '@/lib/research/qualification';
 import { rankDecisionMakers } from '@/lib/research/decision-maker';
 import { estimatePropertyWaterCost } from '@/lib/research/water-cost';
+import { buildOpportunityIntelligence } from '@/lib/research/opportunity';
 import type { ResearchMergeSummary } from '@/lib/research/workspace-projection';
 
-type Candidate = { name: string; website: string; snippet?: string; sourceUrl: string; confidence: number };
+type Candidate = { name: string; website: string; snippet?: string; sourceUrl: string; confidence: number; score: number; hits: number; markets: string[]; reasons: string[] };
 type Capability = {
   webDiscoveryConfigured: boolean;
   webDiscoveryBackend?: 'searxng' | 'duckduckgo-html';
@@ -23,6 +24,7 @@ type Props = { onSave: (result: ResearchRunResult) => ResearchMergeSummary };
 export default function PumaResearchPanel({ onSave }: Props) {
   const [capability, setCapability] = useState<Capability | null>(null);
   const [geography, setGeography] = useState('NJ');
+  const [markets, setMarkets] = useState('NJ, NY, PA');
   const [minBuildings, setMinBuildings] = useState(20);
   const [maxBuildings, setMaxBuildings] = useState(100);
   const [company, setCompany] = useState('');
@@ -40,6 +42,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
   }, []);
 
   const assessment = useMemo(() => result ? assessResearchRun(result) : null, [result]);
+  const opportunity = useMemo(() => result ? buildOpportunityIntelligence(result) : null, [result]);
   const root = result?.graph.entities.find((entity) => entity.id === result.rootEntityId);
   const decisionMakers = useMemo(() => result ? rankDecisionMakers(result.graph, result.rootEntityId) : [], [result]);
   const properties = result?.graph.entities.filter((entity) => entity.kind === 'property') ?? [];
@@ -65,7 +68,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
       const response = await fetch('/api/research/discover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ geography, minBuildings, maxBuildings, count: 10 }),
+        body: JSON.stringify({ geography: markets, minBuildings, maxBuildings, count: 10 }),
       });
       const payload = await response.json() as { candidates?: Candidate[]; error?: string };
       if (!response.ok) throw new Error(payload.error || 'Discovery failed.');
@@ -77,11 +80,12 @@ export default function PumaResearchPanel({ onSave }: Props) {
     }
   };
 
-  const deepResearch = async (name = company, url = website) => {
+  const deepResearch = async (name = company, url = website, targetGeography = geography) => {
     const label = name.trim();
     if (!label) return;
     setCompany(label);
     setWebsite(url);
+    setGeography(targetGeography);
     setStatus('researching');
     setError('');
     setResult(null);
@@ -89,7 +93,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
       const response = await fetch('/api/research/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label, geography, website: url || undefined, maxTasks: 44, maxBudgetUnits: 58, maxDepth: 3, concurrency: 4, perNeed: 5 }),
+        body: JSON.stringify({ label, geography: targetGeography, website: url || undefined, maxTasks: 60, maxBudgetUnits: 82, maxDepth: 4, concurrency: 5, perNeed: 6 }),
       });
       const payload = await response.json() as ResearchRunResult & { error?: string };
       if (!response.ok) throw new Error(payload.error || 'Research failed.');
@@ -115,7 +119,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
           <span>Start broad, then deeply verify only the strongest candidates.</span>
         </div>
         <div className="pm-research-grid">
-          <label><span>State</span><input value={geography} maxLength={2} onChange={(e) => setGeography(e.target.value.toUpperCase())} /></label>
+          <label><span>Markets</span><input value={markets} maxLength={24} onChange={(e) => setMarkets(e.target.value.toUpperCase())} placeholder="NJ, NY, PA" /></label>
           <label><span>Min buildings</span><input type="number" value={minBuildings} onChange={(e) => setMinBuildings(Number(e.target.value))} /></label>
           <label><span>Max buildings</span><input type="number" value={maxBuildings} onChange={(e) => setMaxBuildings(Number(e.target.value))} /></label>
         </div>
@@ -133,10 +137,11 @@ export default function PumaResearchPanel({ onSave }: Props) {
         {candidates.map((candidate) => <article key={candidate.website}>
           <div>
             <strong>{candidate.name}</strong>
-            <span>{candidate.snippet || candidate.website}</span>
+            <span>{candidate.markets.join(', ')} · Discovery {candidate.score}/100 · {candidate.hits} signal{candidate.hits === 1 ? '' : 's'}</span>
+            <span>{candidate.reasons.slice(0, 2).join(' · ') || candidate.snippet || candidate.website}</span>
             <a href={candidate.sourceUrl} target="_blank" rel="noreferrer">Discovery source <ExternalLink size={11} /></a>
           </div>
-          <button type="button" onClick={() => void deepResearch(candidate.name, candidate.website)}>Research</button>
+          <button type="button" onClick={() => void deepResearch(candidate.name, candidate.website, candidate.markets[0] ?? geography)}>Research</button>
         </article>)}
       </section>}
 
@@ -146,6 +151,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
           <span>Cross-reference leadership, public business contacts, properties, water utilities, AMI/smart-meter evidence, and source conflicts.</span>
         </div>
         <label className="pm-research-field"><span>Company</span><input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Denholtz Properties" /></label>
+        <label className="pm-research-field"><span>Research state</span><input value={geography} maxLength={2} onChange={(e) => setGeography(e.target.value.toUpperCase())} placeholder="NJ" /></label>
         <label className="pm-research-field"><span>Known website (optional)</span><input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://…" /></label>
         <button className="pm-research-primary" type="button" disabled={!company.trim() || status === 'researching'} onClick={() => void deepResearch()}>
           <Search size={16} /> {status === 'researching' ? 'Researching…' : 'Run deep research'}
@@ -174,6 +180,16 @@ export default function PumaResearchPanel({ onSave }: Props) {
           <div><span>Official owners</span><strong>{officialOwnershipProperties}</strong></div>
           <div><span>Evidence items</span><strong>{result.graph.evidence.length}</strong></div>
         </div>
+
+        {opportunity && <div className="pm-research-section pm-opportunity-intelligence">
+          <span>Opportunity intelligence</span>
+          <div><strong>Priority</strong><small>{opportunity.priority}/100 · {opportunity.confidence} confidence</small></div>
+          <div><strong>Portfolio coverage</strong><small>{opportunity.linkedProperties} linked · {opportunity.officialOwnershipProperties} official owners · {opportunity.utilityResolvedProperties} utilities · {opportunity.rateResolvedProperties} rates</small></div>
+          <div><strong>Water benchmark</strong><small>{opportunity.annualWaterSpendBenchmark ? `~${opportunity.annualWaterSpendBenchmark.toLocaleString()}/yr across ${opportunity.benchmarkedProperties} benchmarked propert${opportunity.benchmarkedProperties === 1 ? 'y' : 'ies'}` : 'Not enough sourced residential + tariff evidence yet'}</small></div>
+          {opportunity.topContact && <div><strong>Top contact</strong><small>{opportunity.topContact.name}{opportunity.topContact.title ? ` · ${opportunity.topContact.title}` : ''} · {opportunity.topContact.score}/100</small></div>}
+          {opportunity.nextActions.slice(0, 3).map((action, index) => <div key={`action-${index}`}><strong>{index === 0 ? 'Next best action' : `Then #${index + 1}`}</strong><small>{action}</small></div>)}
+          {opportunity.gaps.length > 0 && <details><summary>Unresolved gaps ({opportunity.gaps.length})</summary>{opportunity.gaps.map((gap) => <p key={gap}>{gap}</p>)}</details>}
+        </div>}
 
         {decisionMakers.length > 0 && <div className="pm-research-section">
           <span>People to reach — ranked</span>
