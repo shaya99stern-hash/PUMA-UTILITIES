@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { createResearchGraph, upsertEntity } from '../lib/research/graph';
+import { addClaim, createResearchGraph, upsertEntity } from '../lib/research/graph';
 import { ingestCompanyWebsite } from '../lib/research/ingest';
+import { assessResearchRun } from '../lib/research/qualification';
+import { emptyWorkspace } from '../lib/workspace';
+import { mergeResearchRunIntoWorkspace } from '../lib/research/workspace-projection';
 
 test('first-party portfolio addresses become recursively researchable property entities', () => {
   const graph = createResearchGraph();
@@ -13,41 +16,91 @@ test('first-party portfolio addresses become recursively researchable property e
     visitedUrls: ['https://samplepm.com/portfolio'],
     contacts: [],
     leadershipSignals: [],
-    socialUrls: [],
-    warnings: [],
     propertySignals: [{
       address: '123 Main St, Newark, NJ 07102',
       state: 'NJ',
       sourceUrl: 'https://samplepm.com/portfolio',
     }],
-  } as never, '2026-09-22T12:00:00.000Z');
+    socialUrls: [],
+    warnings: [],
+  }, '2026-09-22T12:00:00.000Z');
 
   const property = graph.entities.find((entity) => entity.kind === 'property' && entity.label === '123 Main St, Newark, NJ 07102');
-  assert.ok(property, 'expected a property entity from a first-party portfolio address');
+  assert.ok(property);
   assert.ok(graph.claims.some((claim) =>
-    claim.subjectId === property?.id &&
+    claim.subjectId === property.id &&
     claim.fact === 'property.manager' &&
     claim.objectEntityId === 'company:sample' &&
-    (claim.state === 'SUPPORTED' || claim.state === 'VERIFIED')
+    claim.state === 'SUPPORTED'
   ));
 });
 
-test('main product contains a bounded research API and a live Find Leads workflow', () => {
-  const apiPath = new URL('../app/api/research/run/route.ts', import.meta.url);
-  const appPath = new URL('../app/components/puma-workspace-app-v4.tsx', import.meta.url);
-  assert.equal(existsSync(apiPath), true, 'research run API must exist on the product branch');
-  const source = readFileSync(appPath, 'utf8');
-  assert.match(source, /\/api\/research\/run/);
-  assert.match(source, /Save to Prospects/);
-  assert.match(source, /web discovery/i);
+test('qualification separates target fit from contact actionability', () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id: 'company:one', kind: 'company', label: 'Example Property Group', geography: 'NJ' });
+  upsertEntity(graph, { id: 'person:one', kind: 'person', label: 'Jane Smith', geography: 'NJ' });
+  addClaim(graph, { id:'portfolio', subjectId:'company:one', fact:'company.portfolio', value:50, state:'SUPPORTED', confidence:.9, evidenceIds:[], observedAt:'2026-09-22T12:00:00.000Z' });
+  addClaim(graph, { id:'ownerop', subjectId:'company:one', fact:'company.ownerOperator', value:'Owner operator; self-managed', state:'SUPPORTED', confidence:.9, evidenceIds:[], observedAt:'2026-09-22T12:00:00.000Z' });
+  addClaim(graph, { id:'dm', subjectId:'company:one', fact:'person.decisionMaker', objectEntityId:'person:one', state:'SUPPORTED', confidence:.8, evidenceIds:[], observedAt:'2026-09-22T12:00:00.000Z' });
+  addClaim(graph, { id:'email', subjectId:'person:one', fact:'person.email', value:'jane@example.com', state:'SUPPORTED', confidence:.8, evidenceIds:[], observedAt:'2026-09-22T12:00:00.000Z' });
+
+  const assessment = assessResearchRun({
+    graph,
+    rootEntityId:'company:one',
+    tasksExecuted:1,
+    complete:1,
+    blocked:0,
+    failed:0,
+    results:[],
+    rootCompleteness:.5,
+    stopReason:'source-exhausted',
+  });
+
+  assert.ok(assessment.fit >= 80);
+  assert.ok(assessment.actionability >= 60);
 });
 
-test('research results have a dedicated safe CRM projection seam', () => {
-  const projectionPath = new URL('../lib/research/workspace-projection.ts', import.meta.url);
-  assert.equal(existsSync(projectionPath), true, 'workspace projection module must exist');
-  const source = readFileSync(projectionPath, 'utf8');
-  assert.match(source, /mergeResearchRunIntoWorkspace/);
-  assert.match(source, /VERIFIED/);
-  assert.match(source, /SUPPORTED/);
-  assert.match(source, /verified-public/);
+test('CRM projection refuses to promote inferred contact data into verified-public fields', () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id: 'company:one', kind: 'company', label: 'Example Property Group', geography: 'NJ' });
+  addClaim(graph, { id:'verified-site', subjectId:'company:one', fact:'company.website', value:'https://example.com', state:'SUPPORTED', confidence:.9, evidenceIds:[], observedAt:'2026-09-22T12:00:00.000Z' });
+  addClaim(graph, { id:'inferred-email', subjectId:'company:one', fact:'company.email', value:'guess@example.com', state:'INFERRED', confidence:.95, evidenceIds:[], observedAt:'2026-09-22T12:00:00.000Z' });
+
+  const merged = mergeResearchRunIntoWorkspace(emptyWorkspace(), {
+    graph,
+    rootEntityId:'company:one',
+    tasksExecuted:1,
+    complete:1,
+    blocked:0,
+    failed:0,
+    results:[],
+    rootCompleteness:.2,
+    stopReason:'source-exhausted',
+  });
+
+  assert.equal(merged.workspace.companies.length, 1);
+  assert.equal(merged.workspace.companies[0].website, 'https://example.com');
+  assert.equal(merged.workspace.companies[0].publicEmail, undefined);
+});
+
+test('product contains bounded APIs, optional browser enrichment, and a live Find Leads workflow', () => {
+  for (const path of [
+    '../app/api/research/run/route.ts',
+    '../app/api/research/discover/route.ts',
+    '../lib/research/browser-research.ts',
+    '../lib/research/workspace-projection.ts',
+    '../app/components/puma-research-panel.tsx',
+  ]) {
+    assert.equal(existsSync(new URL(path, import.meta.url)), true, path);
+  }
+
+  const panel = readFileSync(new URL('../app/components/puma-research-panel.tsx', import.meta.url), 'utf8');
+  assert.match(panel, /\/api\/research\/run/);
+  assert.match(panel, /\/api\/research\/discover/);
+  assert.match(panel, /Save to Prospects/);
+  assert.match(panel, /Browser\/ContactOut enrichment/);
+
+  const adapter = readFileSync(new URL('../lib/research/browser-research.ts', import.meta.url), 'utf8');
+  assert.match(adapter, /PUMA_BROWSER_RESEARCH_URL/);
+  assert.match(adapter, /Do not reveal or bypass credit-gated contact data/);
 });

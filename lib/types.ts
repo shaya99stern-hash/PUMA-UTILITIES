@@ -109,6 +109,14 @@ export type Company = {
   portfolio?: PortfolioMetric[];
   people: Person[];
   provenance: Provenance[];
+  website?: string;
+  publicEmail?: string;
+  publicPhone?: string;
+  prospectAssessment?: {
+    fit: number;
+    actionability: number;
+    reasons: string[];
+  };
   researchPathways?: string[];
   nextAction?: string;
   notes?: string;

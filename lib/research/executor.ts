@@ -3,6 +3,7 @@ import { ingestCompanyWebsite, ingestHpdOwnership, ingestNjParcel } from './inge
 import { ingestWaterServiceAreas } from './ingest-water';
 import type { ResearchGraph, ResearchTask } from './types';
 import { executeWebDiscovery } from './web-discovery';
+import { executeBrowserDirectoryResearch } from './browser-research';
 import { crawlCompanyWebsite } from './sources/company-website';
 import { lookupHpdOwnershipByBbl } from './sources/nyc-hpd';
 import { searchNjParcelsByAddress } from './sources/nj-parcels';
@@ -63,6 +64,16 @@ async function executeSource(
 ): Promise<{ text: string; blocked?: boolean; retryable?: boolean }> {
   const entity = graph.entities.find((item) => item.id === task.subjectId);
   if (!entity) return { text: 'Research subject no longer exists.', blocked: true };
+
+  if (task.sourceId === 'contactout-public-directory') {
+    if (entity.kind !== 'company') return { text: 'Contact directory enrichment requires a company entity.', blocked: true };
+    try {
+      const result = await executeBrowserDirectoryResearch(graph, task, { signal: options.signal });
+      return { text: result.message };
+    } catch (error) {
+      return { text: error instanceof Error ? error.message : String(error), blocked: true, retryable: false };
+    }
+  }
 
   if (task.sourceId === 'open-web-discovery') {
     const response = await executeWebDiscovery(graph, task, { endpoint: options.searchEndpoint, signal: options.signal, limit: 10 });

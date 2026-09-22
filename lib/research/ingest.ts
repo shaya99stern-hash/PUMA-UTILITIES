@@ -155,6 +155,32 @@ export function ingestCompanyWebsite(
     });
   }
 
+  for (const property of research.propertySignals ?? []) {
+    const propertyId = `property:first-party:${stableToken(companyId)}:${stableToken(property.address)}`;
+    upsertEntity(graph, { id: propertyId, kind: 'property', label: property.address, geography: property.state ?? company.geography });
+    const evidenceId = ensureEvidence(property.sourceUrl);
+    addClaim(graph, {
+      id: `claim:${propertyId}:identity:first-party`,
+      subjectId: propertyId,
+      fact: 'property.identity',
+      value: property.address,
+      state: 'SUPPORTED',
+      confidence: 0.82,
+      evidenceIds: [evidenceId],
+      observedAt,
+    });
+    addClaim(graph, {
+      id: `claim:${propertyId}:manager:first-party:${stableToken(companyId)}`,
+      subjectId: propertyId,
+      fact: 'property.manager',
+      objectEntityId: companyId,
+      state: 'SUPPORTED',
+      confidence: 0.78,
+      evidenceIds: [evidenceId],
+      observedAt,
+    });
+  }
+
   for (const signal of research.leadershipSignals) {
     const evidenceId = ensureEvidence(signal.sourceUrl);
     const person = parseLeadershipSignal(signal.text);
