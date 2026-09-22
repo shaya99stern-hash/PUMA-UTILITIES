@@ -175,8 +175,8 @@ export function ingestAcrisOwnership(
       subjectId: propertyId,
       fact: 'property.owner',
       objectEntityId: ownerId,
-      state: 'VERIFIED',
-      confidence: 0.96,
+      state: 'SUPPORTED',
+      confidence: 0.92,
       evidenceIds,
       observedAt,
     });

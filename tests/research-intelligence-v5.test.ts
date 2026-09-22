@@ -91,7 +91,7 @@ test('ACRIS latest deed grantees attach to the existing NYC property with BBL pr
 
   assert.equal(graph.entities.filter((entity) => entity.kind === 'property').length, 1);
   assert.ok(graph.entities.find((entity) => entity.id === 'property:nyc')?.aliases?.some((value) => /BBL 3-123-45/i.test(value)));
-  assert.ok(graph.claims.some((claim) => claim.subjectId === 'property:nyc' && claim.fact === 'property.owner' && claim.state === 'VERIFIED'));
+  assert.ok(graph.claims.some((claim) => claim.subjectId === 'property:nyc' && claim.fact === 'property.owner' && claim.state === 'SUPPORTED'));
 });
 
 test('fixed water charge parser accepts a single unconditional monthly charge and rejects meter-size tables', () => {

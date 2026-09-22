@@ -14,6 +14,8 @@ type Capability = {
   webDiscoveryBackend?: 'searxng' | 'duckduckgo-html';
   browserEnrichmentConfigured: boolean;
   officialLeadershipSources?: string[];
+  officialPropertySources?: string[];
+  structuredFirstParty?: string[];
   costEstimation?: string;
 };
 type Props = { onSave: (result: ResearchRunResult) => ResearchMergeSummary };
@@ -42,6 +44,12 @@ export default function PumaResearchPanel({ onSave }: Props) {
   const decisionMakers = useMemo(() => result ? rankDecisionMakers(result.graph, result.rootEntityId) : [], [result]);
   const properties = result?.graph.entities.filter((entity) => entity.kind === 'property') ?? [];
   const utilities = result?.graph.entities.filter((entity) => entity.kind === 'utility') ?? [];
+  const officialOwnershipProperties = useMemo(() => result
+    ? new Set(result.graph.claims
+        .filter((claim) => claim.fact === 'property.owner' && (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED'))
+        .filter((claim) => claim.evidenceIds.some((id) => result.graph.evidence.find((evidence) => evidence.id === id)?.authority === 'official'))
+        .map((claim) => claim.subjectId)).size
+    : 0, [result]);
   const waterEstimates = useMemo(() => result
     ? result.graph.entities
         .filter((entity) => entity.kind === 'property')
@@ -163,6 +171,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
           <div><span>Decision-makers</span><strong>{decisionMakers.length}</strong></div>
           <div><span>Properties found</span><strong>{properties.length}</strong></div>
           <div><span>Utilities found</span><strong>{utilities.length}</strong></div>
+          <div><span>Official owners</span><strong>{officialOwnershipProperties}</strong></div>
           <div><span>Evidence items</span><strong>{result.graph.evidence.length}</strong></div>
         </div>
 
