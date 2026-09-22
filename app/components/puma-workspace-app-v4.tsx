@@ -11,7 +11,6 @@ import {
   ChevronRight,
   CircleDollarSign,
   Mail,
-  Menu,
   Mic,
   Search,
   Settings,
@@ -24,7 +23,7 @@ import { buildingDetailPath, buildingListPath, companyPath } from '@/lib/client-
 import { COMPANY_LIFECYCLES, companyLifecycle, type CompanyLifecycle } from '@/lib/company-lifecycle';
 import { summarizeAccountsPayable } from '@/lib/accounts-payable';
 import { buildMonitorAlerts } from '@/lib/monitor';
-import { mergeReleaseOneSeeds } from '@/lib/seed';
+import { stripLegacyReleaseOneSeeds } from '@/lib/seed';
 import type { AccountsPayableItem, Company, PipelineStage, Property, UtilityService, Workspace } from '@/lib/types';
 import { resolveVoiceDestination, type VoicePhase } from '@/lib/voice-notes';
 import { loadWorkspace, saveWorkspace } from '@/lib/workspace';
@@ -165,14 +164,12 @@ function VoiceReviewSheet({ phase, message, draft, destination, onDraft, onSave,
 
 export default function PumaWorkspaceApp({ view, companyId, propertyId, subview = 'company' }: PumaWorkspaceAppProps) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [lifecycle, setLifecycle] = useState<CompanyLifecycle>('Prospects');
   const [recordTab, setRecordTab] = useState<RecordTab>('overview');
   const [noteDraft, setNoteDraft] = useState('');
-  const [profileName, setProfileName] = useState('Pinny');
-  const [profileDraft, setProfileDraft] = useState('Pinny');
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileName, setProfileName] = useState('');
+  const [profileDraft, setProfileDraft] = useState('');
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
   const [now, setNow] = useState<Date | null>(null);
@@ -187,13 +184,16 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
   const speechErrorRef = useRef(false);
 
   useEffect(() => {
-    const loaded = mergeReleaseOneSeeds(loadWorkspace());
-    setWorkspace({ ...loaded, accountsPayable: loaded.accountsPayable ?? [] });
-    saveWorkspace({ ...loaded, accountsPayable: loaded.accountsPayable ?? [] });
+    const cleaned = stripLegacyReleaseOneSeeds(loadWorkspace());
+    const loaded = { ...cleaned, accountsPayable: cleaned.accountsPayable ?? [] };
+    setWorkspace(loaded);
+    saveWorkspace(loaded);
     const storedName = window.localStorage.getItem(PROFILE_KEY)?.trim();
-    if (storedName) {
+    if (storedName && storedName.toLowerCase() !== 'pinny') {
       setProfileName(storedName);
       setProfileDraft(storedName);
+    } else if (storedName) {
+      window.localStorage.removeItem(PROFILE_KEY);
     }
     setNow(new Date());
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
@@ -437,11 +437,11 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
   };
 
   const saveProfile = () => {
-    const cleaned = profileDraft.trim() || 'Pinny';
+    const cleaned = profileDraft.trim();
     setProfileName(cleaned);
     setProfileDraft(cleaned);
-    window.localStorage.setItem(PROFILE_KEY, cleaned);
-    setProfileOpen(false);
+    if (cleaned) window.localStorage.setItem(PROFILE_KEY, cleaned);
+    else window.localStorage.removeItem(PROFILE_KEY);
   };
 
   const setAccountsPayablePaid = (item: AccountsPayableItem, paid: boolean) => {
@@ -457,35 +457,60 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
 
   if (!workspace) return <main className="pm-shell"><div className="pm-loading">Loading Puma…</div><style>{styles}</style></main>;
 
-  const renderHome = () => (
-    <div className="pm-page pm-home">
-      <section className="pm-welcome">
-        <div className="pm-date-line">{now ? `${formatLongDate(now)} · ${formatClock(now)}` : 'Today'}</div>
-        <h1>Welcome, {profileName}</h1>
-      </section>
-      <section className="pm-stat-strip" aria-label="Today at a glance">
-        <Link href="/clients"><strong>{followUpsToday}</strong><span>Follow-Ups for Today</span></Link>
-        <Link href="/clients"><strong>{activeCompanies.length}</strong><span>Active Clients</span></Link>
-        <Link href="/monitor"><strong>{alerts.length}</strong><span>Alerts</span></Link>
-      </section>
-      <section className="pm-home-grid" aria-label="Workspace shortcuts">
-        <article className="pm-home-panel">
-          <div className="pm-home-panel-head"><div><span>Next up</span><strong>Follow-ups</strong></div><Link href="/clients">View companies</Link></div>
-          <div className="pm-home-list">
-            {upcomingCompanies.length === 0 && <div className="pm-home-empty">No follow-ups scheduled.</div>}
-            {upcomingCompanies.map((company) => <Link key={company.id} href={companyPath(company.id)}><span><strong>{company.name}</strong><small>{portfolioSummary(company)}</small></span><time>{formatShortDate((company as CompanyWithFollowUp).followUpAt)}</time></Link>)}
+  const renderHome = () => {
+    const welcome = profileName ? `Welcome, ${profileName}` : 'Welcome';
+    if (allCompanies.length === 0) {
+      return (
+        <div className="pm-page pm-home">
+          <section className="pm-welcome pm-welcome-row">
+            <div>
+              <div className="pm-date-line">{now ? `${formatLongDate(now)} · ${formatClock(now)}` : 'Today'}</div>
+              <h1>{welcome}</h1>
+            </div>
+            <Link className="pm-home-settings" href="/settings"><UserRound size={17} /> Profile</Link>
+          </section>
+          <section className="pm-zero-state">
+            <BrandMark size={42} />
+            <h2>No companies yet</h2>
+            <p>Puma only shows companies you discover, research, or save. No demos or placeholder prospects are added.</p>
+            <Link className="pm-zero-primary" href="/engine"><Search size={16} /> Find real companies</Link>
+          </section>
+        </div>
+      );
+    }
+    return (
+      <div className="pm-page pm-home">
+        <section className="pm-welcome pm-welcome-row">
+          <div>
+            <div className="pm-date-line">{now ? `${formatLongDate(now)} · ${formatClock(now)}` : 'Today'}</div>
+            <h1>{welcome}</h1>
           </div>
-        </article>
-        <article className="pm-home-panel">
-          <div className="pm-home-panel-head"><div><span>Recent</span><strong>Companies</strong></div><Link href="/clients">Open all</Link></div>
-          <div className="pm-home-list">
-            {recentlyUpdatedCompanies.length === 0 && <div className="pm-home-empty">No company activity yet.</div>}
-            {recentlyUpdatedCompanies.map((company) => <Link key={company.id} href={companyPath(company.id)}><span><strong>{company.name}</strong><small>{company.market || 'Location not verified'} · {companyLifecycle(company.stage)}</small></span><ChevronRight size={16} /></Link>)}
-          </div>
-        </article>
-      </section>
-    </div>
-  );
+          <Link className="pm-home-settings" href="/settings"><UserRound size={17} /> {profileName || 'Profile'}</Link>
+        </section>
+        <section className="pm-stat-strip" aria-label="Today at a glance">
+          <Link href="/clients"><strong>{followUpsToday}</strong><span>Follow-ups today</span></Link>
+          <Link href="/clients"><strong>{activeCompanies.length}</strong><span>Active clients</span></Link>
+          <Link href="/monitor"><strong>{alerts.length}</strong><span>Alerts</span></Link>
+        </section>
+        <section className="pm-home-grid" aria-label="Workspace shortcuts">
+          <article className="pm-home-panel">
+            <div className="pm-home-panel-head"><div><span>Next up</span><strong>Follow-ups</strong></div><Link href="/clients">Companies</Link></div>
+            <div className="pm-home-list">
+              {upcomingCompanies.length === 0 && <div className="pm-home-empty">Nothing scheduled.</div>}
+              {upcomingCompanies.map((company) => <Link key={company.id} href={companyPath(company.id)}><span><strong>{company.name}</strong><small>{portfolioSummary(company)}</small></span><time>{formatShortDate((company as CompanyWithFollowUp).followUpAt)}</time></Link>)}
+            </div>
+          </article>
+          <article className="pm-home-panel">
+            <div className="pm-home-panel-head"><div><span>Recent</span><strong>Companies</strong></div><Link href="/clients">Open all</Link></div>
+            <div className="pm-home-list">
+              {recentlyUpdatedCompanies.length === 0 && <div className="pm-home-empty">No activity yet.</div>}
+              {recentlyUpdatedCompanies.map((company) => <Link key={company.id} href={companyPath(company.id)}><span><strong>{company.name}</strong><small>{company.market || 'Location not verified'} · {companyLifecycle(company.stage)}</small></span><ChevronRight size={16} /></Link>)}
+            </div>
+          </article>
+        </section>
+      </div>
+    );
+  };
 
   const renderCompanies = () => (
     <div className="pm-page">
@@ -659,9 +684,17 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
 
   const renderSettings = () => (
     <div className="pm-page">
-      <div className="pm-page-head"><div><h1>Settings</h1><p>Workspace preferences</p></div></div>
-      <button type="button" className="pm-settings-row" onClick={() => setProfileOpen(true)}><UserRound size={18} /><span><strong>Profile</strong><small>{profileName}</small></span><ChevronRight size={17} /></button>
-      <div className="pm-settings-row static"><Bell size={18} /><span><strong>Monitoring</strong><small>Alerts require client-authorized readings</small></span></div>
+      <div className="pm-page-head"><div><h1>Settings</h1><p>Keep the workspace personal and simple.</p></div></div>
+      <section className="pm-profile-settings">
+        <label>
+          <span>Display name</span>
+          <input value={profileDraft} onChange={(event) => setProfileDraft(event.target.value)} placeholder="Your name" />
+        </label>
+        <button type="button" onClick={saveProfile}>Save name</button>
+        <small>{profileName ? `Home will greet you as ${profileName}.` : 'Optional. Leave blank for a simple “Welcome”.'}</small>
+      </section>
+      <div className="pm-settings-row static"><Bell size={18} /><span><strong>Monitoring</strong><small>Alerts only use client-authorized readings.</small></span></div>
+      <Link className="pm-settings-row" href="/accounts-payable"><CircleDollarSign size={18} /><span><strong>Accounts Payable</strong><small>Billing and payment tracking</small></span><ChevronRight size={17} /></Link>
     </div>
   );
 
@@ -686,15 +719,12 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
           <Link href="/clients" className={view === 'clients' ? 'active' : ''}><Building2 size={19} /><span>Companies</span></Link>
           <Link href="/engine" className={view === 'engine' ? 'active' : ''}><SlidersHorizontal size={19} /><span>Find Leads</span></Link>
           <Link href="/monitor" className={view === 'monitor' ? 'active' : ''}><Activity size={19} /><span>Monitor</span></Link>
-          <Link href="/accounts-payable" className={view === 'accounts-payable' ? 'active' : ''}><CircleDollarSign size={19} /><span>Accounts Payable</span></Link>
-          <Link href="/settings" className={view === 'settings' ? 'active' : ''}><Settings size={19} /><span>Settings</span></Link>
         </nav>
-        <button type="button" className="pm-desktop-profile" onClick={() => setProfileOpen(true)}><UserRound size={19} /><span><strong>{profileName}</strong><small>Profile</small></span><ChevronRight size={16} /></button>
+        <Link className="pm-desktop-profile" href="/settings"><UserRound size={19} /><span><strong>{profileName || 'Profile'}</strong><small>Settings</small></span><ChevronRight size={16} /></Link>
       </aside>
 
       <div className="pm-main">
         <header className="pm-appbar">
-          <button type="button" className="pm-icon-button pm-menu-trigger" aria-label="Menu" onClick={() => setMenuOpen(true)}><Menu size={20} /></button>
           <div className="pm-brand"><BrandMark size={28} /><span><strong>Puma Utilities</strong><small>{pageLabel}</small></span></div>
           <button type="button" className={`pm-mic ${voicePhase === 'recording' ? 'recording' : ''}`} aria-label="Record voice note" onClick={() => void toggleVoice()}><Mic size={20} /></button>
         </header>
@@ -709,22 +739,6 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
         </nav>
       </div>
 
-      <div className={`pm-drawer-scrim ${menuOpen ? 'open' : ''}`} onClick={() => setMenuOpen(false)} />
-      <aside className={`pm-drawer ${menuOpen ? 'open' : ''}`} aria-hidden={!menuOpen}>
-        <div className="pm-drawer-head"><div className="pm-brand"><BrandMark size={30} /><span><strong>Puma Utilities</strong><small>Water Intelligence</small></span></div><button type="button" className="pm-icon-button" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X size={20} /></button></div>
-        <nav className="pm-drawer-nav">
-          <Link href="/" onClick={() => setMenuOpen(false)}><BrandMark size={20} /><span>Home</span></Link>
-          <Link href="/clients" onClick={() => setMenuOpen(false)}><Building2 size={19} /><span>Companies</span></Link>
-          <Link href="/monitor" onClick={() => setMenuOpen(false)}><Activity size={19} /><span>Monitor</span></Link>
-          <Link href="/engine" onClick={() => setMenuOpen(false)}><SlidersHorizontal size={19} /><span>Find Leads</span></Link>
-          <Link href="/accounts-payable" onClick={() => setMenuOpen(false)}><CircleDollarSign size={19} /><span>Accounts Payable</span></Link>
-          <Link href="/settings" onClick={() => setMenuOpen(false)}><Settings size={19} /><span>Settings</span></Link>
-        </nav>
-        <button type="button" className="pm-profile-row" onClick={() => { setMenuOpen(false); setProfileOpen(true); }}><UserRound size={20} /><span><strong>Profile</strong><small>{profileName}</small></span><ChevronRight size={17} /></button>
-      </aside>
-
-      {profileOpen && <div className="pm-sheet-scrim"><section className="pm-sheet" role="dialog" aria-modal="true" aria-label="Profile"><div className="pm-sheet-handle" /><div className="pm-sheet-head"><div><strong>Profile</strong><span>Personalize your workspace</span></div><button type="button" onClick={() => setProfileOpen(false)} aria-label="Close"><X size={18} /></button></div><label className="pm-field"><span>Display name</span><input value={profileDraft} onChange={(event) => setProfileDraft(event.target.value)} placeholder="Pinny" autoFocus /></label><div className="pm-sheet-actions"><button type="button" onClick={() => { setProfileDraft(profileName); setProfileOpen(false); }}>Cancel</button><button type="button" className="primary" onClick={saveProfile}>Save</button></div></section></div>}
-
       <VoiceReviewSheet phase={voicePhase} message={voiceMessage} draft={voiceDraft} destination={voiceDestinationLabel} onDraft={setVoiceDraft} onSave={saveVoiceNote} onCancel={cancelVoice} />
       {voicePhase === 'requesting' && <div className="pm-toast">Requesting microphone…</div>}
       {voicePhase === 'recording' && <div className="pm-toast recording">Listening · tap the mic to stop</div>}
@@ -736,11 +750,11 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
 }
 
 const styles = `
-:root { --pm-bg:#050607; --pm-panel:#0b0d0f; --pm-line:rgba(255,255,255,.09); --pm-text:#f5f5f3; --pm-muted:#878b91; --pm-orange:#e57a35; }
+:root { --pm-bg:#050607; --pm-panel:#0b0d0f; --pm-line:rgba(255,255,255,.09); --pm-text:#f5f5f3; --pm-muted:#878b91; --pm-orange:#86aeb6; }
 * { box-sizing:border-box; }
 body { background:var(--pm-bg); color:var(--pm-text); }
 button,input,textarea,select { font:inherit; }
-.pm-shell { min-height:100svh; background:var(--pm-bg); color:var(--pm-text); padding-bottom:calc(88px + env(safe-area-inset-bottom)); }
+.pm-shell { min-height:100svh; background:var(--pm-bg); color:var(--pm-text); padding-bottom:calc(88px + env(safe-area-inset-bottom)); font-family:var(--pm-serif); }
 .pm-appbar { position:sticky; top:0; z-index:30; height:calc(58px + env(safe-area-inset-top)); padding:calc(env(safe-area-inset-top) + 7px) 14px 7px; display:grid; grid-template-columns:44px 1fr 44px; align-items:center; gap:8px; background:rgba(5,6,7,.96); border-bottom:1px solid var(--pm-line); backdrop-filter:blur(14px); }
 .pm-icon-button,.pm-mic { width:44px; height:44px; display:grid; place-items:center; border:0; border-radius:13px; color:#d6d7d8; background:transparent; }
 .pm-mic.recording { background:rgba(229,122,53,.14); color:var(--pm-orange); }

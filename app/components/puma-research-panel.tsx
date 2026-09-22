@@ -33,6 +33,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
   const [result, setResult] = useState<ResearchRunResult | null>(null);
   const [status, setStatus] = useState<'idle'|'discovering'|'researching'|'saved'>('idle');
   const [error, setError] = useState('');
+  const [hasDiscovered, setHasDiscovered] = useState(false);
 
   useEffect(() => {
     fetch('/api/research/run', { cache: 'no-store' })
@@ -64,6 +65,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
     setStatus('discovering');
     setError('');
     setResult(null);
+    setHasDiscovered(false);
     try {
       const response = await fetch('/api/research/discover', {
         method: 'POST',
@@ -73,6 +75,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
       const payload = await response.json() as { candidates?: Candidate[]; error?: string };
       if (!response.ok) throw new Error(payload.error || 'Discovery failed.');
       setCandidates(payload.candidates ?? []);
+      setHasDiscovered(true);
       setStatus('idle');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -115,24 +118,29 @@ export default function PumaResearchPanel({ onSave }: Props) {
     <div className="pm-research">
       <section className="pm-research-card pm-research-discover">
         <div className="pm-research-title">
-          <strong>Discover owner/operators</strong>
-          <span>Start broad, then deeply verify only the strongest candidates.</span>
+          <strong>Find real companies</strong>
+          <span>Search public sources for owner/operators, then verify the strongest results before anything is saved.</span>
         </div>
-        <div className="pm-research-grid">
-          <label><span>Markets</span><input value={markets} maxLength={24} onChange={(e) => setMarkets(e.target.value.toUpperCase())} placeholder="NJ, NY, PA" /></label>
-          <label><span>Min buildings</span><input type="number" value={minBuildings} onChange={(e) => setMinBuildings(Number(e.target.value))} /></label>
-          <label><span>Max buildings</span><input type="number" value={maxBuildings} onChange={(e) => setMaxBuildings(Number(e.target.value))} /></label>
-        </div>
+        <label className="pm-research-field"><span>Markets</span><input value={markets} maxLength={24} onChange={(e) => setMarkets(e.target.value.toUpperCase())} placeholder="NJ, NY, PA" /></label>
+        <details className="pm-research-advanced">
+          <summary>Advanced filters</summary>
+          <div className="pm-research-grid">
+            <label><span>Min buildings</span><input type="number" value={minBuildings} onChange={(e) => setMinBuildings(Number(e.target.value))} /></label>
+            <label><span>Max buildings</span><input type="number" value={maxBuildings} onChange={(e) => setMaxBuildings(Number(e.target.value))} /></label>
+          </div>
+        </details>
         <button className="pm-research-primary" type="button" disabled={status === 'discovering' || !capability?.webDiscoveryConfigured} onClick={() => void discover()}>
-          <Search size={16} /> {status === 'discovering' ? 'Finding candidates…' : 'Find 10 candidates'}
+          <Search size={16} /> {status === 'discovering' ? 'Searching public sources…' : 'Find real companies'}
         </button>
-        {capability && <p className="pm-research-capability">
-          Web discovery: {capability.webDiscoveryConfigured
-            ? (capability.webDiscoveryBackend === 'searxng' ? 'SearXNG' : 'built-in public-web fallback')
-            : 'not available'} · Official leadership: {(capability.officialLeadershipSources ?? []).includes('sec-edgar') ? 'SEC EDGAR' : 'first-party'} · Browser/ContactOut enrichment: {capability.browserEnrichmentConfigured ? 'connected' : 'optional worker not configured'}
-        </p>}
+        {capability && <details className="pm-research-advanced pm-research-sources">
+          <summary>Data sources</summary>
+          <p className="pm-research-capability">
+            Public web: {capability.webDiscoveryConfigured ? 'available' : 'unavailable'} · Official leadership: {(capability.officialLeadershipSources ?? []).includes('sec-edgar') ? 'SEC EDGAR + first-party' : 'first-party'} · Optional public-directory worker: {capability.browserEnrichmentConfigured ? 'connected' : 'not connected'}
+          </p>
+        </details>}
       </section>
 
+      {hasDiscovered && candidates.length === 0 && <div className="pm-research-empty"><strong>No strong candidates found.</strong><span>Try broader markets or loosen the advanced portfolio range. Puma will not fill the list with weak pseudo-leads.</span></div>}
       {candidates.length > 0 && <section className="pm-research-list pm-research-candidates">
         {candidates.map((candidate) => <article key={candidate.website}>
           <div>
@@ -147,14 +155,17 @@ export default function PumaResearchPanel({ onSave }: Props) {
 
       <section className="pm-research-card pm-research-deep">
         <div className="pm-research-title">
-          <strong>Deep research a company</strong>
-          <span>Cross-reference leadership, public business contacts, properties, water utilities, AMI/smart-meter evidence, and source conflicts.</span>
+          <strong>Research one company</strong>
+          <span>Enter a company and state. Puma can resolve the website, leadership, portfolio, utilities, rates, and evidence itself.</span>
         </div>
-        <label className="pm-research-field"><span>Company</span><input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Denholtz Properties" /></label>
-        <label className="pm-research-field"><span>Research state</span><input value={geography} maxLength={2} onChange={(e) => setGeography(e.target.value.toUpperCase())} placeholder="NJ" /></label>
-        <label className="pm-research-field"><span>Known website (optional)</span><input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://…" /></label>
+        <label className="pm-research-field"><span>Company</span><input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company name" /></label>
+        <label className="pm-research-field"><span>State</span><input value={geography} maxLength={2} onChange={(e) => setGeography(e.target.value.toUpperCase())} placeholder="NJ" /></label>
+        <details className="pm-research-advanced">
+          <summary>Advanced</summary>
+          <label className="pm-research-field"><span>Website hint</span><input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Optional" /></label>
+        </details>
         <button className="pm-research-primary" type="button" disabled={!company.trim() || status === 'researching'} onClick={() => void deepResearch()}>
-          <Search size={16} /> {status === 'researching' ? 'Researching…' : 'Run deep research'}
+          <Search size={16} /> {status === 'researching' ? 'Researching…' : 'Research company'}
         </button>
       </section>
 
