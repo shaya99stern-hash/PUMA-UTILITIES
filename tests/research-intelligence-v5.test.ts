@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { addClaim, addEvidence, createResearchGraph, upsertEntity } from '../lib/research/graph';
 import { extractContacts, extractLeadershipSignals, extractPropertySignals, extractLikelySitemapUrls } from '../lib/research/sources/company-website';
 import { ingestAcrisOwnership, type AcrisOwnershipResult } from '../lib/research/sources/nyc-acris';
@@ -183,7 +184,7 @@ test('distinct first-party property addresses create only a conservative portfol
 
 
 test('ACRIS deed-code handling uses documented grantee/buyer conveyance codes only', () => {
-  const source = require('node:fs').readFileSync(new URL('../lib/research/sources/nyc-acris.ts', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../lib/research/sources/nyc-acris.ts', import.meta.url), 'utf8');
   assert.match(source, /DEED, TS/);
   assert.match(source, /IDED/);
   assert.doesNotMatch(source, /CONDEED/);
@@ -191,9 +192,8 @@ test('ACRIS deed-code handling uses documented grantee/buyer conveyance codes on
 });
 
 test('network crawlers do not automatically follow unchecked redirects', () => {
-  const fs = require('node:fs') as typeof import('node:fs');
-  const companySource = fs.readFileSync(new URL('../lib/research/sources/company-website.ts', import.meta.url), 'utf8');
-  const personSource = fs.readFileSync(new URL('../lib/research/sources/person-company.ts', import.meta.url), 'utf8');
+  const companySource = readFileSync(new URL('../lib/research/sources/company-website.ts', import.meta.url), 'utf8');
+  const personSource = readFileSync(new URL('../lib/research/sources/person-company.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(companySource, /redirect:\s*['"]follow['"]/);
   assert.doesNotMatch(personSource, /redirect:\s*['"]follow['"]/);
   assert.match(companySource, /assertPublicNetworkTarget\(current\)/);

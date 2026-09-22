@@ -5,7 +5,7 @@ const LEGALS_API = 'https://data.cityofnewyork.us/resource/8h5j-fqxa.json';
 const MASTER_API = 'https://data.cityofnewyork.us/resource/bnx9-e6tj.json';
 const PARTIES_API = 'https://data.cityofnewyork.us/resource/636b-3b5g.json';
 
-const DEED_TYPES = new Set(['DEED','CORRD','DEED COR','DEED, LE','DEED, TS','DEEDO','DEEDP','IDED']);
+const DEED_TYPES = new Set(['DEED','CORRD','DEED COR','DEED, LE','DEED, RC','DEED, TS','DEEDO','DEEDP','IDED']);
 
 type AcrisLegalRow = {
   document_id?: string;
