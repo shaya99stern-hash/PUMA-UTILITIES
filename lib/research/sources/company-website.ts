@@ -19,6 +19,21 @@ export interface WebsiteLeadershipSignal {
 export interface WebsitePropertySignal {
   address: string;
   state?: string;
+  units?: number;
+  grossSquareFeet?: number;
+  sourceUrl: string;
+}
+
+export interface WebsitePortfolioSignal {
+  count: number;
+  label: 'buildings' | 'properties' | 'communities' | 'locations';
+  qualifier: 'exact' | 'at-least';
+  text: string;
+  sourceUrl: string;
+}
+
+export interface WebsiteOwnerOperatorSignal {
+  text: string;
   sourceUrl: string;
 }
 
@@ -28,6 +43,8 @@ export interface CompanyWebsiteResearch {
   contacts: WebsiteContact[];
   leadershipSignals: WebsiteLeadershipSignal[];
   propertySignals?: WebsitePropertySignal[];
+  portfolioSignals?: WebsitePortfolioSignal[];
+  ownerOperatorSignals?: WebsiteOwnerOperatorSignal[];
   socialUrls: string[];
   warnings: string[];
 }
@@ -46,6 +63,8 @@ export async function crawlCompanyWebsite(
   const leadershipSignals = new Map<string, WebsiteLeadershipSignal>();
   const socialUrls = new Set<string>();
   const propertySignals = new Map<string, WebsitePropertySignal>();
+  const portfolioSignals = new Map<string, WebsitePortfolioSignal>();
+  const ownerOperatorSignals = new Map<string, WebsiteOwnerOperatorSignal>();
   const warnings: string[] = [];
 
   while (queue.length && visited.size < maxPages) {
@@ -57,6 +76,8 @@ export async function crawlCompanyWebsite(
       for (const contact of extractContacts(html, finalUrl)) contacts.set(`${contact.type}:${contact.value}`, contact);
       for (const signal of extractLeadershipSignals(html, finalUrl)) leadershipSignals.set(`${finalUrl}:${signal.text}`, signal);
       for (const property of extractPropertySignals(html, finalUrl)) propertySignals.set(property.address.toLowerCase(), property);
+      for (const signal of extractPortfolioSignals(html, finalUrl)) portfolioSignals.set(signal.sourceUrl + ':' + signal.text, signal);
+      for (const signal of extractOwnerOperatorSignals(html, finalUrl)) ownerOperatorSignals.set(signal.sourceUrl + ':' + signal.text, signal);
       for (const social of extractSocialUrls(html)) socialUrls.add(social);
 
       for (const discovered of extractLikelyInternalPages(html, seed)) {
@@ -73,6 +94,8 @@ export async function crawlCompanyWebsite(
     contacts: [...contacts.values()],
     leadershipSignals: [...leadershipSignals.values()].slice(0, 50),
     propertySignals: [...propertySignals.values()].slice(0, 100),
+    portfolioSignals: [...portfolioSignals.values()].slice(0, 30),
+    ownerOperatorSignals: [...ownerOperatorSignals.values()].slice(0, 20),
     socialUrls: [...socialUrls],
     warnings,
   };
@@ -136,9 +159,58 @@ export function extractPropertySignals(html: string, sourceUrl: string): Website
   for (const match of text.matchAll(addressPattern)) {
     const address = match[0].replace(/\\s+/g, ' ').trim().replace(/^[,;: -]+|[,;: -]+$/g, '');
     if (address.length < 12 || address.length > 180) continue;
-    output.set(address.toLowerCase(), { address, state: match[1]?.toUpperCase(), sourceUrl });
+    const context = nearbyContext(text, match.index ?? 0, match[0].length) ?? '';
+    const unitsMatch = context.match(/\\b(\\d{1,4})\\s*(?:[- ]?units?|apartments?)\\b/i);
+    const squareFeetMatch = context.match(/\\b([\\d,]{4,})\\s*(?:square\\s+feet|sq\\.?\\s*ft\\.?|sf)\\b/i);
+    const units = unitsMatch ? Number(unitsMatch[1]) : undefined;
+    const grossSquareFeet = squareFeetMatch ? Number(squareFeetMatch[1].replace(/,/g, '')) : undefined;
+    output.set(address.toLowerCase(), {
+      address,
+      state: match[1]?.toUpperCase(),
+      units: units && units <= 5000 ? units : undefined,
+      grossSquareFeet: grossSquareFeet && grossSquareFeet <= 20_000_000 ? grossSquareFeet : undefined,
+      sourceUrl,
+    });
   }
   return [...output.values()];
+}
+
+export function extractPortfolioSignals(html: string, sourceUrl: string): WebsitePortfolioSignal[] {
+  const text = htmlToText(html);
+  const output: WebsitePortfolioSignal[] = [];
+  const patterns = [
+    /\\b(?:(more than|over|at least)\\s+)?(?:portfolio(?:\\s+of|\\s+includes|\\s+consists of)?|owns?|manages?|operates?)\\s+(\\d{1,4})(\\+)?\\s+(buildings?|properties|communities|locations)\\b/gi,
+    /\\b(?:(more than|over|at least)\\s+)?(\\d{1,4})(\\+)?[-\\s]+(building|property|community|location)\\s+portfolio\\b/gi,
+  ];
+  const seen = new Set<string>();
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const count = Number(match[2]);
+      if (!Number.isFinite(count) || count < 2 || count > 5000) continue;
+      const rawLabel = match[4].toLowerCase();
+      const label = rawLabel.startsWith('building') ? 'buildings'
+        : rawLabel.startsWith('propert') ? 'properties'
+          : rawLabel.startsWith('communit') ? 'communities'
+            : 'locations';
+      const qualifier = match[1] || match[3] ? 'at-least' : 'exact';
+      const signal: WebsitePortfolioSignal = { count, label, qualifier, text: match[0].replace(/\\s+/g, ' ').trim(), sourceUrl };
+      const key = qualifier + ':' + count + ':' + label;
+      if (!seen.has(key)) {
+        seen.add(key);
+        output.push(signal);
+      }
+    }
+  }
+  return output.slice(0, 30);
+}
+
+export function extractOwnerOperatorSignals(html: string, sourceUrl: string): WebsiteOwnerOperatorSignal[] {
+  const text = htmlToText(html);
+  const lines = text.split(/\\n+/).map((line) => line.replace(/\\s+/g, ' ').trim()).filter((line) => line.length >= 12 && line.length <= 320);
+  return lines
+    .filter((line) => /\\b(owner[- ]?operator|owns? and (?:self[- ]?)?manages?|acquires?,? owns?,? and manages?|vertically integrated owner|owner and manager)\\b/i.test(line))
+    .slice(0, 20)
+    .map((text) => ({ text, sourceUrl }));
 }
 
 async function fetchHtml(url: string, timeoutMs: number, outerSignal?: AbortSignal): Promise<{ html: string; finalUrl: string }> {

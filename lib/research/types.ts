@@ -4,9 +4,9 @@ export type FetchStrategy = 'structured' | 'http' | 'web-discovery' | 'browser';
 
 export type ResearchFact =
   | 'company.identity' | 'company.website' | 'company.phone' | 'company.email'
-  | 'company.ownerOperator' | 'company.portfolio'
+  | 'company.ownerOperator' | 'company.portfolio' | 'company.portfolioLowerBound'
   | 'person.decisionMaker' | 'person.title' | 'person.phone' | 'person.email'
-  | 'property.identity' | 'property.owner' | 'property.manager'
+  | 'property.identity' | 'property.owner' | 'property.manager' | 'property.units' | 'property.grossSquareFeet'
   | 'utility.provider' | 'utility.amiCapability' | 'utility.rateSchedule' | 'utility.buildingMeterStatus';
 
 export type ResearchEntityKind = 'company' | 'person' | 'property' | 'utility' | 'domain' | 'organization';

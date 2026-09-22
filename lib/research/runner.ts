@@ -1,6 +1,7 @@
 import { graphCompleteness } from './graph';
 import { executeResearchTask as defaultExecutor, type ResearchTaskResult } from './executor';
 import { SOURCE_REGISTRY } from './source-registry';
+import { sourceCostUnits } from './planner';
 import { planEntityTasks } from './task-planner';
 import type { ResearchGraph, ResearchTask } from './types';
 
@@ -10,6 +11,7 @@ export interface ResearchRunOptions {
   concurrency?: number;
   perNeed?: number;
   targetCompleteness?: number;
+  maxBudgetUnits?: number;
   searchEndpoint?: string;
   signal?: AbortSignal;
   executor?: typeof defaultExecutor;
@@ -24,7 +26,8 @@ export interface ResearchRunResult {
   failed: number;
   results: ResearchTaskResult[];
   rootCompleteness: number;
-  stopReason: 'target-completeness' | 'task-budget' | 'source-exhausted' | 'aborted';
+  budgetUnitsSpent?: number;
+  stopReason: 'target-completeness' | 'task-budget' | 'research-budget' | 'source-exhausted' | 'aborted';
 }
 
 export async function runResearch(
@@ -37,6 +40,7 @@ export async function runResearch(
   const concurrency = clampInteger(options.concurrency ?? 5, 1, 12);
   const perNeed = clampInteger(options.perNeed ?? 4, 1, 10);
   const targetCompleteness = Math.max(0.25, Math.min(1, options.targetCompleteness ?? 0.82));
+  const maxBudgetUnits = Math.max(1, Math.min(400, options.maxBudgetUnits ?? Math.max(16, maxTasks * 1.6)));
   const executor = options.executor ?? defaultExecutor;
   const attempts = new Map<string, number>();
   const queuedKeys = new Set<string>();
@@ -44,6 +48,7 @@ export async function runResearch(
   const queue: ResearchTask[] = [];
   const results: ResearchTaskResult[] = [];
   const entityDepth = new Map<string, number>([[rootEntityId, 0]]);
+  let budgetUnitsSpent = 0;
 
   enqueueEntity(rootEntityId, 0);
 
@@ -53,7 +58,10 @@ export async function runResearch(
       return summarize('target-completeness');
     }
 
-    const batch = takeBatch(queue, concurrency);
+    if (budgetUnitsSpent >= maxBudgetUnits) return summarize('research-budget');
+    const batch = takeBatch(queue, concurrency, maxBudgetUnits - budgetUnitsSpent);
+    if (!batch.length) return summarize('research-budget');
+    budgetUnitsSpent += batch.reduce((sum, task) => sum + taskCost(task), 0);
     for (const task of batch) queuedKeys.delete(taskKey(task));
     const settled = await Promise.all(batch.map((task) => executor(graph, task, {
       searchEndpoint: options.searchEndpoint,
@@ -112,28 +120,36 @@ export async function runResearch(
       failed: results.filter((item) => item.status === 'failed').length,
       results,
       rootCompleteness: graphCompleteness(graph, rootEntityId),
+      budgetUnitsSpent: Math.round(budgetUnitsSpent * 100) / 100,
       stopReason,
     };
   }
 }
 
-function takeBatch(queue: ResearchTask[], globalLimit: number): ResearchTask[] {
+function takeBatch(queue: ResearchTask[], globalLimit: number, remainingBudget: number): ResearchTask[] {
   const selected: ResearchTask[] = [];
   const perSource = new Map<string, number>();
+  let selectedCost = 0;
   for (let index = 0; index < queue.length && selected.length < globalLimit;) {
     const task = queue[index];
+    const cost = taskCost(task);
     const sourceLimit = SOURCE_REGISTRY.find((source) => source.id === task.sourceId)?.maxConcurrency ?? 1;
     const sourceCount = perSource.get(task.sourceId) ?? 0;
-    if (sourceCount >= sourceLimit) {
+    if (sourceCount >= sourceLimit || selectedCost + cost > remainingBudget + 0.0001) {
       index += 1;
       continue;
     }
     selected.push(task);
+    selectedCost += cost;
     perSource.set(task.sourceId, sourceCount + 1);
     queue.splice(index, 1);
   }
-  if (!selected.length && queue.length) selected.push(queue.shift() as ResearchTask);
   return selected;
+}
+
+function taskCost(task: ResearchTask): number {
+  const source = SOURCE_REGISTRY.find((item) => item.id === task.sourceId);
+  return source ? sourceCostUnits(source) : 2;
 }
 
 function taskKey(task: ResearchTask): string {
