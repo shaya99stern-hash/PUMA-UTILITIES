@@ -24,5 +24,9 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: 'any',
       },
     ],
+    shortcuts: [
+      { name: 'Find Leads', short_name: 'Find Leads', url: '/engine' },
+      { name: 'Intelligence', short_name: 'Intelligence', url: '/intelligence' },
+    ],
   };
 }
