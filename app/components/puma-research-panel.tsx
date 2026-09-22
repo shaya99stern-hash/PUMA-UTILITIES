@@ -192,7 +192,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
                 property.geography || 'State unresolved',
                 typeof units === 'number' ? `${units.toLocaleString()} units` : undefined,
                 typeof area === 'number' ? `${area.toLocaleString()} sq ft` : undefined,
-                estimate ? `~$${Math.round(estimate.annualVariableCost).toLocaleString()}/yr variable water benchmark` : undefined,
+                estimate ? `~${Math.round(estimate.annualEstimatedWaterCost).toLocaleString()}/yr water benchmark${estimate.includesFixedCharges ? ' incl. fixed water charge' : ''}` : undefined,
               ].filter(Boolean).join(' · ')}</small>
             </div>;
           })}
@@ -238,7 +238,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
         <button className="pm-research-save" type="button" onClick={save}>
           {status === 'saved' ? <><CheckCircle2 size={16} /> Saved to Prospects</> : 'Save to Prospects'}
         </button>
-        <p className="pm-research-capability">Water-cost estimates appear only when Puma has sourced residential unit evidence plus one unambiguous published variable water rate; sourced gross floor area can refine the multifamily benchmark range. They are benchmark estimates—not actual bills—and exclude fixed, sewer, tax, demand, and unresolved tiered charges.</p>
+        <p className="pm-research-capability">Water-cost estimates appear only when Puma has sourced residential unit evidence plus one unambiguous published variable water rate; sourced gross floor area can refine the multifamily benchmark range. One unambiguous monthly water service charge may be included. Sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges remain excluded.</p>
       </section>}
     </div>
   );

@@ -166,11 +166,15 @@ export type PortalCapability =
 export type BenchmarkWaterCost = {
   annualVariableCost: number;
   monthlyVariableCost: number;
+  annualFixedWaterCharge?: number;
+  monthlyFixedWaterCharge?: number;
+  annualEstimatedWaterCost: number;
+  monthlyEstimatedWaterCost: number;
   benchmarkAnnualGallons: number;
   annualVariableCostLow?: number;
   annualVariableCostHigh?: number;
   basis: 'epa-multifamily-gallons-per-unit' | 'epa-multifamily-wui';
-  includesFixedCharges: false;
+  includesFixedCharges: boolean;
   methodology: string;
   sourceUrls: string[];
   status: 'estimated';

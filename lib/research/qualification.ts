@@ -66,6 +66,17 @@ export function assessResearchRun(result: ResearchRunResult): ProspectAssessment
     reasons.push(`${linkedProperties.length} property relationship(s) are sourced.`);
   }
 
+  const linkedPropertyIds = [...new Set(linkedProperties.map((claim) => claim.subjectId))];
+  const officialOwnershipCount = linkedPropertyIds.filter((propertyId) =>
+    trustedClaims(graph, propertyId, 'property.owner').some((claim) =>
+      claim.evidenceIds.some((evidenceId) => graph.evidence.find((evidence) => evidence.id === evidenceId)?.authority === 'official')
+    )
+  ).length;
+  if (officialOwnershipCount) {
+    fit += Math.min(8, officialOwnershipCount * 2);
+    reasons.push(`${officialOwnershipCount} portfolio propert${officialOwnershipCount === 1 ? 'y has' : 'ies have'} official ownership corroboration.`);
+  }
+
   const rankedPeople = rankDecisionMakers(graph, root.id);
   if (rankedPeople.length) {
     actionability += 35;
