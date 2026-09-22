@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ExternalLink, Search } from 'lucide-react';
 import type { ResearchRunResult } from '@/lib/research/runner';
-import type { ResearchEntity } from '@/lib/research/types';
 import { assessResearchRun } from '@/lib/research/qualification';
+import { rankDecisionMakers } from '@/lib/research/decision-maker';
+import { estimatePropertyWaterCost } from '@/lib/research/water-cost';
 import type { ResearchMergeSummary } from '@/lib/research/workspace-projection';
 
 type Candidate = { name: string; website: string; snippet?: string; sourceUrl: string; confidence: number };
@@ -12,6 +13,8 @@ type Capability = {
   webDiscoveryConfigured: boolean;
   webDiscoveryBackend?: 'searxng' | 'duckduckgo-html';
   browserEnrichmentConfigured: boolean;
+  officialLeadershipSources?: string[];
+  costEstimation?: string;
 };
 type Props = { onSave: (result: ResearchRunResult) => ResearchMergeSummary };
 
@@ -36,17 +39,15 @@ export default function PumaResearchPanel({ onSave }: Props) {
 
   const assessment = useMemo(() => result ? assessResearchRun(result) : null, [result]);
   const root = result?.graph.entities.find((entity) => entity.id === result.rootEntityId);
-  const decisionMakerClaims = result?.graph.claims.filter((claim) =>
-    claim.subjectId === result.rootEntityId &&
-    claim.fact === 'person.decisionMaker' &&
-    claim.objectEntityId &&
-    (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED')
-  ) ?? [];
-  const decisionMakers = decisionMakerClaims
-    .map((claim) => result?.graph.entities.find((entity) => entity.id === claim.objectEntityId))
-    .filter((value): value is ResearchEntity => Boolean(value));
+  const decisionMakers = useMemo(() => result ? rankDecisionMakers(result.graph, result.rootEntityId) : [], [result]);
   const properties = result?.graph.entities.filter((entity) => entity.kind === 'property') ?? [];
   const utilities = result?.graph.entities.filter((entity) => entity.kind === 'utility') ?? [];
+  const waterEstimates = useMemo(() => result
+    ? result.graph.entities
+        .filter((entity) => entity.kind === 'property')
+        .map((entity) => estimatePropertyWaterCost(result.graph, entity.id))
+        .filter((value): value is NonNullable<typeof value> => Boolean(value))
+    : [], [result]);
 
   const discover = async () => {
     setStatus('discovering');
@@ -80,7 +81,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
       const response = await fetch('/api/research/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label, geography, website: url || undefined, maxTasks: 36, maxDepth: 3, concurrency: 4, perNeed: 4 }),
+        body: JSON.stringify({ label, geography, website: url || undefined, maxTasks: 44, maxBudgetUnits: 58, maxDepth: 3, concurrency: 4, perNeed: 5 }),
       });
       const payload = await response.json() as ResearchRunResult & { error?: string };
       if (!response.ok) throw new Error(payload.error || 'Research failed.');
@@ -116,7 +117,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
         {capability && <p className="pm-research-capability">
           Web discovery: {capability.webDiscoveryConfigured
             ? (capability.webDiscoveryBackend === 'searxng' ? 'SearXNG' : 'built-in public-web fallback')
-            : 'not available'} · Browser/ContactOut enrichment: {capability.browserEnrichmentConfigured ? 'connected' : 'optional worker not configured'}
+            : 'not available'} · Official leadership: {(capability.officialLeadershipSources ?? []).includes('sec-edgar') ? 'SEC EDGAR' : 'first-party'} · Browser/ContactOut enrichment: {capability.browserEnrichmentConfigured ? 'connected' : 'optional worker not configured'}
         </p>}
       </section>
 
@@ -150,7 +151,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
           <div>
             <span>Research dossier</span>
             <h2>{root?.label}</h2>
-            <p>{Math.round(result.rootCompleteness * 100)}% core completeness · {result.tasksExecuted} tasks · {result.blocked} blocked · {result.failed} failed</p>
+            <p>{Math.round(result.rootCompleteness * 100)}% core completeness · {result.tasksExecuted} tasks · {result.budgetUnitsSpent ?? 0}/{result.maxBudgetUnits ?? '—'} effort units · {result.blocked} blocked · {result.failed} failed</p>
           </div>
           {assessment && <div className="pm-research-scores">
             <div><strong>{assessment.fit}</strong><span>Fit</span></div>
@@ -166,33 +167,43 @@ export default function PumaResearchPanel({ onSave }: Props) {
         </div>
 
         {decisionMakers.length > 0 && <div className="pm-research-section">
-          <span>People to reach</span>
-          {decisionMakers.map((person) => {
-            const role = result.graph.claims.find((claim) =>
-              claim.subjectId === person.id &&
-              claim.fact === 'person.title' &&
-              (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED')
-            )?.value?.toString();
-            const email = result.graph.claims.find((claim) =>
-              claim.subjectId === person.id &&
-              claim.fact === 'person.email' &&
-              (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED')
-            )?.value?.toString();
-            const phone = result.graph.claims.find((claim) =>
-              claim.subjectId === person.id &&
-              claim.fact === 'person.phone' &&
-              (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED')
-            )?.value?.toString();
-            return <div key={person.id}>
-              <strong>{person.label}</strong>
-              <small>{[role || 'Role needs verification', email, phone].filter(Boolean).join(' · ')}</small>
-            </div>;
-          })}
+          <span>People to reach — ranked</span>
+          {decisionMakers.slice(0, 10).map((person) => <div key={person.personId}>
+            <strong>{person.name}</strong>
+            <small>{[
+              `Priority ${person.score}/100`,
+              person.title || 'Role needs verification',
+              person.email,
+              person.phone,
+              person.contactStatus === 'company-only' ? 'route via company office' : undefined,
+            ].filter(Boolean).join(' · ')}</small>
+          </div>)}
         </div>}
 
         {properties.length > 0 && <div className="pm-research-section">
           <span>Properties</span>
-          {properties.slice(0, 12).map((property) => <div key={property.id}><strong>{property.label}</strong><small>{property.geography || 'State unresolved'}</small></div>)}
+          {properties.slice(0, 12).map((property) => {
+            const units = result.graph.claims.find((claim) => claim.subjectId === property.id && claim.fact === 'property.units' && (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED'))?.value;
+            const area = result.graph.claims.find((claim) => claim.subjectId === property.id && claim.fact === 'property.grossSquareFeet' && (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED'))?.value;
+            const estimate = waterEstimates.find((item) => item.propertyId === property.id);
+            return <div key={property.id}>
+              <strong>{property.label}</strong>
+              <small>{[
+                property.geography || 'State unresolved',
+                typeof units === 'number' ? `${units.toLocaleString()} units` : undefined,
+                typeof area === 'number' ? `${area.toLocaleString()} sq ft` : undefined,
+                estimate ? `~${Math.round(estimate.annualVariableCost).toLocaleString()}/yr variable water benchmark` : undefined,
+              ].filter(Boolean).join(' · ')}</small>
+            </div>;
+          })}
+        </div>}
+
+        {waterEstimates.length > 0 && <div className="pm-research-section">
+          <span>Defensible water-cost benchmarks</span>
+          {waterEstimates.slice(0, 12).map((estimate) => <div key={estimate.propertyId}>
+            <strong>{result.graph.entities.find((entity) => entity.id === estimate.propertyId)?.label ?? estimate.provider}</strong>
+            <small>{`~${Math.round(estimate.annualVariableCost).toLocaleString()}/yr variable water · ${Math.round(estimate.monthlyVariableCost).toLocaleString()}/mo · fixed/sewer/tax charges excluded`}</small>
+          </div>)}
         </div>}
 
         {utilities.length > 0 && <div className="pm-research-section">
@@ -227,7 +238,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
         <button className="pm-research-save" type="button" onClick={save}>
           {status === 'saved' ? <><CheckCircle2 size={16} /> Saved to Prospects</> : 'Save to Prospects'}
         </button>
-        <p className="pm-research-capability">Water-bill estimation is intentionally withheld until Puma has a current rate schedule plus a defensible usage or unit-count proxy. Provider and AMI evidence can still be saved now.</p>
+        <p className="pm-research-capability">Water-cost estimates appear only when Puma has sourced residential unit evidence plus one unambiguous published variable water rate; sourced gross floor area can refine the multifamily benchmark range. They are benchmark estimates—not actual bills—and exclude fixed, sewer, tax, demand, and unresolved tiered charges.</p>
       </section>}
     </div>
   );
