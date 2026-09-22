@@ -109,7 +109,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
 
   return (
     <div className="pm-research">
-      <section className="pm-research-card">
+      <section className="pm-research-card pm-research-discover">
         <div className="pm-research-title">
           <strong>Discover owner/operators</strong>
           <span>Start broad, then deeply verify only the strongest candidates.</span>
@@ -129,7 +129,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
         </p>}
       </section>
 
-      {candidates.length > 0 && <section className="pm-research-list">
+      {candidates.length > 0 && <section className="pm-research-list pm-research-candidates">
         {candidates.map((candidate) => <article key={candidate.website}>
           <div>
             <strong>{candidate.name}</strong>
@@ -140,7 +140,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
         </article>)}
       </section>}
 
-      <section className="pm-research-card">
+      <section className="pm-research-card pm-research-deep">
         <div className="pm-research-title">
           <strong>Deep research a company</strong>
           <span>Cross-reference leadership, public business contacts, properties, water utilities, AMI/smart-meter evidence, and source conflicts.</span>

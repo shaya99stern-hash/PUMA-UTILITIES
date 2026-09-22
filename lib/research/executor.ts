@@ -13,6 +13,7 @@ import { ingestSecCompanyResearch, researchSecCompany } from './sources/sec-edga
 import { resolvePersonFromCompanySite } from './sources/person-company';
 import { researchOfficialBusinessIdentity } from './sources/official-business';
 import { ingestAcrisOwnership, lookupAcrisOwnershipByAddress } from './sources/nyc-acris';
+import { ingestNycPluto, lookupNycPlutoByBbl } from './sources/nyc-pluto';
 
 export interface ResearchTaskResult {
   taskId: string;
@@ -158,6 +159,20 @@ async function executeSource(
     if (!ownership) return { text: 'NYC ACRIS did not return one unambiguous BBL with a deed grantee.', blocked: true, retryable: false };
     ingestAcrisOwnership(graph, entity.id, ownership);
     return { text: `NYC ACRIS resolved BBL ${ownership.bbl.borough}-${ownership.bbl.block}-${ownership.bbl.lot} and ${ownership.grantees.length} latest-deed grantee(s).` };
+  }
+
+  if (task.sourceId === 'nyc-pluto') {
+    if (entity.kind !== 'property') return { text: 'NYC PLUTO resolution requires a property entity.', blocked: true };
+    const bbl = parseBbl(entity.aliases ?? [], entity.label);
+    if (!bbl) return { text: 'NYC PLUTO requires a resolved BBL before physical-fact lookup.', blocked: true, retryable: true };
+    const record = await lookupNycPlutoByBbl(bbl.borough, bbl.block, bbl.lot, options.signal);
+    if (!record) return { text: 'NYC PLUTO did not return one unambiguous tax-lot record.', blocked: true, retryable: false };
+    ingestNycPluto(graph, entity.id, record);
+    const units = Number(record.unitsres ?? 0);
+    const area = Number(record.bldgarea ?? 0);
+    return {
+      text: `NYC PLUTO resolved official physical facts${Number.isFinite(units) && units > 0 ? ` · ${units} residential units` : ''}${Number.isFinite(area) && area > 0 ? ` · ${area.toLocaleString()} sq ft reported building area` : ''}.`
+    };
   }
 
   if (task.sourceId === 'nyc-hpd-registrations') {

@@ -37,6 +37,8 @@ const PROPERTY_REQUIRED_FACTS: ResearchFact[] = [
   'property.identity',
   'property.owner',
   'property.manager',
+  'property.units',
+  'property.grossSquareFeet',
   'utility.provider',
   'utility.amiCapability',
 ];

@@ -6,6 +6,7 @@ import './client-workflow.css';
 import './puma-redesign.css';
 import './bulk-outreach.css';
 import './ios-native.css';
+import './puma-responsive-v6.css';
 
 const APP_ICON = '/apple-touch-icon.png?v=20260910-3';
 
