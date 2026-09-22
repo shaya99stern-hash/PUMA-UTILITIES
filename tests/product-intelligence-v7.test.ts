@@ -121,3 +121,17 @@ test('Philadelphia OPA registry capability never promises gross-area evidence', 
   assert.match(sourceBlock, /property\.owner/);
   assert.doesNotMatch(sourceBlock, /property\.grossSquareFeet/);
 });
+
+
+test('install metadata uses generated Puma icons rather than the retired baked PNG route', () => {
+  const layout = readFileSync('app/layout.tsx', 'utf8');
+  const manifest = readFileSync('app/manifest.ts', 'utf8');
+  const worker = readFileSync('public/sw.js', 'utf8');
+  assert.match(layout, /\/apple-touch-icon\?v=20260922-1/);
+  assert.match(layout, /\/pwa-icon-192\?v=20260922-1/);
+  assert.match(layout, /\/pwa-icon-512\?v=20260922-1/);
+  assert.doesNotMatch(layout, /apple-touch-icon\.png/);
+  assert.match(manifest, /pwa-icon-192/);
+  assert.match(manifest, /pwa-icon-512/);
+  assert.match(worker, /shell-v3/);
+});

@@ -27,11 +27,13 @@ test('minimal implementation uses Companies, a quiet home, and profile personali
   assert.doesNotMatch(source, /puma-record-actions/);
 });
 
-test('in-app brand mark matches the app background without image filter hacks', () => {
+test('in-app brand mark is a transparent vector without image filter or square-tile hacks', () => {
   assert.equal(existsSync(implementationPath), true, 'v4 implementation should exist');
   const source = readFileSync(implementationPath, 'utf8');
-  assert.match(source, /pm-brand-mark/);
-  assert.match(source, /background:var\(--pm-bg\)/);
+  const block = source.match(/function BrandMark[\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(block, /<svg/);
+  assert.doesNotMatch(block, /<img\b/);
   assert.doesNotMatch(source, /filter:\s*contrast\(/);
-  assert.match(source, /overflow:hidden/);
+  assert.match(source, /\.pm-brand-mark \{[^}]*background:transparent/);
+  assert.match(source, /\.pm-brand-mark \{[^}]*overflow:visible/);
 });

@@ -738,8 +738,8 @@ button,input,textarea,select { font:inherit; }
 .pm-brand > span:last-child { min-width:0; display:flex; flex-direction:column; gap:1px; }
 .pm-brand strong { font-size:14px; font-weight:620; letter-spacing:-.01em; white-space:nowrap; }
 .pm-brand small { font-size:10.5px; color:var(--pm-muted); }
-.pm-brand-mark { position:relative; display:inline-block; overflow:hidden; flex:0 0 auto; background:var(--pm-bg); border-radius:0; }
-.pm-brand-mark img { position:absolute; width:148%; height:148%; max-width:none; object-fit:cover; object-position:center 3%; left:-24%; top:-9%; }
+.pm-brand-mark { display:inline-grid; place-items:center; overflow:visible; flex:0 0 auto; background:transparent; border:0; border-radius:0; box-shadow:none; }
+.pm-brand-mark svg { display:block; width:100%; height:100%; overflow:visible; }
 .pm-content { width:min(100%,760px); margin:0 auto; }
 .pm-page { padding:24px 16px 28px; }
 .pm-home { padding-top:30px; }
