@@ -192,7 +192,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
                 property.geography || 'State unresolved',
                 typeof units === 'number' ? `${units.toLocaleString()} units` : undefined,
                 typeof area === 'number' ? `${area.toLocaleString()} sq ft` : undefined,
-                estimate ? `~${Math.round(estimate.annualVariableCost).toLocaleString()}/yr variable water benchmark` : undefined,
+                estimate ? `~$${Math.round(estimate.annualVariableCost).toLocaleString()}/yr variable water benchmark` : undefined,
               ].filter(Boolean).join(' · ')}</small>
             </div>;
           })}
@@ -202,7 +202,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
           <span>Defensible water-cost benchmarks</span>
           {waterEstimates.slice(0, 12).map((estimate) => <div key={estimate.propertyId}>
             <strong>{result.graph.entities.find((entity) => entity.id === estimate.propertyId)?.label ?? estimate.provider}</strong>
-            <small>{`~${Math.round(estimate.annualVariableCost).toLocaleString()}/yr variable water · ${Math.round(estimate.monthlyVariableCost).toLocaleString()}/mo · fixed/sewer/tax charges excluded`}</small>
+            <small>{`~$${Math.round(estimate.annualVariableCost).toLocaleString()}/yr variable water · ${Math.round(estimate.monthlyVariableCost).toLocaleString()}/mo · fixed/sewer/tax charges excluded`}</small>
           </div>)}
         </div>}
 

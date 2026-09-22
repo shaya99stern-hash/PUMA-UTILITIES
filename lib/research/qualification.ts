@@ -68,7 +68,7 @@ export function assessResearchRun(result: ResearchRunResult): ProspectAssessment
 
   const rankedPeople = rankDecisionMakers(graph, root.id);
   if (rankedPeople.length) {
-    actionability += 30;
+    actionability += 35;
     reasons.push(`${rankedPeople.length} sourced decision-maker candidate(s) are ranked by operational relevance and contact evidence.`);
     const top = rankedPeople[0];
     if (top.score >= 75) {
