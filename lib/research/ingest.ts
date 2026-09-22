@@ -131,6 +131,16 @@ export function ingestCompanyWebsite(
 
   const websiteEvidence = ensureEvidence(research.seedUrl);
   addClaim(graph, {
+    id: `claim:${companyId}:identity:first-party`,
+    subjectId: companyId,
+    fact: 'company.identity',
+    value: company.label,
+    state: 'SUPPORTED',
+    confidence: 0.8,
+    evidenceIds: [websiteEvidence],
+    observedAt,
+  });
+  addClaim(graph, {
     id: `claim:${companyId}:website:first-party`,
     subjectId: companyId,
     fact: 'company.website',
@@ -166,6 +176,9 @@ export function ingestCompanyWebsite(
       confidence: signal.qualifier === 'exact' ? 0.86 : 0.82,
       evidenceIds: [evidenceId],
       observedAt,
+      qualifier: signal.qualifier,
+      statement: signal.text,
+      metricLabel: signal.label,
     });
   }
 

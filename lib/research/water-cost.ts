@@ -41,21 +41,33 @@ export function estimatePropertyWaterCost(graph: ResearchGraph, propertyId: stri
   const utility = graph.entities.find((entity) => entity.id === providerClaim.objectEntityId && entity.kind === 'utility');
   if (!utility) return undefined;
 
-  const rateClaim = trustedClaims(graph, utility.id, 'utility.rateSchedule')
-    .find((claim) => typeof claim.value === 'string' && parseVariableWaterRate(claim.value));
-  if (!rateClaim || typeof rateClaim.value !== 'string') return undefined;
-  const parsedRate = parseVariableWaterRate(rateClaim.value);
-  if (!parsedRate) return undefined;
+  const parsedRateClaims = trustedClaims(graph, utility.id, 'utility.rateSchedule')
+    .flatMap((claim) => {
+      if (typeof claim.value !== 'string') return [];
+      const parsed = parseVariableWaterRate(claim.value);
+      return parsed ? [{ claim, parsed }] : [];
+    });
+  const distinctRates = parsedRateClaims.filter((item, index, all) =>
+    all.findIndex((other) => Math.abs(other.parsed.dollarsPer1000Gallons - item.parsed.dollarsPer1000Gallons) < 0.0001) === index
+  );
+  if (distinctRates.length !== 1) return undefined;
+  const parsedRate = distinctRates[0].parsed;
+  const rateClaim = parsedRateClaims
+    .filter((item) => Math.abs(item.parsed.dollarsPer1000Gallons - parsedRate.dollarsPer1000Gallons) < 0.0001)
+    .sort((left, right) => right.claim.confidence - left.claim.confidence)[0]?.claim;
+  if (!rateClaim) return undefined;
 
-  const squareFeet = numericClaim(graph, propertyId, 'property.grossSquareFeet');
-  const units = numericClaim(graph, propertyId, 'property.units');
+  const squareFeetClaim = numericTrustedClaim(graph, propertyId, 'property.grossSquareFeet');
+  const unitsClaim = numericTrustedClaim(graph, propertyId, 'property.units');
+  const squareFeet = typeof squareFeetClaim?.value === 'number' ? squareFeetClaim.value : undefined;
+  const units = typeof unitsClaim?.value === 'number' ? unitsClaim.value : undefined;
   let basis: PropertyWaterCostEstimate['basis'];
   let benchmarkAnnualGallons: number;
   let low: number | undefined;
   let high: number | undefined;
   let methodology: string;
 
-  if (squareFeet && squareFeet > 0) {
+  if (squareFeet && squareFeet > 0 && units && units > 0) {
     basis = 'epa-multifamily-wui';
     benchmarkAnnualGallons = squareFeet * EPA_MULTIFAMILY_WUI.median;
     low = squareFeet * EPA_MULTIFAMILY_WUI.p25;
@@ -73,6 +85,8 @@ export function estimatePropertyWaterCost(graph: ResearchGraph, propertyId: stri
   const sourceUrls = [...new Set([
     ...claimUrls(graph, providerClaim),
     ...claimUrls(graph, rateClaim),
+    ...(unitsClaim ? claimUrls(graph, unitsClaim) : []),
+    ...(squareFeetClaim ? claimUrls(graph, squareFeetClaim) : []),
     'https://www.energystar.gov/buildings/benchmark/understand-metrics/what-water-use-intensity-wui',
     'https://www.epa.gov/watersense/understanding-your-water-bill',
   ])];
@@ -115,9 +129,8 @@ export function parseVariableWaterRate(text: string): ParsedWaterRate | undefine
   return unique[0];
 }
 
-function numericClaim(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): number | undefined {
-  const claim = trustedClaims(graph, subjectId, fact).find((item) => typeof item.value === 'number' && Number.isFinite(item.value));
-  return typeof claim?.value === 'number' ? claim.value : undefined;
+function numericTrustedClaim(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): ResearchClaim | undefined {
+  return trustedClaims(graph, subjectId, fact).find((item) => typeof item.value === 'number' && Number.isFinite(item.value));
 }
 
 function trustedClaims(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): ResearchClaim[] {

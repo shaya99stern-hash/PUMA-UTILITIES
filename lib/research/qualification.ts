@@ -1,5 +1,7 @@
 import type { ResearchRunResult } from './runner';
 import type { ResearchClaim, ResearchGraph } from './types';
+import { rankDecisionMakers } from './decision-maker';
+import { estimatePropertyWaterCost } from './water-cost';
 
 export type ProspectAssessment = {
   fit: number;
@@ -17,6 +19,9 @@ export function assessResearchRun(result: ResearchRunResult): ProspectAssessment
   let actionability = 0;
 
   const portfolio = trustedClaims(graph, root.id, 'company.portfolio').find((claim) => typeof claim.value === 'number');
+  const lowerBound = trustedClaims(graph, root.id, 'company.portfolioLowerBound')
+    .filter((claim) => typeof claim.value === 'number')
+    .sort((left, right) => Number(right.value) - Number(left.value))[0];
   if (typeof portfolio?.value === 'number') {
     const count = portfolio.value;
     if (count >= 20 && count <= 100) {
@@ -25,6 +30,18 @@ export function assessResearchRun(result: ResearchRunResult): ProspectAssessment
     } else if (count >= 10 && count <= 150) {
       fit += 25;
       reasons.push('Portfolio is near the target range.');
+    }
+  } else if (typeof lowerBound?.value === 'number') {
+    const count = lowerBound.value;
+    if (count >= 20 && count <= 100) {
+      fit += 35;
+      reasons.push(`Portfolio evidence establishes at least ${count} buildings/properties; the upper bound remains unresolved.`);
+    } else if (count >= 10 && count < 20) {
+      fit += 18;
+      reasons.push(`Portfolio evidence establishes at least ${count} buildings/properties; more size evidence is needed.`);
+    } else if (count > 100) {
+      fit += 12;
+      reasons.push(`Portfolio evidence establishes at least ${count} buildings/properties, above Puma's 20–100 target band.`);
     }
   }
 
@@ -49,27 +66,36 @@ export function assessResearchRun(result: ResearchRunResult): ProspectAssessment
     reasons.push(`${linkedProperties.length} property relationship(s) are sourced.`);
   }
 
-  const decisionMakers = trustedClaims(graph, root.id, 'person.decisionMaker').filter((claim) => claim.objectEntityId);
-  if (decisionMakers.length) {
-    actionability += 35;
-    reasons.push('At least one sourced decision-maker is identified.');
-  }
-
-  const people = new Set(decisionMakers.map((claim) => claim.objectEntityId).filter((value): value is string => Boolean(value)));
-  if ([...people].some((id) => trustedClaims(graph, id, 'person.email').length)) {
-    actionability += 25;
-    reasons.push('A decision-maker has a sourced public business email.');
-  }
-  if ([...people].some((id) => trustedClaims(graph, id, 'person.phone').length)) {
-    actionability += 20;
-    reasons.push('A decision-maker has a sourced public business phone.');
+  const rankedPeople = rankDecisionMakers(graph, root.id);
+  if (rankedPeople.length) {
+    actionability += 30;
+    reasons.push(`${rankedPeople.length} sourced decision-maker candidate(s) are ranked by operational relevance and contact evidence.`);
+    const top = rankedPeople[0];
+    if (top.score >= 75) {
+      actionability += 15;
+      reasons.push(`Top contact path is strong: ${top.name}${top.title ? ` — ${top.title}` : ''}.`);
+    }
+    if (top.email) {
+      actionability += 25;
+      reasons.push('Top-ranked decision-maker has a sourced public business email.');
+    } else if (top.phone) {
+      actionability += 18;
+      reasons.push('Top-ranked decision-maker has a sourced public business phone.');
+    }
   }
   if (linkedProperties.length) actionability += 10;
 
   const utilityEvidence = graph.claims.some((claim) => claim.fact === 'utility.provider' && trusted(claim));
   if (utilityEvidence) {
-    actionability += 10;
+    actionability += 7;
     reasons.push('Water utility evidence is available for at least one researched property.');
+  }
+
+  const estimatedProperties = [...new Set(linkedProperties.map((claim) => claim.subjectId))]
+    .filter((propertyId) => Boolean(estimatePropertyWaterCost(graph, propertyId)));
+  if (estimatedProperties.length) {
+    actionability += 8;
+    reasons.push(`${estimatedProperties.length} property water-cost benchmark estimate(s) have sourced residential inputs and a parseable published variable rate.`);
   }
 
   return { fit: Math.min(100, fit), actionability: Math.min(100, actionability), reasons };

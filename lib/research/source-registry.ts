@@ -19,7 +19,7 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     geographies: ['NY', 'NYC'],
     authority: 'official',
     strategy: 'structured',
-    capabilities: ['property.identity', 'property.owner', 'property.manager', 'person.decisionMaker', 'person.phone'],
+    capabilities: ['property.identity', 'property.owner', 'property.manager'],
     reliability: 0.95, evidenceStrength: 0.96, expectedLatencyMs: 500, freshnessDays: 45, maxConcurrency: 6,
     notes: ['Resolve the building through HPD Registrations (tesw-yqqr), then join Registration Contacts (feu5-w2e2) by registrationid. Preserve the exact contact type such as CorporateOwner, Agent or HeadOfficer.']
   },
@@ -30,7 +30,7 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     geographies: ['NY'],
     authority: 'official',
     strategy: 'http',
-    capabilities: ['company.identity', 'person.decisionMaker'],
+    capabilities: ['company.identity'],
     reliability: 0.94, evidenceStrength: 0.94, expectedLatencyMs: 850, freshnessDays: 45, maxConcurrency: 3,
     notes: ['Useful for legal entity identity and filing relationships; a registered agent or service address is not automatically a beneficial owner.']
   },
@@ -52,7 +52,7 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     geographies: ['NJ'],
     authority: 'official',
     strategy: 'http',
-    capabilities: ['company.identity', 'person.decisionMaker'],
+    capabilities: ['company.identity'],
     reliability: 0.94, evidenceStrength: 0.94, expectedLatencyMs: 850, freshnessDays: 45, maxConcurrency: 3,
     notes: ['Entity records may expose principal, manager/managing-member, officer/director, registered-agent or associated-name information; retain the exact role.']
   },
@@ -63,7 +63,7 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     geographies: ['PA'],
     authority: 'official',
     strategy: 'http',
-    capabilities: ['company.identity', 'person.decisionMaker', 'person.title'],
+    capabilities: ['company.identity'],
     reliability: 0.94, evidenceStrength: 0.94, expectedLatencyMs: 850, freshnessDays: 45, maxConcurrency: 3,
     notes: ['Records are primarily indexed by entity name/number; officers or governors may be present but are not guaranteed.']
   },
@@ -117,7 +117,7 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     geographies: ['US'],
     authority: 'official',
     strategy: 'structured',
-    capabilities: ['company.identity','person.decisionMaker','person.title'],
+    capabilities: ['company.identity','person.decisionMaker'],
     reliability: 0.97, evidenceStrength: 0.97, expectedLatencyMs: 700, freshnessDays: 7, maxConcurrency: 2,
     notes: ['Applies only to SEC filers. Prefer recent DEF 14A, then 10-K/8-K leadership disclosures.']
   },
@@ -137,7 +137,7 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     geographies: ['US'],
     authority: 'first-party',
     strategy: 'http',
-    capabilities: ['company.identity','company.website','company.phone','company.email','company.ownerOperator','company.portfolio','person.decisionMaker','person.title','person.phone','person.email','property.identity','property.manager'],
+    capabilities: ['company.identity','company.website','company.phone','company.email','company.ownerOperator','company.portfolio','person.decisionMaker'],
     reliability: 0.86, evidenceStrength: 0.82, expectedLatencyMs: 900, freshnessDays: 45, maxConcurrency: 4,
     notes: ['Crawl a bounded set of likely pages such as home, about, team/leadership, portfolio/properties and contact.']
   },
@@ -148,7 +148,7 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     geographies: ['US'],
     authority: 'reputable-secondary',
     strategy: 'browser',
-    capabilities: ['person.decisionMaker','person.title'],
+    capabilities: ['person.decisionMaker'],
     reliability: 0.74, evidenceStrength: 0.68, expectedLatencyMs: 1800, freshnessDays: 30, maxConcurrency: 2,
     notes: [
       'Use only names and roles visibly available without bypassing authentication, a paywall, or a contact-credit gate.',

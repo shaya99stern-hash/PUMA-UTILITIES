@@ -15,6 +15,8 @@ export async function GET() {
     webDiscoveryBackend: process.env.PUMA_SEARXNG_URL ? 'searxng' : 'duckduckgo-html',
     browserEnrichmentConfigured: Boolean(process.env.PUMA_BROWSER_RESEARCH_URL && process.env.PUMA_BROWSER_RESEARCH_TOKEN),
     browserAdapters: ['contactout-public-directory'],
+    officialLeadershipSources: ['sec-edgar'],
+    costEstimation: 'evidence-gated-residential-benchmark',
     rules: { publicOnly: true, paywallBypass: false, contactCreditsBypass: false },
   }, { headers: { 'Cache-Control': 'no-store' } });
 }
@@ -52,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     const result = await runResearch(graph, rootEntityId, {
-      maxTasks: boundedInteger(input.maxTasks, 36, 1, 60),
+      maxTasks: boundedInteger(input.maxTasks, 44, 1, 80),
       maxDepth: boundedInteger(input.maxDepth, 3, 0, 5),
       maxBudgetUnits: boundedNumber(input.maxBudgetUnits, 58, 5, 120),
       concurrency: boundedInteger(input.concurrency, 4, 1, 8),

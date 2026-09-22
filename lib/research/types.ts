@@ -70,6 +70,9 @@ export interface ResearchClaim {
   confidence: number;
   evidenceIds: string[];
   observedAt: string;
+  qualifier?: 'at-least' | 'exact';
+  statement?: string;
+  metricLabel?: 'buildings' | 'properties' | 'communities' | 'locations' | 'apartments';
 }
 
 export interface ResearchGraph {

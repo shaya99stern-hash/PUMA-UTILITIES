@@ -20,6 +20,7 @@ export function sourceUtility(source: SourceDefinition, need: ResearchNeed): num
 export function planResearch(needs: ResearchNeed[], perNeed = 5): PlannedSource[] {
   return needs.flatMap((need) =>
     sourcesForFact(need.fact, need.geography)
+      .filter(sourceAvailable)
       .map((source) => ({
         source,
         need,
@@ -29,4 +30,12 @@ export function planResearch(needs: ResearchNeed[], perNeed = 5): PlannedSource[
       .sort((a, b) => b.utility - a.utility)
       .slice(0, perNeed)
   ).sort((a, b) => b.utility - a.utility);
+}
+
+
+function sourceAvailable(source: SourceDefinition): boolean {
+  if (source.id === 'contactout-public-directory') {
+    return Boolean(process.env.PUMA_BROWSER_RESEARCH_URL && process.env.PUMA_BROWSER_RESEARCH_TOKEN);
+  }
+  return true;
 }
