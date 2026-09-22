@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { addClaim, addEvidence, createResearchGraph, upsertEntity } from '../lib/research/graph';
-import { extractContacts, extractLeadershipSignals, extractPropertySignals } from '../lib/research/sources/company-website';
+import { extractContacts, extractLeadershipSignals, extractPropertySignals, extractLikelySitemapUrls } from '../lib/research/sources/company-website';
 import { ingestAcrisOwnership, type AcrisOwnershipResult } from '../lib/research/sources/nyc-acris';
-import { ingestNjParcel } from '../lib/research/ingest';
+import { ingestHpdOwnership, ingestNjParcel, ingestCompanyWebsite } from '../lib/research/ingest';
 import { normalizeNjPropertyLocationSearch } from '../lib/research/sources/nj-parcels';
 import { estimatePropertyWaterCost, parseFixedWaterCharge } from '../lib/research/water-cost';
 
@@ -121,7 +121,6 @@ test('water benchmark includes a unique published monthly water service charge w
 test('HPD official contacts enrich the existing NYC property after a BBL is resolved', () => {
   const graph = createResearchGraph();
   upsertEntity(graph, { id:'property:hpd-target', kind:'property', label:'10 Example Ave, Brooklyn, NY 11201', geography:'NY', aliases:['BBL 3-123-45'] });
-  const { ingestHpdOwnership } = require('../lib/research/ingest') as typeof import('../lib/research/ingest');
   ingestHpdOwnership(graph, {
     registration:{ registrationId:'100', boroughId:'3', block:'123', lot:'45' },
     contacts:[
@@ -134,4 +133,50 @@ test('HPD official contacts enrich the existing NYC property after a BBL is reso
   assert.equal(graph.entities.filter((entity) => entity.kind === 'property').length, 1);
   assert.ok(graph.claims.some((claim) => claim.subjectId === 'property:hpd-target' && claim.fact === 'property.owner'));
   assert.ok(graph.claims.some((claim) => claim.subjectId === 'property:hpd-target' && claim.fact === 'property.manager'));
+});
+
+
+test('sitemap parser prioritizes first-party team and property detail pages only', () => {
+  const xml = `
+    <urlset>
+      <url><loc>https://samplepm.com/</loc></url>
+      <url><loc>https://samplepm.com/properties/maple-court</loc></url>
+      <url><loc>https://samplepm.com/team/jane-smith</loc></url>
+      <url><loc>https://samplepm.com/blog/market-update</loc></url>
+      <url><loc>https://other.example/properties/not-ours</loc></url>
+    </urlset>
+  `;
+  const urls = extractLikelySitemapUrls(xml, 'https://samplepm.com');
+  assert.deepEqual(urls.sort(), [
+    'https://samplepm.com/properties/maple-court',
+    'https://samplepm.com/team/jane-smith',
+  ]);
+});
+
+test('distinct first-party property addresses create only a conservative portfolio lower bound', () => {
+  const graph = createResearchGraph();
+  upsertEntity(graph, { id:'company:portfolio', kind:'company', label:'Portfolio Owner', geography:'NJ' });
+  ingestCompanyWebsite(graph, 'company:portfolio', {
+    seedUrl:'https://portfolio.example/',
+    visitedUrls:['https://portfolio.example/properties'],
+    contacts:[],
+    leadershipSignals:[],
+    propertySignals:[
+      { address:'1 Main St, Newark, NJ 07102', state:'NJ', sourceUrl:'https://portfolio.example/properties' },
+      { address:'2 Main St, Newark, NJ 07102', state:'NJ', sourceUrl:'https://portfolio.example/properties' },
+      { address:'3 Main St, Newark, NJ 07102', state:'NJ', sourceUrl:'https://portfolio.example/properties' },
+    ],
+    portfolioSignals:[],
+    ownerOperatorSignals:[],
+    socialUrls:[],
+    warnings:[],
+  }, '2026-09-22T19:00:00Z');
+
+  assert.equal(graph.claims.some((claim) => claim.subjectId === 'company:portfolio' && claim.fact === 'company.portfolio'), false);
+  assert.ok(graph.claims.some((claim) =>
+    claim.subjectId === 'company:portfolio' &&
+    claim.fact === 'company.portfolioLowerBound' &&
+    claim.value === 3 &&
+    claim.qualifier === 'at-least'
+  ));
 });
