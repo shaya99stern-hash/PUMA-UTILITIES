@@ -16,9 +16,9 @@ export async function GET() {
     browserEnrichmentConfigured: Boolean(process.env.PUMA_BROWSER_RESEARCH_URL && process.env.PUMA_BROWSER_RESEARCH_TOKEN),
     browserAdapters: ['contactout-public-directory'],
     officialLeadershipSources: ['sec-edgar'],
-    officialPropertySources: ['nyc-acris','nyc-hpd-registrations','nyc-pluto','nj-parcel-mod4'],
+    officialPropertySources: ['nyc-acris','nyc-hpd-registrations','nyc-pluto','nj-parcel-mod4','phila-opa-properties'],
     structuredFirstParty: ['schema-org-person','schema-org-property','sitemap-discovery'],
-    costEstimation: 'evidence-gated-residential-benchmark-plus-unambiguous-fixed-water-charge',
+    costEstimation: 'evidence-gated-residential-benchmark-plus-normalized-unambiguous-water-charge',
     rules: { publicOnly: true, paywallBypass: false, contactCreditsBypass: false },
   }, { headers: { 'Cache-Control': 'no-store' } });
 }

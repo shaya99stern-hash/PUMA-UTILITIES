@@ -82,6 +82,20 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     notes: ['Records are primarily indexed by entity name/number; officers or governors may be present but are not guaranteed.']
   },
   {
+    id: 'phila-opa-properties',
+    label: 'Philadelphia Office of Property Assessment',
+    url: 'https://services.arcgis.com/fLeGjb7u4uXqeF9q/arcgis/rest/services/OPA_PROPERTIES_PUBLIC/FeatureServer/0',
+    geographies: ['PA'],
+    authority: 'official',
+    strategy: 'structured',
+    capabilities: ['property.owner'],
+    reliability: 0.96, evidenceStrength: 0.96, expectedLatencyMs: 500, freshnessDays: 7, maxConcurrency: 5,
+    notes: [
+      'Philadelphia-only current OPA property roll. Use owner-of-record and parcel number as official corroboration.',
+      'Do not relabel total_livable_area as gross building square footage.'
+    ]
+  },
+  {
     id: 'pa-county-assessment',
     label: 'Pennsylvania County Assessment / Parcel Sources',
     geographies: ['PA'],

@@ -76,9 +76,9 @@ export function rankDecisionMakers(graph: ResearchGraph, companyId: string): Ran
 function roleScore(title?: string): number {
   const value = title?.toLowerCase() ?? '';
   if (/owner|founder|managing principal|managing partner|principal/.test(value)) return 68;
-  if (/chief operating officer|coo|head of operations|director of operations|operations/.test(value)) return 64;
+  if (/chief operating officer|coo|chief property officer|head of operations|director of operations|operations/.test(value)) return 64;
   if (/chief executive officer|ceo|president/.test(value)) return 60;
-  if (/facilities|property management|property manager|asset management|asset manager/.test(value)) return 58;
+  if (/director of facilities|facilities|head of property management|regional property manager|property management|property manager|director of asset management|asset management|asset manager/.test(value)) return 58;
   if (/acquisition|development|vice president|\bvp\b/.test(value)) return 45;
   if (/chief financial officer|cfo|finance|controller/.test(value)) return 38;
   if (/marketing|communications|human resources|people/.test(value)) return 20;

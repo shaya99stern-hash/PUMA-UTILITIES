@@ -11,7 +11,7 @@ export const GALLONS_PER_CCF = 748;
 export type ParsedWaterRate = {
   dollarsPer1000Gallons: number;
   sourceText: string;
-  sourceUnit: '1000-gallons' | 'ccf';
+  sourceUnit: '1000-gallons' | 'ccf' | '1000-cubic-feet';
 };
 
 export type ParsedFixedWaterCharge = {
@@ -146,19 +146,27 @@ export function parseFixedWaterCharge(text: string): ParsedFixedWaterCharge | un
   if (/\b\d+(?:\/\d+)?\s*(?:inch|in\.?|")\s*meter\b/i.test(normalized)) return undefined;
 
   const candidates: ParsedFixedWaterCharge[] = [];
-  const patterns = [
-    /monthly\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\s*[:\-]?\s*\$\s*(\d+(?:\.\d{1,2})?)/gi,
-    /(?:water\s+)?(?:service|base|customer|minimum)\s+charge(?:\s+of)?\s*\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*month\b/gi,
-    /\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*month\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\b/gi,
-  ];
-  for (const pattern of patterns) {
-    for (const match of normalized.matchAll(pattern)) {
-      const amount = Number(match[1]);
-      if (Number.isFinite(amount) && amount > 0 && amount < 100_000) {
-        candidates.push({ monthlyDollars: amount, sourceText: match[0] });
-      }
+  const add = (amountText: string, divisor: number, sourceText: string) => {
+    const amount = Number(amountText);
+    const monthlyDollars = amount / divisor;
+    if (Number.isFinite(monthlyDollars) && monthlyDollars > 0 && monthlyDollars < 100_000) {
+      candidates.push({ monthlyDollars, sourceText });
     }
+  };
+
+  const patterns: Array<{ pattern: RegExp; divisor: number }> = [
+    { pattern:/monthly\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\s*[:\-]?\s*\$\s*(\d+(?:\.\d{1,2})?)/gi, divisor:1 },
+    { pattern:/(?:water\s+)?(?:service|base|customer|minimum)\s+charge(?:\s+of)?\s*\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*month\b/gi, divisor:1 },
+    { pattern:/\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*month\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\b/gi, divisor:1 },
+    { pattern:/quarterly\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\s*[:\-]?\s*\$\s*(\d+(?:\.\d{1,2})?)/gi, divisor:3 },
+    { pattern:/(?:water\s+)?(?:service|base|customer|minimum)\s+charge(?:\s+of)?\s*\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*quarter\b/gi, divisor:3 },
+    { pattern:/(?:annual|yearly)\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\s*[:\-]?\s*\$\s*(\d+(?:\.\d{1,2})?)/gi, divisor:12 },
+    { pattern:/(?:water\s+)?(?:service|base|customer|minimum)\s+charge(?:\s+of)?\s*\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*year\b/gi, divisor:12 },
+  ];
+  for (const { pattern, divisor } of patterns) {
+    for (const match of normalized.matchAll(pattern)) add(match[1], divisor, match[0]);
   }
+
   const unique = candidates.filter((candidate, index, all) =>
     all.findIndex((item) => Math.abs(item.monthlyDollars - candidate.monthlyDollars) < 0.0001) === index
   );
@@ -167,6 +175,8 @@ export function parseFixedWaterCharge(text: string): ParsedFixedWaterCharge | un
 
 export function parseVariableWaterRate(text: string): ParsedWaterRate | undefined {
   const normalized = text.replace(/\s+/g, ' ').trim();
+  if (/\b(sewer|wastewater)\b/i.test(normalized)) return undefined;
+  if (/\b(irrigation-only|fire protection|hydrant service)\b/i.test(normalized)) return undefined;
   const candidates: ParsedWaterRate[] = [];
 
   for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:1,?000|1000)\s*(?:gallons?|gal)\b/gi)) {
@@ -175,6 +185,10 @@ export function parseVariableWaterRate(text: string): ParsedWaterRate | undefine
   for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:ccf|hcf|100\s*cubic\s*feet)\b/gi)) {
     const amount = Number(match[1]);
     candidates.push({ dollarsPer1000Gallons: amount / GALLONS_PER_CCF * 1000, sourceText: match[0], sourceUnit: 'ccf' });
+  }
+  for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:1,?000|1000)\s*cubic\s*feet\b/gi)) {
+    const amount = Number(match[1]);
+    candidates.push({ dollarsPer1000Gallons: amount / (GALLONS_PER_CCF * 10) * 1000, sourceText: match[0], sourceUnit: '1000-cubic-feet' });
   }
 
   const unique = candidates.filter((candidate, index, all) =>
