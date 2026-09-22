@@ -11,14 +11,16 @@ test('routes Puma through the final minimal Companies implementation', () => {
   assert.equal(existsSync(implementationPath), true, 'v4 implementation should exist');
 });
 
-test('minimal implementation uses Companies, a quiet home, and profile personalization', () => {
+test('minimal implementation uses Companies, a quiet real-data home, and profile personalization', () => {
   assert.equal(existsSync(implementationPath), true, 'v4 implementation should exist');
   const source = readFileSync(implementationPath, 'utf8');
 
-  assert.match(source, /Follow-Ups for Today/);
-  assert.match(source, /Active Clients/);
+  assert.match(source, /No companies yet/);
+  assert.match(source, /Find real companies/);
+  assert.match(source, /Follow-ups today/);
+  assert.match(source, /Active clients/);
   assert.match(source, />Alerts</);
-  assert.match(source, /Welcome, \{profileName\}/);
+  assert.match(source, /profileName \? `Welcome, \$\{profileName\}` : 'Welcome'/);
   assert.match(source, /Profile/);
   assert.match(source, />Companies</);
   assert.doesNotMatch(source, />Clients</);

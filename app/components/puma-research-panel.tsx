@@ -135,7 +135,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
         {capability && <details className="pm-research-advanced pm-research-sources">
           <summary>Data sources</summary>
           <p className="pm-research-capability">
-            Public web: {capability.webDiscoveryConfigured ? 'available' : 'unavailable'} · Official leadership: {(capability.officialLeadershipSources ?? []).includes('sec-edgar') ? 'SEC EDGAR + first-party' : 'first-party'} · Optional public-directory worker: {capability.browserEnrichmentConfigured ? 'connected' : 'not connected'}
+            Public web: {capability.webDiscoveryConfigured ? 'available' : 'unavailable'} · Official leadership: {(capability.officialLeadershipSources ?? []).includes('sec-edgar') ? 'SEC EDGAR + first-party' : 'first-party'} · Browser/ContactOut enrichment: {capability.browserEnrichmentConfigured ? 'connected' : 'not connected'}
           </p>
         </details>}
       </section>
