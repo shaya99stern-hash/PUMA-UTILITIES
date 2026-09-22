@@ -9,6 +9,7 @@ import { ingestNysTaxParcel, normalizeNysParcelStreet, type NysTaxParcelRecord }
 import { buildOpportunityIntelligence } from '../lib/research/opportunity';
 import { estimatePropertyWaterCost, parseFixedWaterCharge, parseVariableWaterRate } from '../lib/research/water-cost';
 import { mergeResearchRunIntoWorkspace } from '../lib/research/workspace-projection';
+import { planEntityTasks } from '../lib/research/task-planner';
 import type { Workspace } from '../lib/types';
 
 test('multi-market discovery accepts a bounded set of state codes and removes duplicates', () => {
@@ -181,4 +182,27 @@ test('workspace projection preserves official parcel aliases and opportunity int
   assert.match(merged.workspace.parcels[0].identifier, /76\.10-1-12/);
   assert.equal(merged.workspace.properties[0].parcelIds.length, 1);
   assert.ok(merged.workspace.companies[0].opportunityIntelligence);
+});
+
+
+test('property task planning spends budget only on geographically applicable executable adapters', () => {
+  const ny = createResearchGraph();
+  upsertEntity(ny, { id:'property:albany', kind:'property', label:'123 Main St, Albany, NY 12207', geography:'NY' });
+  const nySources = new Set(planEntityTasks(ny, 'property:albany', 'NY', { perNeed:6, maxTasks:50 }).map((task) => task.sourceId));
+  assert.ok(nySources.has('nys-tax-parcels-public'));
+  assert.equal(nySources.has('nyc-acris'), false);
+  assert.equal(nySources.has('nyc-pluto'), false);
+  assert.equal(nySources.has('nyc-hpd-registrations'), false);
+
+  const phila = createResearchGraph();
+  upsertEntity(phila, { id:'property:phila', kind:'property', label:'100 Market St, Philadelphia, PA 19106', geography:'PA' });
+  const philaSources = new Set(planEntityTasks(phila, 'property:phila', 'PA', { perNeed:6, maxTasks:50 }).map((task) => task.sourceId));
+  assert.ok(philaSources.has('phila-opa-properties'));
+  assert.equal(philaSources.has('pa-county-assessment'), false);
+
+  const pittsburgh = createResearchGraph();
+  upsertEntity(pittsburgh, { id:'property:pgh', kind:'property', label:'100 Forbes Ave, Pittsburgh, PA 15222', geography:'PA' });
+  const pghSources = new Set(planEntityTasks(pittsburgh, 'property:pgh', 'PA', { perNeed:6, maxTasks:50 }).map((task) => task.sourceId));
+  assert.equal(pghSources.has('phila-opa-properties'), false);
+  assert.equal(pghSources.has('pa-county-assessment'), false);
 });

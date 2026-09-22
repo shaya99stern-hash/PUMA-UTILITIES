@@ -34,6 +34,7 @@ export function planResearch(needs: ResearchNeed[], perNeed = 5): PlannedSource[
 
 
 function sourceAvailable(source: SourceDefinition): boolean {
+  if (source.id === 'pa-county-assessment') return false;
   if (source.id === 'contactout-public-directory') {
     return Boolean(process.env.PUMA_BROWSER_RESEARCH_URL && process.env.PUMA_BROWSER_RESEARCH_TOKEN);
   }

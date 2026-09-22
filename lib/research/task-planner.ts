@@ -12,7 +12,7 @@ export function planEntityTasks(
   const maxTasks = Math.max(1, Math.min(100, Math.floor(options.maxTasks ?? 30)));
   const perNeed = Math.max(1, Math.min(10, Math.floor(options.perNeed ?? 4)));
   const needs = deriveEntityNeeds(graph, entityId, geography);
-  const planned = planResearch(needs, perNeed);
+  const planned = planResearch(needs, perNeed).filter((item) => sourceAppliesToEntity(item.source.id, entity));
   const seen = new Set<string>();
   const tasks: ResearchTask[] = [];
 
@@ -34,6 +34,17 @@ export function planEntityTasks(
   }
 
   return tasks;
+}
+
+function sourceAppliesToEntity(sourceId: string, entity: ResearchGraph['entities'][number]): boolean {
+  if (entity.kind !== 'property') return true;
+  const label = entity.label;
+  const state = (entity.geography ?? '').toUpperCase();
+  const looksNyc = /\b(?:new york|brooklyn|bronx|queens|staten island)\b/i.test(label) && state === 'NY';
+  if (sourceId === 'nyc-acris' || sourceId === 'nyc-pluto' || sourceId === 'nyc-hpd-registrations') return looksNyc;
+  if (sourceId === 'nys-tax-parcels-public') return state === 'NY' && !looksNyc;
+  if (sourceId === 'phila-opa-properties') return state === 'PA' && /\bphiladelphia\b/i.test(label);
+  return true;
 }
 
 export function planProspectTasks(
