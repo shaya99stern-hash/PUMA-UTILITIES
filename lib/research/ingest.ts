@@ -9,10 +9,18 @@ export function ingestNjParcel(
   record: NjParcelRecord,
   sourceUrl = 'https://maps.nj.gov/arcgis/rest/services/Applications/NJ_TaxListSearch/MapServer/2',
   observedAt = new Date().toISOString(),
+  targetPropertyId?: string,
 ): string {
   const label = record.propertyLocation ?? record.pamsPin ?? 'New Jersey parcel';
-  const propertyId = `property:nj:${stableToken(record.pamsPin ?? label)}`;
-  upsertEntity(graph, { id: propertyId, kind: 'property', label, geography: 'NJ' });
+  const propertyId = targetPropertyId ?? `property:nj:${stableToken(record.pamsPin ?? label)}`;
+  const existingProperty = graph.entities.find((entity) => entity.id === propertyId && entity.kind === 'property');
+  upsertEntity(graph, {
+    id: propertyId,
+    kind: 'property',
+    label: existingProperty?.label ?? label,
+    geography: existingProperty?.geography ?? 'NJ',
+    aliases: mergeAliases(existingProperty?.aliases, record.pamsPin ? [`NJ PAMS ${record.pamsPin}`] : []),
+  });
   const evidenceId = `evidence:nj-parcel:${stableToken(record.pamsPin ?? label)}`;
   addEvidence(graph, {
     id: evidenceId,
@@ -33,6 +41,20 @@ export function ingestNjParcel(
     evidenceIds: [evidenceId],
     observedAt,
   });
+
+  const officialUnits = resolvedNjUnitCount(record);
+  if (officialUnits !== undefined) {
+    addClaim(graph, {
+      id: `claim:${propertyId}:units:nj-parcel:${stableToken(record.pamsPin ?? label)}`,
+      subjectId: propertyId,
+      fact: 'property.units',
+      value: officialUnits,
+      state: 'VERIFIED',
+      confidence: 0.93,
+      evidenceIds: [evidenceId],
+      observedAt,
+    });
+  }
 
   if (record.ownerName?.trim()) {
     const ownerLabel = record.ownerName.trim();
@@ -393,4 +415,18 @@ function stableToken(value: string): string {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0).toString(36);
+}
+
+
+function resolvedNjUnitCount(record: NjParcelRecord): number | undefined {
+  const values = [record.dwellingUnits, record.commercialDwellingUnits]
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+  if (!values.length) return undefined;
+  const unique = [...new Set(values)];
+  return unique.length === 1 && unique[0] <= 20_000 ? unique[0] : undefined;
+}
+
+function mergeAliases(existing: string[] | undefined, incoming: string[]): string[] | undefined {
+  const values = [...new Set([...(existing ?? []), ...incoming].filter(Boolean))];
+  return values.length ? values : undefined;
 }

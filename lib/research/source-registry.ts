@@ -41,7 +41,7 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     geographies: ['NJ'],
     authority: 'official',
     strategy: 'structured',
-    capabilities: ['property.identity'],
+    capabilities: ['property.identity', 'property.owner', 'property.units'],
     reliability: 0.94, evidenceStrength: 0.92, expectedLatencyMs: 500, freshnessDays: 120, maxConcurrency: 6,
     notes: ["Owner names can be unavailable/redacted under Daniel's Law; never convert a redacted owner field into a negative ownership finding."]
   },
