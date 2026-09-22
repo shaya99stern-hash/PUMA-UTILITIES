@@ -8,6 +8,7 @@ export interface WebsiteContact {
   type: 'email' | 'phone';
   value: string;
   sourceUrl: string;
+  context?: string;
 }
 
 export interface WebsiteLeadershipSignal {
@@ -79,20 +80,46 @@ export async function crawlCompanyWebsite(
 
 export function extractContacts(html: string, sourceUrl: string): WebsiteContact[] {
   const decoded = decodeBasicEntities(html);
-  const emails = new Set<string>();
-  const phones = new Set<string>();
+  const plain = htmlToText(html);
+  const contacts = new Map<string, WebsiteContact>();
+
+  for (const match of plain.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)) {
+    const email = match[0].toLowerCase().replace(/[),.;:]+$/, '');
+    if (email.endsWith('@example.com') || /\.(png|jpg|jpeg|gif|webp)$/i.test(email)) continue;
+    contacts.set(`email:${email}`, {
+      type: 'email',
+      value: email,
+      sourceUrl,
+      context: nearbyContext(plain, match.index ?? 0, match[0].length),
+    });
+  }
+
+  for (const match of plain.matchAll(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]\d{4}(?:\s*(?:x|ext\.?)\s*\d{1,6})?/gi)) {
+    const phone = normalizeUsPhone(match[0]);
+    if (!phone) continue;
+    contacts.set(`phone:${phone}`, {
+      type: 'phone',
+      value: phone,
+      sourceUrl,
+      context: nearbyContext(plain, match.index ?? 0, match[0].length),
+    });
+  }
+
   for (const match of decoded.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)) {
     const email = match[0].toLowerCase().replace(/[),.;:]+$/, '');
-    if (!email.endsWith('@example.com') && !/\.(png|jpg|jpeg|gif|webp)$/i.test(email)) emails.add(email);
+    if (email.endsWith('@example.com') || /\.(png|jpg|jpeg|gif|webp)$/i.test(email) || contacts.has(`email:${email}`)) continue;
+    const context = htmlToText(decoded.slice(Math.max(0, (match.index ?? 0) - 240), (match.index ?? 0) + match[0].length + 240));
+    contacts.set(`email:${email}`, { type: 'email', value: email, sourceUrl, context: context || undefined });
   }
-  for (const match of decoded.matchAll(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]\d{4}(?:\s*(?:x|ext\.?)[\s]*\d{1,6})?/gi)) {
+
+  for (const match of decoded.matchAll(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]\d{4}(?:\s*(?:x|ext\.?)\s*\d{1,6})?/gi)) {
     const phone = normalizeUsPhone(match[0]);
-    if (phone) phones.add(phone);
+    if (!phone || contacts.has(`phone:${phone}`)) continue;
+    const context = htmlToText(decoded.slice(Math.max(0, (match.index ?? 0) - 240), (match.index ?? 0) + match[0].length + 240));
+    contacts.set(`phone:${phone}`, { type: 'phone', value: phone, sourceUrl, context: context || undefined });
   }
-  return [
-    ...[...emails].map((value): WebsiteContact => ({ type: 'email', value, sourceUrl })),
-    ...[...phones].map((value): WebsiteContact => ({ type: 'phone', value, sourceUrl })),
-  ];
+
+  return [...contacts.values()];
 }
 
 export function extractLeadershipSignals(html: string, sourceUrl: string): WebsiteLeadershipSignal[] {
@@ -184,6 +211,11 @@ function extractSocialUrls(html: string): string[] {
     }
   }
   return [...output];
+}
+
+function nearbyContext(text: string, start: number, length: number): string | undefined {
+  const context = text.slice(Math.max(0, start - 180), Math.min(text.length, start + length + 180)).replace(/\s+/g, ' ').trim();
+  return context || undefined;
 }
 
 function normalizeUsPhone(value: string): string | undefined {

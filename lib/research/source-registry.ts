@@ -140,7 +140,7 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     geographies: ['US'],
     authority: 'discovery-only',
     strategy: 'web-discovery',
-    capabilities: ['company.identity','company.website','company.phone','company.email','company.ownerOperator','company.portfolio','person.decisionMaker','person.title','person.phone','person.email','property.owner','property.manager','utility.provider','utility.amiCapability'],
+    capabilities: ['company.identity','company.website','company.phone','company.email','company.ownerOperator','company.portfolio','person.decisionMaker','person.title','person.phone','person.email','property.owner','property.manager','utility.provider','utility.amiCapability','utility.rateSchedule'],
     reliability: 0.55, evidenceStrength: 0.40, expectedLatencyMs: 1200, freshnessDays: 14, maxConcurrency: 3,
     notes: ['Discovery results create candidate claims only; follow promising results to authoritative or first-party pages before promotion.']
   },
@@ -150,7 +150,7 @@ export const SOURCE_REGISTRY: SourceDefinition[] = [
     geographies: ['US'],
     authority: 'first-party',
     strategy: 'http',
-    capabilities: ['utility.provider','utility.amiCapability'],
+    capabilities: ['utility.provider','utility.amiCapability','utility.rateSchedule'],
     reliability: 0.90, evidenceStrength: 0.90, expectedLatencyMs: 900, freshnessDays: 60, maxConcurrency: 4,
     notes: ['AMI program capability is not building-specific meter evidence. Service territory, program capability, and actual meter status are separate claims.']
   }

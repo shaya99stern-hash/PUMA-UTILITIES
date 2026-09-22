@@ -170,6 +170,8 @@ export type UtilityService = {
   portal: PortalCapability;
   status: EvidenceStatus;
   provenanceId?: string;
+  amiProgram?: EvidenceValue<string>;
+  rateSummary?: EvidenceValue<string>;
 };
 
 export type UsageReading = {

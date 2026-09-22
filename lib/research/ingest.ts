@@ -207,6 +207,20 @@ export function ingestCompanyWebsite(
       evidenceIds: [evidenceId],
       observedAt,
     });
+
+    for (const contact of research.contacts.filter((item) => item.sourceUrl === signal.sourceUrl && contactMatchesPerson(item.context, person.name))) {
+      const contactEvidenceId = ensureEvidence(contact.sourceUrl);
+      addClaim(graph, {
+        id: `claim:${personId}:${contact.type}:${stableToken(contact.value)}`,
+        subjectId: personId,
+        fact: contact.type === 'email' ? 'person.email' : 'person.phone',
+        value: contact.value,
+        state: 'SUPPORTED',
+        confidence: 0.8,
+        evidenceIds: [contactEvidenceId],
+        observedAt,
+      });
+    }
   }
 }
 
@@ -284,6 +298,15 @@ function parseLeadershipSignal(text: string): { name: string; title: string } | 
   const second = cleaned.match(patterns[1]);
   if (second) return { name: titleCaseName(second[2]), title: second[1].trim() };
   return undefined;
+}
+
+function contactMatchesPerson(context: string | undefined, name: string): boolean {
+  if (!context) return false;
+  const normalizedContext = normalizeLabel(context);
+  const normalizedName = normalizeLabel(name);
+  if (normalizedContext.includes(normalizedName)) return true;
+  const tokens = normalizedName.split(' ').filter((token) => token.length >= 3);
+  return tokens.length >= 2 && tokens.every((token) => normalizedContext.includes(token));
 }
 
 function titleCaseName(value: string): string {

@@ -7,7 +7,7 @@ export type ResearchFact =
   | 'company.ownerOperator' | 'company.portfolio'
   | 'person.decisionMaker' | 'person.title' | 'person.phone' | 'person.email'
   | 'property.identity' | 'property.owner' | 'property.manager'
-  | 'utility.provider' | 'utility.amiCapability' | 'utility.buildingMeterStatus';
+  | 'utility.provider' | 'utility.amiCapability' | 'utility.rateSchedule' | 'utility.buildingMeterStatus';
 
 export type ResearchEntityKind = 'company' | 'person' | 'property' | 'utility' | 'domain' | 'organization';
 

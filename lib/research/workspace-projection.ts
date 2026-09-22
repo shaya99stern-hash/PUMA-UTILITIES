@@ -97,6 +97,8 @@ export function mergeResearchRunIntoWorkspace(workspace: Workspace, result: Rese
         portal: 'unknown',
         status: 'verified-public',
         provenanceId: claim.evidenceIds[0] ? `research_prov_${token(claim.evidenceIds[0])}` : undefined,
+        amiProgram: evidenceValueFromClaim(graph, utilityEntity.id, 'utility.amiCapability', now),
+        rateSummary: evidenceValueFromClaim(graph, utilityEntity.id, 'utility.rateSchedule', now),
       });
     }
   }
@@ -200,6 +202,17 @@ function firstProvenanceId(graph: ResearchGraph, subjectId: string): string | un
 function stringClaim(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): string | undefined {
   const claim = trustedClaims(graph, subjectId, fact).find((item) => typeof item.value === 'string' && item.value.trim());
   return typeof claim?.value === 'string' ? claim.value.trim() : undefined;
+}
+
+function evidenceValueFromClaim(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact'], now: string) {
+  const claim = trustedClaims(graph, subjectId, fact).find((item) => typeof item.value === 'string' && item.value.trim());
+  if (!claim || typeof claim.value !== 'string') return { status: 'unknown' as const };
+  return {
+    value: claim.value.trim(),
+    status: 'verified-public' as const,
+    provenanceId: claim.evidenceIds[0] ? `research_prov_${token(claim.evidenceIds[0])}` : undefined,
+    updatedAt: now,
+  };
 }
 
 function numberClaim(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): number | undefined {
