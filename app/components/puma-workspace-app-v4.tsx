@@ -232,6 +232,14 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
     .filter((company) => selectedCompanyIds.includes(company.id))
     .flatMap((company) => company.people.map((person) => person.email).filter((email): email is string => Boolean(email)));
 
+  const upcomingCompanies = [...allCompanies]
+    .filter((company) => companyLifecycle(company.stage) !== 'Not Interested' && Boolean((company as CompanyWithFollowUp).followUpAt))
+    .sort((left, right) => ((left as CompanyWithFollowUp).followUpAt ?? '').localeCompare((right as CompanyWithFollowUp).followUpAt ?? ''))
+    .slice(0, 5);
+  const recentlyUpdatedCompanies = [...allCompanies]
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .slice(0, 5);
+
   const voiceDestination = resolveVoiceDestination({ companyId: selectedCompany?.id, propertyId: selectedProperty?.id });
   const voiceDestinationLabel = voiceDestination === 'property'
     ? selectedProperty?.name ?? 'building'
@@ -454,6 +462,22 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
         <Link href="/clients"><strong>{activeCompanies.length}</strong><span>Active Clients</span></Link>
         <Link href="/monitor"><strong>{alerts.length}</strong><span>Alerts</span></Link>
       </section>
+      <section className="pm-home-grid" aria-label="Workspace shortcuts">
+        <article className="pm-home-panel">
+          <div className="pm-home-panel-head"><div><span>Next up</span><strong>Follow-ups</strong></div><Link href="/clients">View companies</Link></div>
+          <div className="pm-home-list">
+            {upcomingCompanies.length === 0 && <div className="pm-home-empty">No follow-ups scheduled.</div>}
+            {upcomingCompanies.map((company) => <Link key={company.id} href={companyPath(company.id)}><span><strong>{company.name}</strong><small>{portfolioSummary(company)}</small></span><time>{formatShortDate((company as CompanyWithFollowUp).followUpAt)}</time></Link>)}
+          </div>
+        </article>
+        <article className="pm-home-panel">
+          <div className="pm-home-panel-head"><div><span>Recent</span><strong>Companies</strong></div><Link href="/clients">Open all</Link></div>
+          <div className="pm-home-list">
+            {recentlyUpdatedCompanies.length === 0 && <div className="pm-home-empty">No company activity yet.</div>}
+            {recentlyUpdatedCompanies.map((company) => <Link key={company.id} href={companyPath(company.id)}><span><strong>{company.name}</strong><small>{company.market || 'Location not verified'} · {companyLifecycle(company.stage)}</small></span><ChevronRight size={16} /></Link>)}
+          </div>
+        </article>
+      </section>
     </div>
   );
 
@@ -470,6 +494,10 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
         })}
       </div>
       <label className="pm-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search companies" /></label>
+      {bulkMode && <div className="pm-selection-tools" aria-label="Bulk selection controls">
+        <button type="button" onClick={() => setSelectedCompanyIds(visibleCompanies.map((company) => company.id))}>Select all</button>
+        <button type="button" onClick={() => setSelectedCompanyIds([])}>Clear all</button>
+      </div>}
       <div className="pm-company-list">
         {visibleCompanies.length === 0 && <div className="pm-empty"><strong>No companies here yet.</strong><span>Companies move here when their status changes.</span></div>}
         {visibleCompanies.map((company) => {
@@ -635,19 +663,35 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
 
   return (
     <main className="pm-shell">
-      <header className="pm-appbar">
-        <button type="button" className="pm-icon-button" aria-label="Menu" onClick={() => setMenuOpen(true)}><Menu size={20} /></button>
-        <div className="pm-brand"><BrandMark size={28} /><span><strong>Puma Utilities</strong><small>{pageLabel}</small></span></div>
-        <button type="button" className={`pm-mic ${voicePhase === 'recording' ? 'recording' : ''}`} aria-label="Record voice note" onClick={() => void toggleVoice()}><Mic size={20} /></button>
-      </header>
+      <aside className="pm-desktop-sidebar">
+        <div className="pm-desktop-brand"><BrandMark size={30} /><span><strong>Puma Utilities</strong><small>Water Intelligence</small></span></div>
+        <nav className="pm-desktop-nav" aria-label="Desktop navigation">
+          <Link href="/" className={view === 'home' ? 'active' : ''}><BrandMark size={20} /><span>Home</span></Link>
+          <Link href="/clients" className={view === 'clients' ? 'active' : ''}><Building2 size={19} /><span>Companies</span></Link>
+          <Link href="/engine" className={view === 'engine' ? 'active' : ''}><SlidersHorizontal size={19} /><span>Find Leads</span></Link>
+          <Link href="/monitor" className={view === 'monitor' ? 'active' : ''}><Activity size={19} /><span>Monitor</span></Link>
+          <Link href="/accounts-payable" className={view === 'accounts-payable' ? 'active' : ''}><CircleDollarSign size={19} /><span>Accounts Payable</span></Link>
+          <Link href="/settings" className={view === 'settings' ? 'active' : ''}><Settings size={19} /><span>Settings</span></Link>
+        </nav>
+        <button type="button" className="pm-desktop-profile" onClick={() => setProfileOpen(true)}><UserRound size={19} /><span><strong>{profileName}</strong><small>Profile</small></span><ChevronRight size={16} /></button>
+      </aside>
 
-      <section className="pm-content">{content}</section>
+      <div className="pm-main">
+        <header className="pm-appbar">
+          <button type="button" className="pm-icon-button pm-menu-trigger" aria-label="Menu" onClick={() => setMenuOpen(true)}><Menu size={20} /></button>
+          <div className="pm-brand"><BrandMark size={28} /><span><strong>Puma Utilities</strong><small>{pageLabel}</small></span></div>
+          <button type="button" className={`pm-mic ${voicePhase === 'recording' ? 'recording' : ''}`} aria-label="Record voice note" onClick={() => void toggleVoice()}><Mic size={20} /></button>
+        </header>
 
-      <nav className="pm-bottom-nav" aria-label="Primary navigation">
-        <Link href="/" className={view === 'home' ? 'active' : ''}><BrandMark size={22} /><span>Home</span></Link>
-        <Link href="/clients" className={view === 'clients' ? 'active' : ''}><Building2 size={19} /><span>Companies</span></Link>
-        <Link href="/monitor" className={view === 'monitor' ? 'active' : ''}><Activity size={19} /><span>Monitor</span></Link>
-      </nav>
+        <section className="pm-content">{content}</section>
+
+        <nav className="pm-bottom-nav" aria-label="Primary navigation">
+          <Link href="/" className={view === 'home' ? 'active' : ''}><BrandMark size={22} /><span>Home</span></Link>
+          <Link href="/clients" className={view === 'clients' ? 'active' : ''}><Building2 size={19} /><span>Companies</span></Link>
+          <Link href="/engine" className={view === 'engine' ? 'active' : ''}><SlidersHorizontal size={19} /><span>Find Leads</span></Link>
+          <Link href="/monitor" className={view === 'monitor' ? 'active' : ''}><Activity size={19} /><span>Monitor</span></Link>
+        </nav>
+      </div>
 
       <div className={`pm-drawer-scrim ${menuOpen ? 'open' : ''}`} onClick={() => setMenuOpen(false)} />
       <aside className={`pm-drawer ${menuOpen ? 'open' : ''}`} aria-hidden={!menuOpen}>
