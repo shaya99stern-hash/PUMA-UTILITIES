@@ -57,3 +57,21 @@ test('workspace renders the shared shell before hydration and provides recovery 
   assert.match(workspace, /href="\/clients"/);
   assert.match(workspace, /buildingListPath/);
 });
+
+test('superseded shell, portal Home, and configuration-hiding layers are removed', () => {
+  for (const removed of [
+    'app/components/puma-home-dashboard.tsx',
+    'app/components/puma-settings-shell.tsx',
+    'app/components/puma-settings-launcher.tsx',
+  ]) assert.equal(existsSync(removed), false, `${removed} should be deleted`);
+
+  const layout = read('app/layout.tsx');
+  const minimalCss = read('app/puma-minimal-settings.css');
+  const shell = read('app/components/puma-app-shell.tsx');
+  const research = read('app/components/puma-research-panel.tsx');
+
+  assert.doesNotMatch(layout, /PumaSettingsLauncher/);
+  assert.doesNotMatch(minimalCss, /\.pm-home \.pm-zero-state/);
+  assert.doesNotMatch(shell, /pm-bottom-nav|pm-desktop-sidebar/);
+  assert.doesNotMatch(research, /pm-research-sources|>Data sources</i);
+});
