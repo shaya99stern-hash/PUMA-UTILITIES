@@ -2,6 +2,6 @@ import { pumaIcon } from '../components/puma-icon-response';
 
 export const runtime = 'edge';
 
-export function GET() {
-  return pumaIcon(192);
+export function GET(request: Request) {
+  return pumaIcon(request, 192);
 }
