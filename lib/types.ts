@@ -246,12 +246,19 @@ export type Meter = {
   updatedAt: string;
 };
 
+export type TariffFreshness = 'current' | 'expired' | 'future' | 'unknown';
+
 export type Tariff = {
   id: string;
   utilityServiceId: string;
   label: string;
-  effectiveFrom: string;
+  effectiveFrom?: string;
   effectiveTo?: string;
+  customerClass?: 'multifamily' | 'residential' | 'commercial' | 'general-service';
+  freshness?: TariffFreshness;
+  sourceUrl?: string;
+  retrievedAt?: string;
+  publishedText?: string;
   status: EvidenceStatus;
   provenanceId?: string;
   note?: string;

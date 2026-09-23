@@ -1,6 +1,6 @@
 import { deriveEntityNeeds } from './graph';
 import { planResearch } from './planner';
-import { isLikelyBucksCountyAddress } from './sources/bucks-parcels';
+import { isLikelySupportedPaCountyAddress } from './sources/pa-county-parcels';
 import type { ResearchGraph, ResearchTask } from './types';
 
 export function planEntityTasks(
@@ -23,19 +23,9 @@ export function planEntityTasks(
     const key = `${entityId}:${item.need.fact}:${item.source.id}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    tasks.push({
-      id: `task:${key}:d${depth}`,
-      subjectId: entityId,
-      need: item.need,
-      sourceId: item.source.id,
-      status: 'queued',
-      depth,
-      utility: item.utility,
-      reason: item.reason,
-    });
+    tasks.push({ id:`task:${key}:d${depth}`, subjectId:entityId, need:item.need, sourceId:item.source.id, status:'queued', depth, utility:item.utility, reason:item.reason });
     if (tasks.length >= maxTasks) break;
   }
-
   return tasks;
 }
 
@@ -55,16 +45,11 @@ function sourceAppliesToEntity(sourceId: string, entity: ResearchGraph['entities
   if (sourceId === 'nyc-acris' || sourceId === 'nyc-pluto' || sourceId === 'nyc-hpd-registrations') return looksNyc;
   if (sourceId === 'nys-tax-parcels-public') return state === 'NY' && !looksNyc;
   if (sourceId === 'phila-opa-properties') return state === 'PA' && /\bphiladelphia\b/i.test(label);
-  if (sourceId === 'pa-county-assessment') return state === 'PA' && isLikelyBucksCountyAddress(label);
+  if (sourceId === 'pa-county-assessment') return state === 'PA' && isLikelySupportedPaCountyAddress(label);
   return true;
 }
 
-export function planProspectTasks(
-  graph: ResearchGraph,
-  companyId: string,
-  geography?: string,
-  options: { depth?: number; maxTasks?: number; perNeed?: number } = {},
-): ResearchTask[] {
+export function planProspectTasks(graph: ResearchGraph, companyId: string, geography?: string, options: { depth?: number; maxTasks?: number; perNeed?: number } = {}): ResearchTask[] {
   return planEntityTasks(graph, companyId, geography, options);
 }
 
