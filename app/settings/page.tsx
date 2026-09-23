@@ -1,5 +1,10 @@
-import PumaWorkspaceApp from '../components/puma-workspace-app';
+import PumaSettingsHub from '../components/puma-settings-hub';
+import PumaSettingsShell from '../components/puma-settings-shell';
 
 export default function SettingsPage() {
-  return <PumaWorkspaceApp view="settings" />;
+  return (
+    <PumaSettingsShell title="Settings" subtitle="Keep Puma simple and personal.">
+      <PumaSettingsHub />
+    </PumaSettingsShell>
+  );
 }
