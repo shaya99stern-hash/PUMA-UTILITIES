@@ -65,7 +65,11 @@ html body .pm-company-copy {
 html body .pm-brand-mark {
   display: inline-grid !important;
   place-items: center !important;
-  background: transparent !important;
+  background-image: var(--puma-brand-logo) !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: contain !important;
+  background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
   overflow: visible !important;
@@ -73,8 +77,5 @@ html body .pm-brand-mark {
 }
 
 html body .pm-brand-mark svg {
-  display: block !important;
-  width: 100% !important;
-  height: 100% !important;
-  overflow: visible !important;
+  display: none !important;
 }
