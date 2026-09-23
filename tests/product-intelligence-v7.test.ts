@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { addClaim, addEvidence, createResearchGraph, upsertEntity } from '../lib/research/graph';
 import { rankDecisionMakers } from '../lib/research/decision-maker';
 import { ingestCompanyWebsite } from '../lib/research/ingest';
@@ -123,22 +123,23 @@ test('Philadelphia OPA registry capability never promises gross-area evidence', 
 });
 
 
-test('install metadata uses the dedicated uploaded Puma PNG Home Screen icons', () => {
+test('install metadata uses PNG icon endpoints rendering the uploaded Puma artwork', () => {
   const layout = readFileSync('app/layout.tsx', 'utf8');
   const manifest = readFileSync('app/manifest.ts', 'utf8');
   const worker = readFileSync('public/sw.js', 'utf8');
-  assert.match(layout, /\/puma-app-icon-180\.png\?v=20260923-2/);
-  assert.match(layout, /\/puma-app-icon-192\.png\?v=20260923-2/);
-  assert.match(layout, /\/puma-app-icon-512\.png\?v=20260923-2/);
-  assert.match(manifest, /puma-app-icon-192\.png\?v=20260923-2/);
-  assert.match(manifest, /puma-app-icon-512\.png\?v=20260923-2/);
-  assert.equal(existsSync('public/puma-app-icon-180.png'), true);
-  assert.equal(existsSync('public/puma-app-icon-192.png'), true);
-  assert.equal(existsSync('public/puma-app-icon-512.png'), true);
+  const iconResponse = readFileSync('app/components/puma-icon-response.tsx', 'utf8');
+  assert.match(layout, /\/apple-touch-icon\?v=20260923-2/);
+  assert.match(layout, /\/pwa-icon-192\?v=20260923-2/);
+  assert.match(layout, /\/pwa-icon-512\?v=20260923-2/);
+  assert.match(manifest, /pwa-icon-192\?v=20260923-2/);
+  assert.match(manifest, /pwa-icon-512\?v=20260923-2/);
   assert.doesNotMatch(layout, /puma-home-icon\.jpeg/);
   assert.doesNotMatch(manifest, /puma-home-icon\.jpeg/);
+  assert.match(iconResponse, /puma-home-icon\.jpeg/);
+  assert.match(iconResponse, /<img/);
+  assert.doesNotMatch(iconResponse, /<svg/);
   assert.match(worker, /shell-v6/);
-  assert.match(worker, /puma-app-icon-180\.png/);
-  assert.match(worker, /puma-app-icon-192\.png/);
-  assert.match(worker, /puma-app-icon-512\.png/);
+  assert.match(worker, /apple-touch-icon/);
+  assert.match(worker, /pwa-icon-192/);
+  assert.match(worker, /pwa-icon-512/);
 });
