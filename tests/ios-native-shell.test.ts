@@ -3,15 +3,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const ios = readFileSync('app/ios-native.css', 'utf8');
+const shell = readFileSync('app/puma-app-shell.css', 'utf8');
 const layout = readFileSync('app/layout.tsx', 'utf8');
 
-test('the iOS PWA root is viewport-locked and app content owns vertical scrolling', () => {
+test('the iOS PWA root is viewport-locked and AppShell owns vertical scrolling and safe areas', () => {
   assert.match(ios, /html,\s*body\s*\{[\s\S]*?height:\s*100%/);
   assert.match(ios, /body\s*\{[\s\S]*?overflow:\s*hidden/);
-  assert.match(ios, /\.pm-shell\s*\{[\s\S]*?height:\s*100dvh/);
-  assert.match(ios, /\.pm-content\s*\{[\s\S]*?overflow-y:\s*auto/);
-  assert.match(ios, /\.pm-content\s*\{[\s\S]*?overscroll-behavior-y:\s*none/);
+  assert.match(shell, /\.pu-shell\s*\{[\s\S]*?min-height:\s*100dvh/);
+  assert.match(shell, /\.pu-shell\s*\{[\s\S]*?safe-area-inset-top/);
+  assert.match(shell, /\.pu-content\s*\{[\s\S]*?overflow-y:\s*auto/);
+  assert.match(shell, /\.pu-content\s*\{[\s\S]*?safe-area-inset-bottom/);
   assert.match(layout, /import '\.\/ios-native\.css';/);
+  assert.match(layout, /import '\.\/puma-app-shell\.css';/);
 });
 
 test('intentional horizontal chip rows contain their own iOS scrolling', () => {
