@@ -1,4 +1,4 @@
-/* V12 polish: dedicated Settings shell + compact operational Home dashboard. */
+/* V12 polish: dedicated Settings shell + deliberately minimal Home. */
 
 .pm-settings-shell {
   --pm-bg: #050607;
@@ -117,123 +117,69 @@
   border-radius: 11px;
 }
 
+/* Home deliberately stops at one at-a-glance KPI surface. */
 .pm-home-dashboard {
-  display: grid;
-  gap: 14px;
+  display: block;
   padding-top: 4px;
 }
 
-.pm-home-dashboard > section {
+.pm-home-today {
   min-width: 0;
 }
 
 .pm-home-section-head {
-  min-height: 34px;
+  min-height: 28px;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
   margin-bottom: 8px;
 }
 
-.pm-home-section-head > div {
-  display: grid;
-  gap: 2px;
-}
-
-.pm-home-section-head span {
-  color: var(--pm-muted);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
-
 .pm-home-section-head strong {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 620;
-}
-
-.pm-home-section-head > a {
-  color: #8f9499;
-  text-decoration: none;
-  font-size: 10.5px;
+  letter-spacing: -.01em;
 }
 
 .pm-home-metrics {
   display: grid;
   grid-template-columns: repeat(3,minmax(0,1fr));
-  gap: 8px;
+  overflow: hidden;
+  border: 1px solid var(--pm-line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.012);
 }
 
 .pm-home-metrics a {
-  min-height: 76px;
-  padding: 13px 12px;
+  min-width: 0;
+  min-height: 72px;
+  padding: 12px 10px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 5px;
-  border: 1px solid var(--pm-line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.018);
+  border-right: 1px solid var(--pm-line);
   color: inherit;
   text-decoration: none;
+  touch-action: manipulation;
+}
+
+.pm-home-metrics a:last-child {
+  border-right: 0;
+}
+
+.pm-home-metrics a:active {
+  background: rgba(255,255,255,.04);
 }
 
 .pm-home-metrics strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 20px;
   line-height: 1;
   font-weight: 650;
 }
 
 .pm-home-metrics span {
-  color: var(--pm-muted);
-  font-size: 10.5px;
-}
-
-.pm-home-task-list,
-.pm-home-recent-list {
-  overflow: hidden;
-  border: 1px solid var(--pm-line);
-  border-radius: 15px;
-  background: rgba(255,255,255,.012);
-}
-
-.pm-home-task-list > a,
-.pm-home-recent-list > a {
-  min-height: 64px;
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid var(--pm-line);
-  color: inherit;
-  text-decoration: none;
-}
-
-.pm-home-task-list > a:last-child,
-.pm-home-recent-list > a:last-child {
-  border-bottom: 0;
-}
-
-.pm-home-task-list > a > span:nth-child(2),
-.pm-home-recent-list > a > span:first-child {
-  min-width: 0;
-  flex: 1;
-  display: grid;
-  gap: 3px;
-}
-
-.pm-home-task-list strong,
-.pm-home-recent-list strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12.5px;
-  font-weight: 590;
-}
-
-.pm-home-task-list small,
-.pm-home-recent-list small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -241,50 +187,23 @@
   font-size: 10.5px;
 }
 
-.pm-home-task-check {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--pm-line);
-  border-radius: 10px;
-  color: #9fa4a9;
-  background: #0b0d0f;
+/* Make the persistent mobile dock a reliable tap surface in the installed PWA. */
+.pm-bottom-nav {
+  pointer-events: auto;
+  isolation: isolate;
 }
 
-.pm-home-action-grid {
-  display: grid;
-  grid-template-columns: repeat(4,minmax(0,1fr));
-  gap: 8px;
+.pm-bottom-nav a {
+  min-height: 44px;
+  pointer-events: auto;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 1;
 }
 
-.pm-home-action-grid a {
-  min-height: 70px;
-  padding: 10px 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border: 1px solid var(--pm-line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.018);
-  color: #c7c9cb;
-  text-decoration: none;
-  text-align: center;
-}
-
-.pm-home-action-grid a:active,
-.pm-home-metrics a:active,
-.pm-home-task-list > a:active,
-.pm-home-recent-list > a:active {
-  background: rgba(255,255,255,.045);
-}
-
-.pm-home-action-grid span {
-  font-size: 9.8px;
-  white-space: nowrap;
+.pm-settings-launcher {
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 @media (max-width: 899px) {
@@ -450,25 +369,15 @@
 
 @media (min-width: 900px) {
   .pm-home-dashboard {
-    grid-template-columns: minmax(0,1fr) minmax(0,1fr);
-    gap: 16px;
-  }
-
-  .pm-home-today,
-  .pm-home-quick-actions {
-    grid-column: 1 / -1;
+    max-width: 640px;
   }
 
   .pm-home-metrics a {
-    min-height: 92px;
-    padding: 16px;
+    min-height: 82px;
+    padding: 14px;
   }
 
   .pm-home-metrics strong {
-    font-size: 24px;
-  }
-
-  .pm-home-action-grid a {
-    min-height: 82px;
+    font-size: 22px;
   }
 }
