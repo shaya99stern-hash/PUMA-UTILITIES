@@ -19,6 +19,12 @@
   display: none !important;
 }
 
+.pm-page:has(.pm-research) > .pm-page-head,
+.pm-research-discover .pm-research-title,
+.pm-research-title span {
+  display: none !important;
+}
+
 .pm-research-card {
   padding: 13px !important;
 }
