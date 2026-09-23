@@ -6,10 +6,10 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  foundation-finalize:
+  foundation-diagnose:
     if: github.head_ref == 'puma/product-foundation-v1'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -28,27 +28,15 @@ jobs:
         run: npm ci
       - name: Apply final foundation cleanup
         run: python3 scripts/product-foundation-finalize.py
-      - name: Core workflow tests
-        run: npx tsx --test --test-concurrency=1 tests/evidence-gating.test.ts tests/monitor-alerts.test.ts tests/pwa-cache-scope.test.ts tests/client-workflow.test.ts tests/client-presentation.test.ts tests/voice-notes.test.ts tests/building-routing.test.ts tests/minimal-companies-ui.test.ts
-      - name: Foundation UI tests
-        run: npx tsx --test --test-concurrency=1 tests/minimal-settings-navigation.test.ts tests/iphone-dashboard-polish.test.ts tests/ios-native-shell.test.ts tests/puma-brand.test.ts tests/company-lifecycle.test.ts tests/accounts-payable.test.ts tests/final-ui-wiring.test.ts tests/product-foundation-shell.test.ts
-      - name: Research engine tests
-        run: npx tsx --test --test-concurrency=1 tests/research-engine.test.ts tests/research-productization.test.ts tests/research-strengthening-v2.test.ts tests/research-intelligence-v3.test.ts tests/research-intelligence-v4.test.ts tests/research-intelligence-v5.test.ts
-      - name: Product intelligence tests
-        run: npx tsx --test --test-concurrency=1 tests/product-quality-v6.test.ts tests/product-intelligence-v7.test.ts tests/product-intelligence-v8.test.ts tests/product-quality-v9.test.ts tests/product-intelligence-v10.test.ts tests/product-intelligence-v11.test.ts
-      - name: Browser parser tests
-        run: node --test workers/browser-research/parser.test.mjs
-      - name: TypeScript
-        run: npm run typecheck
-      - name: Next build
-        run: npx next build
-      - name: Diff check
-        run: git diff --check
-      - name: Commit verified cleanup
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f scripts/product-foundation-finalize.py
-          git add -A
-          git commit -m "cleanup: remove superseded Puma shell layers"
-          git push origin HEAD:puma/product-foundation-v1
+      - name: Research engine
+        run: npx tsx --test tests/research-engine.test.ts
+      - name: Research productization
+        run: npx tsx --test tests/research-productization.test.ts
+      - name: Research strengthening v2
+        run: npx tsx --test tests/research-strengthening-v2.test.ts
+      - name: Research intelligence v3
+        run: npx tsx --test tests/research-intelligence-v3.test.ts
+      - name: Research intelligence v4
+        run: npx tsx --test tests/research-intelligence-v4.test.ts
+      - name: Research intelligence v5
+        run: npx tsx --test tests/research-intelligence-v5.test.ts
