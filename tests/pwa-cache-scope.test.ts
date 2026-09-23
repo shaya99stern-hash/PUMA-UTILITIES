@@ -22,7 +22,7 @@ test('installed Puma app can discover and apply every new Vercel deployment with
   assert.match(layout, /VERCEL_DEPLOYMENT_ID/);
   assert.match(layout, /currentDeploymentId=\{DEPLOYMENT_ID\}/);
   assert.match(versionRoute, /VERCEL_DEPLOYMENT_ID/);
-  assert.match(versionRoute, /Cache-Control.*no-store/s);
+  assert.match(versionRoute, /Cache-Control[\s\S]*no-store/);
   assert.match(updater, /fetch\('\/api\/version', \{ cache: 'no-store' \}\)/);
   assert.match(updater, /registration\.update\(\)/);
   assert.match(updater, /deploymentChanged/);
