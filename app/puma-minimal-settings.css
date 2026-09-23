@@ -288,7 +288,35 @@
 }
 
 @media (min-width: 900px) {
-  .pm-settings-launcher {
+  html body .pm-settings-launcher {
+    position: fixed;
+    z-index: 40;
+    left: 12px;
+    bottom: 14px;
+    width: 224px;
+    min-height: 46px;
+    padding: 0 11px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    border-radius: 11px;
+    background: var(--pm-bg);
+    color: #92979c;
+    text-decoration: none;
+    font-size: 13px;
+  }
+
+  html body .pm-settings-launcher:hover,
+  html body .pm-settings-launcher.active {
+    background: #151719;
+    color: #f1f1ef;
+  }
+
+  .pm-settings-launcher span {
+    display: inline;
+  }
+
+  .pm-settings-shell + .pm-settings-launcher {
     display: none !important;
   }
 
