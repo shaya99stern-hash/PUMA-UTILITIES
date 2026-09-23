@@ -12,9 +12,15 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'portrait-primary',
     icons: [
       {
-        src: '/puma-home-icon.jpeg?v=20260923-1',
-        sizes: '1254x1254',
-        type: 'image/jpeg',
+        src: '/pwa-icon-192?v=20260923-2',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/pwa-icon-512?v=20260923-2',
+        sizes: '512x512',
+        type: 'image/png',
         purpose: 'any',
       },
     ],
