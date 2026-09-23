@@ -3,7 +3,7 @@ import PumaSettingsShell from '../../components/puma-settings-shell';
 
 export default function ProfileSettingsPage() {
   return (
-    <PumaSettingsShell title="Profile" subtitle="Personalize how Puma greets you." backHref="/settings">
+    <PumaSettingsShell title="Profile" backHref="/settings">
       <PumaProfileSettings />
     </PumaSettingsShell>
   );
