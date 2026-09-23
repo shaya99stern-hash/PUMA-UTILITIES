@@ -32,6 +32,9 @@ jobs:
         run: npm ci
       - name: Apply final foundation cleanup
         run: python3 scripts/product-foundation-finalize.py
+      - name: Full serialized test suite
+        continue-on-error: true
+        run: npm test
       - name: Core workflow tests
         continue-on-error: true
         run: npx tsx --test tests/evidence-gating.test.ts tests/monitor-alerts.test.ts tests/pwa-cache-scope.test.ts tests/client-workflow.test.ts tests/client-presentation.test.ts tests/voice-notes.test.ts tests/building-routing.test.ts tests/minimal-companies-ui.test.ts
