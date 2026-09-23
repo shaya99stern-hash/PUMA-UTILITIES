@@ -4,6 +4,7 @@ import { rankDecisionMakers } from './decision-maker';
 import { linkedCompanyPropertyIds } from './portfolio-links';
 import type { ResearchRunResult } from './runner';
 import type { ResearchClaim, ResearchGraph } from './types';
+import { tariffTextUsableNow } from './tariff-metadata';
 import { estimatePropertyWaterCost } from './water-cost';
 
 export function buildOpportunityIntelligence(result: ResearchRunResult): OpportunityIntelligence {
@@ -30,7 +31,7 @@ export function buildOpportunityIntelligence(result: ResearchRunResult): Opportu
   }
   const utilityResolvedProperties = [...providersByProperty.values()].filter((ids) => ids.length === 1).length;
   const rateResolvedProperties = [...providersByProperty.entries()].filter(([, ids]) =>
-    ids.length === 1 && trustedClaims(graph, ids[0], 'utility.rateSchedule').length > 0
+    ids.length === 1 && trustedClaims(graph, ids[0], 'utility.rateSchedule').some((claim) => typeof claim.value === 'string' && tariffTextUsableNow(claim.value))
   ).length;
 
   const estimates = propertyIds
@@ -49,26 +50,23 @@ export function buildOpportunityIntelligence(result: ResearchRunResult): Opportu
   const coverageScore = Math.round((ownershipPercent + utilityPercent + ratePercent + benchmarkPercent + contactPercent) / 5);
   const priority = Math.max(0, Math.min(100, Math.round(assessment.fit * 0.45 + assessment.actionability * 0.35 + coverageScore * 0.2)));
 
-  const exactPortfolio = trustedClaims(graph, companyId, 'company.portfolio')
-    .some((claim) => typeof claim.value === 'number');
+  const exactPortfolio = trustedClaims(graph, companyId, 'company.portfolio').some((claim) => typeof claim.value === 'number');
   const gaps: string[] = [];
   if (!exactPortfolio) gaps.push('Exact portfolio size is not yet verified.');
   if (!propertyIds.length) gaps.push('No first-party or equivalent-entity property relationship is verified yet.');
   if (propertyIds.length && officialOwnershipProperties < propertyIds.length) gaps.push('Some linked properties still lack official ownership corroboration.');
   if (propertyIds.length && utilityResolvedProperties < propertyIds.length) gaps.push('Some linked properties still lack one resolved water provider.');
-  if (utilityResolvedProperties && rateResolvedProperties < utilityResolvedProperties) gaps.push('Published water-rate evidence is incomplete for resolved utilities.');
+  if (utilityResolvedProperties && rateResolvedProperties < utilityResolvedProperties) gaps.push('Current published water-rate evidence is incomplete for resolved utilities.');
   if (!top || (!top.email && !top.phone)) gaps.push('No direct published business contact is attached to the top decision-maker.');
-  if (!estimates.length) gaps.push('No property has enough sourced residential and tariff inputs for a water-cost benchmark.');
+  if (!estimates.length) gaps.push('No property has enough sourced residential and active tariff inputs for a water-cost benchmark.');
 
   const nextActions: string[] = [];
   if (!exactPortfolio) nextActions.push('Resolve exact portfolio size from a first-party or official source.');
   if (!top || (!top.email && !top.phone)) nextActions.push('Resolve a published business email or phone for the top-ranked operating decision-maker.');
   if (propertyIds.length && ownershipPercent < 70) nextActions.push('Corroborate ownership on the highest-value unresolved portfolio properties.');
   if (propertyIds.length && utilityPercent < 70) nextActions.push('Resolve water providers for additional linked properties.');
-  if (utilityResolvedProperties && ratePercent < 70) nextActions.push('Resolve current published water rates for utilities already tied to the portfolio.');
-  if (annualWaterSpendBenchmark) {
-    nextActions.push(`Use the ~$${annualWaterSpendBenchmark.toLocaleString()}/yr researched water benchmark across ${estimates.length} propert${estimates.length === 1 ? 'y' : 'ies'} to prioritize outreach; validate actual bills after client authorization.`);
-  }
+  if (utilityResolvedProperties && ratePercent < 70) nextActions.push('Resolve a current published water tariff for utilities already tied to the portfolio.');
+  if (annualWaterSpendBenchmark) nextActions.push(`Use the ~$${annualWaterSpendBenchmark.toLocaleString()}/yr researched water benchmark across ${estimates.length} propert${estimates.length === 1 ? 'y' : 'ies'} to prioritize outreach; validate actual bills after client authorization.`);
   if (!nextActions.length) nextActions.push('Validate account-level bills and meter access with the prospect before quantifying savings.');
 
   const confidence: OpportunityIntelligence['confidence'] =
@@ -100,12 +98,6 @@ export function buildOpportunityIntelligence(result: ResearchRunResult): Opportu
   };
 }
 
-function percent(value: number, denominator: number): number {
-  return Math.max(0, Math.min(100, Math.round(value / Math.max(1, denominator) * 100)));
-}
-function trustedClaims(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): ResearchClaim[] {
-  return graph.claims.filter((claim) => claim.subjectId === subjectId && claim.fact === fact && trusted(claim));
-}
-function trusted(claim: ResearchClaim): boolean {
-  return (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7;
-}
+function percent(value: number, denominator: number): number { return Math.max(0, Math.min(100, Math.round(value / Math.max(1, denominator) * 100))); }
+function trustedClaims(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): ResearchClaim[] { return graph.claims.filter((claim) => claim.subjectId === subjectId && claim.fact === fact && trusted(claim)); }
+function trusted(claim: ResearchClaim): boolean { return (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7; }
