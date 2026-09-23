@@ -1,5 +1,6 @@
 import { deriveEntityNeeds } from './graph';
 import { planResearch } from './planner';
+import { isLikelyBucksCountyAddress } from './sources/bucks-parcels';
 import type { ResearchGraph, ResearchTask } from './types';
 
 export function planEntityTasks(
@@ -11,9 +12,9 @@ export function planEntityTasks(
   const depth = Math.max(0, Math.floor(options.depth ?? 0));
   const maxTasks = Math.max(1, Math.min(100, Math.floor(options.maxTasks ?? 30)));
   const perNeed = Math.max(1, Math.min(10, Math.floor(options.perNeed ?? 4)));
-  const needs = deriveEntityNeeds(graph, entityId, geography);
   const entity = graph.entities.find((item) => item.id === entityId);
   if (!entity) return [];
+  const needs = deriveEntityNeeds(graph, entityId, geography);
   const planned = planResearch(needs, perNeed).filter((item) => sourceAppliesToEntity(item.source.id, entity));
   const seen = new Set<string>();
   const tasks: ResearchTask[] = [];
@@ -54,6 +55,7 @@ function sourceAppliesToEntity(sourceId: string, entity: ResearchGraph['entities
   if (sourceId === 'nyc-acris' || sourceId === 'nyc-pluto' || sourceId === 'nyc-hpd-registrations') return looksNyc;
   if (sourceId === 'nys-tax-parcels-public') return state === 'NY' && !looksNyc;
   if (sourceId === 'phila-opa-properties') return state === 'PA' && /\bphiladelphia\b/i.test(label);
+  if (sourceId === 'pa-county-assessment') return state === 'PA' && isLikelyBucksCountyAddress(label);
   return true;
 }
 

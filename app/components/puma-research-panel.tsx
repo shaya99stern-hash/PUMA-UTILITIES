@@ -7,6 +7,8 @@ import { assessResearchRun } from '@/lib/research/qualification';
 import { rankDecisionMakers } from '@/lib/research/decision-maker';
 import { estimatePropertyWaterCost } from '@/lib/research/water-cost';
 import { buildOpportunityIntelligence } from '@/lib/research/opportunity';
+import { rankPropertyOpportunities } from '@/lib/research/property-priority';
+import { parseTariffClassEvidence } from '@/lib/research/tariff-class';
 import type { ResearchMergeSummary } from '@/lib/research/workspace-projection';
 
 type Candidate = { name: string; website: string; snippet?: string; sourceUrl: string; confidence: number; score: number; hits: number; markets: string[]; reasons: string[] };
@@ -33,6 +35,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
   const [result, setResult] = useState<ResearchRunResult | null>(null);
   const [status, setStatus] = useState<'idle'|'discovering'|'researching'|'saved'>('idle');
   const [error, setError] = useState('');
+  const [hasDiscovered, setHasDiscovered] = useState(false);
 
   useEffect(() => {
     fetch('/api/research/run', { cache: 'no-store' })
@@ -43,6 +46,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
 
   const assessment = useMemo(() => result ? assessResearchRun(result) : null, [result]);
   const opportunity = useMemo(() => result ? buildOpportunityIntelligence(result) : null, [result]);
+  const topProperties = useMemo(() => result ? rankPropertyOpportunities(result.graph, result.rootEntityId).slice(0, 8) : [], [result]);
   const root = result?.graph.entities.find((entity) => entity.id === result.rootEntityId);
   const decisionMakers = useMemo(() => result ? rankDecisionMakers(result.graph, result.rootEntityId) : [], [result]);
   const properties = result?.graph.entities.filter((entity) => entity.kind === 'property') ?? [];
@@ -64,6 +68,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
     setStatus('discovering');
     setError('');
     setResult(null);
+    setHasDiscovered(false);
     try {
       const response = await fetch('/api/research/discover', {
         method: 'POST',
@@ -73,6 +78,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
       const payload = await response.json() as { candidates?: Candidate[]; error?: string };
       if (!response.ok) throw new Error(payload.error || 'Discovery failed.');
       setCandidates(payload.candidates ?? []);
+      setHasDiscovered(true);
       setStatus('idle');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -115,24 +121,29 @@ export default function PumaResearchPanel({ onSave }: Props) {
     <div className="pm-research">
       <section className="pm-research-card pm-research-discover">
         <div className="pm-research-title">
-          <strong>Discover owner/operators</strong>
-          <span>Start broad, then deeply verify only the strongest candidates.</span>
+          <strong>Find real companies</strong>
+          <span>Search public sources for owner/operators, then verify the strongest results before anything is saved.</span>
         </div>
-        <div className="pm-research-grid">
-          <label><span>Markets</span><input value={markets} maxLength={24} onChange={(e) => setMarkets(e.target.value.toUpperCase())} placeholder="NJ, NY, PA" /></label>
-          <label><span>Min buildings</span><input type="number" value={minBuildings} onChange={(e) => setMinBuildings(Number(e.target.value))} /></label>
-          <label><span>Max buildings</span><input type="number" value={maxBuildings} onChange={(e) => setMaxBuildings(Number(e.target.value))} /></label>
-        </div>
+        <label className="pm-research-field"><span>Markets</span><input value={markets} maxLength={24} onChange={(e) => setMarkets(e.target.value.toUpperCase())} placeholder="NJ, NY, PA" /></label>
+        <details className="pm-research-advanced">
+          <summary>Advanced filters</summary>
+          <div className="pm-research-grid">
+            <label><span>Min buildings</span><input type="number" value={minBuildings} onChange={(e) => setMinBuildings(Number(e.target.value))} /></label>
+            <label><span>Max buildings</span><input type="number" value={maxBuildings} onChange={(e) => setMaxBuildings(Number(e.target.value))} /></label>
+          </div>
+        </details>
         <button className="pm-research-primary" type="button" disabled={status === 'discovering' || !capability?.webDiscoveryConfigured} onClick={() => void discover()}>
-          <Search size={16} /> {status === 'discovering' ? 'Finding candidates…' : 'Find 10 candidates'}
+          <Search size={16} /> {status === 'discovering' ? 'Searching public sources…' : 'Find real companies'}
         </button>
-        {capability && <p className="pm-research-capability">
-          Web discovery: {capability.webDiscoveryConfigured
-            ? (capability.webDiscoveryBackend === 'searxng' ? 'SearXNG' : 'built-in public-web fallback')
-            : 'not available'} · Official leadership: {(capability.officialLeadershipSources ?? []).includes('sec-edgar') ? 'SEC EDGAR' : 'first-party'} · Browser/ContactOut enrichment: {capability.browserEnrichmentConfigured ? 'connected' : 'optional worker not configured'}
-        </p>}
+        {capability && <details className="pm-research-advanced pm-research-sources">
+          <summary>Data sources</summary>
+          <p className="pm-research-capability">
+            Public web: {capability.webDiscoveryConfigured ? 'available' : 'unavailable'} · Official leadership: {(capability.officialLeadershipSources ?? []).includes('sec-edgar') ? 'SEC EDGAR + first-party' : 'first-party'} · Browser/ContactOut enrichment: {capability.browserEnrichmentConfigured ? 'connected' : 'not connected'}
+          </p>
+        </details>}
       </section>
 
+      {hasDiscovered && candidates.length === 0 && <div className="pm-research-empty"><strong>No strong candidates found.</strong><span>Try broader markets or loosen the advanced portfolio range. Puma will not fill the list with weak pseudo-leads.</span></div>}
       {candidates.length > 0 && <section className="pm-research-list pm-research-candidates">
         {candidates.map((candidate) => <article key={candidate.website}>
           <div>
@@ -147,14 +158,17 @@ export default function PumaResearchPanel({ onSave }: Props) {
 
       <section className="pm-research-card pm-research-deep">
         <div className="pm-research-title">
-          <strong>Deep research a company</strong>
-          <span>Cross-reference leadership, public business contacts, properties, water utilities, AMI/smart-meter evidence, and source conflicts.</span>
+          <strong>Research one company</strong>
+          <span>Enter a company and state. Puma can resolve the website, leadership, portfolio, utilities, rates, and evidence itself.</span>
         </div>
-        <label className="pm-research-field"><span>Company</span><input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Denholtz Properties" /></label>
-        <label className="pm-research-field"><span>Research state</span><input value={geography} maxLength={2} onChange={(e) => setGeography(e.target.value.toUpperCase())} placeholder="NJ" /></label>
-        <label className="pm-research-field"><span>Known website (optional)</span><input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://…" /></label>
+        <label className="pm-research-field"><span>Company</span><input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company name" /></label>
+        <label className="pm-research-field"><span>State</span><input value={geography} maxLength={2} onChange={(e) => setGeography(e.target.value.toUpperCase())} placeholder="NJ" /></label>
+        <details className="pm-research-advanced">
+          <summary>Advanced</summary>
+          <label className="pm-research-field"><span>Website hint</span><input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Optional" /></label>
+        </details>
         <button className="pm-research-primary" type="button" disabled={!company.trim() || status === 'researching'} onClick={() => void deepResearch()}>
-          <Search size={16} /> {status === 'researching' ? 'Researching…' : 'Run deep research'}
+          <Search size={16} /> {status === 'researching' ? 'Researching…' : 'Research company'}
         </button>
       </section>
 
@@ -185,10 +199,23 @@ export default function PumaResearchPanel({ onSave }: Props) {
           <span>Opportunity intelligence</span>
           <div><strong>Priority</strong><small>{opportunity.priority}/100 · {opportunity.confidence} confidence</small></div>
           <div><strong>Portfolio coverage</strong><small>{opportunity.linkedProperties} linked · {opportunity.officialOwnershipProperties} official owners · {opportunity.utilityResolvedProperties} utilities · {opportunity.rateResolvedProperties} rates</small></div>
-          <div><strong>Water benchmark</strong><small>{opportunity.annualWaterSpendBenchmark ? `~${opportunity.annualWaterSpendBenchmark.toLocaleString()}/yr across ${opportunity.benchmarkedProperties} benchmarked propert${opportunity.benchmarkedProperties === 1 ? 'y' : 'ies'}` : 'Not enough sourced residential + tariff evidence yet'}</small></div>
+          <div><strong>Water benchmark</strong><small>{opportunity.annualWaterSpendBenchmark ? `~$${opportunity.annualWaterSpendBenchmark.toLocaleString()}/yr across ${opportunity.benchmarkedProperties} benchmarked propert${opportunity.benchmarkedProperties === 1 ? 'y' : 'ies'}` : 'Not enough sourced residential + tariff evidence yet'}</small></div>
           {opportunity.topContact && <div><strong>Top contact</strong><small>{opportunity.topContact.name}{opportunity.topContact.title ? ` · ${opportunity.topContact.title}` : ''} · {opportunity.topContact.score}/100</small></div>}
           {opportunity.nextActions.slice(0, 3).map((action, index) => <div key={`action-${index}`}><strong>{index === 0 ? 'Next best action' : `Then #${index + 1}`}</strong><small>{action}</small></div>)}
           {opportunity.gaps.length > 0 && <details><summary>Unresolved gaps ({opportunity.gaps.length})</summary>{opportunity.gaps.map((gap) => <p key={gap}>{gap}</p>)}</details>}
+        </div>}
+
+        {topProperties.length > 0 && <div className="pm-research-section">
+          <span>Top buildings to investigate</span>
+          {topProperties.map((property) => <div key={property.propertyId ?? property.propertyName}>
+            <strong>{property.propertyName}</strong>
+            <small>{[
+              `Priority ${property.score}/100`,
+              property.provider,
+              property.annualWaterSpendBenchmark ? `~$${Math.round(property.annualWaterSpendBenchmark).toLocaleString()}/yr` : undefined,
+              property.gaps[0],
+            ].filter(Boolean).join(' · ')}</small>
+          </div>)}
         </div>}
 
         {decisionMakers.length > 0 && <div className="pm-research-section">
@@ -234,19 +261,12 @@ export default function PumaResearchPanel({ onSave }: Props) {
         {utilities.length > 0 && <div className="pm-research-section">
           <span>Water providers</span>
           {utilities.slice(0, 12).map((utility) => {
-            const ami = result.graph.claims.find((claim) =>
-              claim.subjectId === utility.id &&
-              claim.fact === 'utility.amiCapability' &&
-              (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED')
-            )?.value?.toString();
-            const rate = result.graph.claims.find((claim) =>
-              claim.subjectId === utility.id &&
-              claim.fact === 'utility.rateSchedule' &&
-              (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED')
-            )?.value?.toString();
+            const ami = result.graph.claims.find((claim) => claim.subjectId === utility.id && claim.fact === 'utility.amiCapability' && (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED'))?.value?.toString();
+            const rate = result.graph.claims.find((claim) => claim.subjectId === utility.id && claim.fact === 'utility.rateSchedule' && (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED'))?.value?.toString();
+            const tariffClass = rate ? parseTariffClassEvidence(rate) : undefined;
             return <div key={utility.id}>
               <strong>{utility.label}</strong>
-              <small>{[utility.geography || 'Service area evidence', ami ? 'AMI evidence found' : 'AMI unknown', rate ? 'Rate evidence found' : 'Rate unresolved'].join(' · ')}</small>
+              <small>{[utility.geography || 'Service area evidence', ami ? 'AMI evidence found' : 'AMI unknown', rate ? 'Rate evidence found' : 'Rate unresolved', tariffClass ? `Class: ${tariffClass}` : undefined].filter(Boolean).join(' · ')}</small>
             </div>;
           })}
         </div>}
@@ -265,7 +285,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
         <button className="pm-research-save" type="button" onClick={save}>
           {status === 'saved' ? <><CheckCircle2 size={16} /> Saved to Prospects</> : 'Save to Prospects'}
         </button>
-        <p className="pm-research-capability">Water-cost estimates appear only when Puma has sourced residential unit evidence plus one unambiguous published variable water rate; sourced gross floor area can refine the multifamily benchmark range. One unambiguous published water service charge may be normalized to a monthly amount and included. Sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges remain excluded.</p>
+        <p className="pm-research-capability">Water-cost estimates appear only when Puma has sourced residential unit evidence plus one unambiguous published variable water rate; sourced gross floor area can refine the multifamily benchmark range. One unambiguous published water service charge may be normalized to a monthly amount and included. Sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges remain excluded. Customer-class labels are displayed only when explicitly published; Puma does not infer the applicable tariff class.</p>
       </section>}
     </div>
   );

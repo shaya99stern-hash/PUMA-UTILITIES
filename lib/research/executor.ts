@@ -16,6 +16,7 @@ import { ingestAcrisOwnership, lookupAcrisOwnershipByAddress } from './sources/n
 import { ingestNycPluto, lookupNycPlutoByBbl } from './sources/nyc-pluto';
 import { ingestPhiladelphiaOpa, lookupPhiladelphiaOpaByAddress } from './sources/philadelphia-opa';
 import { ingestNysTaxParcel, lookupNysTaxParcelByAddress } from './sources/nys-tax-parcels';
+import { ingestBucksParcel, lookupBucksParcelByAddress } from './sources/bucks-parcels';
 
 export interface ResearchTaskResult {
   taskId: string;
@@ -172,9 +173,7 @@ async function executeSource(
     ingestNycPluto(graph, entity.id, record);
     const units = Number(record.unitsres ?? 0);
     const area = Number(record.bldgarea ?? 0);
-    return {
-      text: `NYC PLUTO resolved official physical facts${Number.isFinite(units) && units > 0 ? ` · ${units} residential units` : ''}${Number.isFinite(area) && area > 0 ? ` · ${area.toLocaleString()} sq ft reported building area` : ''}.`
-    };
+    return { text: `NYC PLUTO resolved official physical facts${Number.isFinite(units) && units > 0 ? ` · ${units} residential units` : ''}${Number.isFinite(area) && area > 0 ? ` · ${area.toLocaleString()} sq ft reported building area` : ''}.` };
   }
 
   if (task.sourceId === 'nyc-hpd-registrations') {
@@ -202,6 +201,14 @@ async function executeSource(
     if (!record) return { text: 'Philadelphia OPA did not return one unambiguous exact-address record.', blocked: true, retryable: false };
     ingestPhiladelphiaOpa(graph, entity.id, record);
     return { text: `Philadelphia OPA corroborated parcel ${record.parcelNumber ?? 'identity'} and ${[record.owner1, record.owner2].filter(Boolean).length} owner-of-record name(s).` };
+  }
+
+  if (task.sourceId === 'pa-county-assessment') {
+    if (entity.kind !== 'property') return { text: 'Pennsylvania county parcel research requires a property entity.', blocked: true };
+    const record = await lookupBucksParcelByAddress(entity.label, options.signal);
+    if (!record) return { text: 'No enabled county parcel adapter returned one unambiguous exact-address record. Puma does not treat that as negative ownership evidence.', blocked: true, retryable: false };
+    ingestBucksParcel(graph, entity.id, record);
+    return { text: `Bucks County parcels corroborated ${record.parcelNumber ?? 'parcel identity'} and ${[record.owner1, record.owner2].filter(Boolean).length} owner-of-record name(s).` };
   }
 
   if (task.sourceId === 'epa-water-service-areas' || task.sourceId === 'njdep-water-purveyor' || task.sourceId === 'padep-water-service') {

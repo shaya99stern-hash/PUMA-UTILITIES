@@ -98,6 +98,12 @@ export function aggregateDiscoveryCandidates(hits: DiscoverySearchHit[], count =
   }
 
   return [...byHost.values()]
+    .filter((candidate) => {
+      const repetition = Math.min(0.24, Math.max(0, candidate.hits - 1) * 0.08);
+      const marketBreadth = Math.min(0.12, Math.max(0, candidate.markets.size - 1) * 0.04);
+      const normalized = Math.max(0, Math.min(1, 0.32 + candidate.rawScore + repetition + marketBreadth));
+      return candidate.reasons.size > 0 && (candidate.hits >= 2 || normalized >= 0.55);
+    })
     .map((candidate) => {
       const repetition = Math.min(0.24, Math.max(0, candidate.hits - 1) * 0.08);
       const marketBreadth = Math.min(0.12, Math.max(0, candidate.markets.size - 1) * 0.04);
