@@ -37,11 +37,14 @@ test('Settings is a dedicated hub with Profile and Data Sources pages', () => {
   assert.match(sources, /backHref="\/settings"/);
 });
 
-test('bottom-right Settings launcher is mounted globally and source management stays minimal', () => {
+test('Settings launcher is mounted globally, mobile is bottom-right, and desktop keeps a Settings entry', () => {
   const layout = readFileSync(layoutPath, 'utf8');
+  const css = readFileSync(cssPath, 'utf8');
   assert.match(layout, /PumaSettingsLauncher/);
   assert.match(layout, /puma-minimal-settings\.css/);
   assert.match(layout, /<PumaSettingsLauncher \/>/);
+  assert.match(css, /@media \(max-width:\s*899px\)[\s\S]*\.pm-settings-launcher[\s\S]*right:\s*14px/);
+  assert.match(css, /@media \(min-width:\s*900px\)[\s\S]*\.pm-settings-launcher[\s\S]*left:\s*12px/);
 
   assert.equal(existsSync(sourceManagerPath), true);
   const manager = readFileSync(sourceManagerPath, 'utf8');
