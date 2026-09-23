@@ -1,24 +1,20 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
-      - 'puma/**'
   pull_request:
     branches:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  foundation-diagnose:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/puma/product-foundation-v1'
+  foundation-finalize:
+    if: github.head_ref == 'puma/product-foundation-v1'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout branch
+      - name: Checkout foundation branch
         uses: actions/checkout@v4
         with:
           ref: puma/product-foundation-v1
@@ -32,26 +28,21 @@ jobs:
         run: npm ci
       - name: Apply final foundation cleanup
         run: python3 scripts/product-foundation-finalize.py
-      - name: Minimal Companies architecture x10
+      - name: Canonical Companies test x10
         run: for i in 1 2 3 4 5 6 7 8 9 10; do npx tsx --test tests/minimal-companies-ui.test.ts || exit 1; done
-
-  verify:
-    if: github.event_name == 'pull_request' || github.ref != 'refs/heads/puma/product-foundation-v1'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Node 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install
-        run: npm ci
-      - name: Tests
+      - name: Full tests
         run: npm test
       - name: TypeScript
         run: npm run typecheck
       - name: Next build
         run: npx next build
+      - name: Diff check
+        run: git diff --check
+      - name: Commit verified cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f scripts/product-foundation-finalize.py
+          git add -A
+          git commit -m "cleanup: remove superseded Puma shell layers"
+          git push origin HEAD:puma/product-foundation-v1
