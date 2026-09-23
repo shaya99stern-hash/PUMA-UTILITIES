@@ -94,15 +94,13 @@ test('full workspace backup round-trips through the guarded workspace parser', (
 });
 
 test('PR18 UI exposes backup restore, continue research, tariff freshness, and prefilled engine params', () => {
-  const shell = readFileSync('app/components/puma-workspace-app-v4.tsx', 'utf8');
   const intelligence = readFileSync('app/components/puma-intelligence-page.tsx', 'utf8');
   const panel = readFileSync('app/components/puma-research-panel.tsx', 'utf8');
-  assert.match(shell, /Download workspace backup/);
-  assert.match(shell, /Restore backup/);
-  assert.match(shell, /Continue research/);
-  assert.match(shell, /Tariff freshness/);
+  assert.match(intelligence, /Download workspace backup/);
+  assert.match(intelligence, /Restore backup/);
   assert.match(intelligence, /Continue research/);
-  assert.match(panel, /useSearchParams/);
+  assert.match(intelligence, /Tariff freshness/);
+  assert.match(panel, /window\.location\.search/);
   assert.match(panel, /searchParams\.get\('company'\)/);
   assert.match(panel, /searchParams\.get\('state'\)/);
 });
