@@ -46,3 +46,14 @@ test('Settings routes use the shared shell rather than their own navigation shel
     assert.doesNotMatch(source, /PumaSettingsShell/);
   }
 });
+
+test('workspace renders the shared shell before hydration and provides recovery links', () => {
+  const workspace = read('app/components/puma-workspace-app-v4.tsx');
+  assert.match(workspace, /PumaAppShell/);
+  assert.doesNotMatch(workspace, /if \(!workspace\) return <main className="pm-shell"/);
+  assert.doesNotMatch(workspace, /<nav className="pm-bottom-nav"/);
+  assert.doesNotMatch(workspace, /<aside className="pm-desktop-sidebar"/);
+  assert.match(workspace, /Back to Companies/);
+  assert.match(workspace, /href="\/clients"/);
+  assert.match(workspace, /buildingListPath/);
+});
