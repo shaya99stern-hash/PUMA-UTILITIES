@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import PwaUpdateManager from './components/pwa-update-manager';
-import PumaSettingsLauncher from './components/puma-settings-launcher';
 import './globals.css';
 import './puma-brand.css';
 import './client-workflow.css';
@@ -49,7 +48,6 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en" className="dark">
       <body>
         {children}
-        <PumaSettingsLauncher />
         <PwaUpdateManager />
       </body>
     </html>
