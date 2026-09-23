@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import PwaUpdateManager from './components/pwa-update-manager';
 import './globals.css';
 import './puma-brand.css';
 import './client-workflow.css';
@@ -8,7 +9,7 @@ import './bulk-outreach.css';
 import './ios-native.css';
 import './puma-responsive-v6.css';
 
-const APPLE_ICON = '/apple-touch-icon?v=20260922-1';
+const HOME_ICON = '/puma-home-icon.jpeg?v=20260923-1';
 
 export const metadata: Metadata = {
   applicationName: 'Puma Utilities',
@@ -21,11 +22,8 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
   },
   icons: {
-    icon: [
-      { url: '/pwa-icon-192?v=20260922-1', sizes: '192x192', type: 'image/png' },
-      { url: '/pwa-icon-512?v=20260922-1', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: [{ url: APPLE_ICON, sizes: '180x180', type: 'image/png' }],
+    icon: [{ url: HOME_ICON, sizes: '1254x1254', type: 'image/jpeg' }],
+    apple: [{ url: HOME_ICON, sizes: '1254x1254', type: 'image/jpeg' }],
   },
 };
 
@@ -40,7 +38,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" className="dark">
-      <body>{children}</body>
+      <body>
+        {children}
+        <PwaUpdateManager />
+      </body>
     </html>
   );
 }
