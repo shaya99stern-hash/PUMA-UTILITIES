@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, Bell, Building2, CalendarCheck, ChevronRight, Settings, SlidersHorizontal } from 'lucide-react';
+import { Activity, Building2, CalendarCheck, ChevronRight, Settings, SlidersHorizontal } from 'lucide-react';
 import { buildMonitorAlerts } from '@/lib/monitor';
 import { companyLifecycle } from '@/lib/company-lifecycle';
 import { companyPath } from '@/lib/client-routing';
@@ -40,18 +40,32 @@ export default function PumaHomeDashboard() {
   const [todayKey, setTodayKey] = useState('');
 
   useEffect(() => {
-    const target = document.querySelector('.pm-home');
-    if (!(target instanceof HTMLElement)) return;
-    setHost(target);
+    let observer: MutationObserver | null = null;
 
     const refresh = () => {
       setWorkspace(stripLegacyReleaseOneSeeds(loadWorkspace()));
       setTodayKey(localDayKey(new Date()));
     };
-    refresh();
+
+    const attach = () => {
+      const target = document.querySelector('.pm-home');
+      if (!(target instanceof HTMLElement)) return false;
+      setHost(target);
+      refresh();
+      observer?.disconnect();
+      observer = null;
+      return true;
+    };
+
+    if (!attach()) {
+      observer = new MutationObserver(() => { attach(); });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => {
+      observer?.disconnect();
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
@@ -108,7 +122,7 @@ export default function PumaHomeDashboard() {
       });
     }
 
-    return { companies, alerts, prospects, followUpsToday, recentlyUpdatedCompanies, tasks: tasks.slice(0, 3) };
+    return { alerts, prospects, followUpsToday, recentlyUpdatedCompanies, tasks: tasks.slice(0, 3) };
   }, [workspace, todayKey]);
 
   if (!host || !workspace) return null;
