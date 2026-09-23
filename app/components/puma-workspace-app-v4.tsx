@@ -3,9 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity,
   Bell,
-  Building2,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -13,9 +11,6 @@ import {
   Mail,
   Mic,
   Search,
-  Settings,
-  SlidersHorizontal,
-  UserRound,
   X,
 } from 'lucide-react';
 import { addActivityNote } from '@/lib/client-workflow';
@@ -29,6 +24,9 @@ import { resolveVoiceDestination, type VoicePhase } from '@/lib/voice-notes';
 import { loadWorkspace, saveWorkspace } from '@/lib/workspace';
 import PumaResearchPanel from './puma-research-panel';
 import { mergeResearchRunIntoWorkspace } from '@/lib/research/workspace-projection';
+import type { PumaShellRouteId } from '@/lib/puma-navigation';
+import PumaAppShell from './puma-app-shell';
+import PumaHomeScreen from './puma-home-screen';
 
 export type PumaView = 'home' | 'clients' | 'monitor' | 'engine' | 'accounts-payable' | 'settings';
 type ClientSubview = 'company' | 'buildings' | 'building';
@@ -75,13 +73,6 @@ function localDayKey(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
-function formatClock(date: Date) {
-  return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date);
-}
-
-function formatLongDate(date: Date) {
-  return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(date);
-}
 
 function formatShortDate(value?: string) {
   if (!value) return 'Not set';
@@ -116,21 +107,6 @@ function utilityCapabilityLabel(utility?: UtilityService) {
   if (utility.capability === 'smart-meter') return 'Smart meter';
   if (utility.capability === 'newly-installed') return 'New smart meter';
   return 'Manual read';
-}
-
-function BrandMark({ size = 28 }: { size?: number }) {
-  return (
-    <span className="pm-brand-mark" style={{ width: size, height: size }} aria-hidden="true">
-      <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-        <circle cx="18" cy="18" r="15.2" fill="rgba(16,18,20,0.58)" stroke="#86aeb6" strokeWidth="1.1" />
-        <circle cx="18" cy="18" r="10.6" stroke="#c7e0e5" strokeWidth="1.35" />
-        <path d="M11.6 20.5a6.8 6.8 0 0 1 12.8 0" stroke="#c7e0e5" strokeWidth="1.35" strokeLinecap="round" />
-        <path d="M18 18l4.5-4.2" stroke="#c7e0e5" strokeWidth="1.35" strokeLinecap="round" />
-        <circle cx="18" cy="18" r="1.45" fill="#86aeb6" />
-        <path d="M18 7.4c-1.5 2.2-2.6 3.7-2.6 5.1a2.6 2.6 0 0 0 5.2 0c0-1.4-1.1-2.9-2.6-5.1Z" stroke="#c7e0e5" strokeWidth="1.35" strokeLinejoin="round" />
-      </svg>
-    </span>
-  );
 }
 
 function VoiceReviewSheet({ phase, message, draft, destination, onDraft, onSave, onCancel }: {
@@ -224,7 +200,7 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
   const allCompanies = workspace?.companies ?? [];
   const alerts = workspace ? buildMonitorAlerts(workspace) : [];
   const todayKey = now ? localDayKey(now) : '';
-  const activeCompanies = allCompanies.filter((company) => companyLifecycle(company.stage) === 'Active Clients');
+  const prospects = allCompanies.filter((company) => companyLifecycle(company.stage) === 'Prospects').length;
   const followUpsToday = allCompanies.filter((company) => {
     const status = companyLifecycle(company.stage);
     return status !== 'Not Interested' && (company as CompanyWithFollowUp).followUpAt?.slice(0, 10) === todayKey;
@@ -237,14 +213,6 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
   const selectedEmails = allCompanies
     .filter((company) => selectedCompanyIds.includes(company.id))
     .flatMap((company) => company.people.map((person) => person.email).filter((email): email is string => Boolean(email)));
-
-  const upcomingCompanies = [...allCompanies]
-    .filter((company) => companyLifecycle(company.stage) !== 'Not Interested' && Boolean((company as CompanyWithFollowUp).followUpAt))
-    .sort((left, right) => ((left as CompanyWithFollowUp).followUpAt ?? '').localeCompare((right as CompanyWithFollowUp).followUpAt ?? ''))
-    .slice(0, 5);
-  const recentlyUpdatedCompanies = [...allCompanies]
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-    .slice(0, 5);
 
   const voiceDestination = resolveVoiceDestination({ companyId: selectedCompany?.id, propertyId: selectedProperty?.id });
   const voiceDestinationLabel = voiceDestination === 'property'
@@ -455,62 +423,15 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
     }));
   };
 
-  if (!workspace) return <main className="pm-shell"><div className="pm-loading">Loading Puma…</div><style>{styles}</style></main>;
-
-  const renderHome = () => {
-    const welcome = profileName ? `Welcome, ${profileName}` : 'Welcome';
-    if (allCompanies.length === 0) {
-      return (
-        <div className="pm-page pm-home">
-          <section className="pm-welcome pm-welcome-row">
-            <div>
-              <div className="pm-date-line">{now ? `${formatLongDate(now)} · ${formatClock(now)}` : 'Today'}</div>
-              <h1>{welcome}</h1>
-            </div>
-            <Link className="pm-home-settings" href="/settings"><UserRound size={17} /> Profile</Link>
-          </section>
-          <section className="pm-zero-state">
-            <BrandMark size={42} />
-            <h2>No companies yet</h2>
-            <p>Puma only shows companies you discover, research, or save. No demos or placeholder prospects are added.</p>
-            <Link className="pm-zero-primary" href="/engine"><Search size={16} /> Find real companies</Link>
-          </section>
-        </div>
-      );
-    }
-    return (
-      <div className="pm-page pm-home">
-        <section className="pm-welcome pm-welcome-row">
-          <div>
-            <div className="pm-date-line">{now ? `${formatLongDate(now)} · ${formatClock(now)}` : 'Today'}</div>
-            <h1>{welcome}</h1>
-          </div>
-          <Link className="pm-home-settings" href="/settings"><UserRound size={17} /> {profileName || 'Profile'}</Link>
-        </section>
-        <section className="pm-stat-strip" aria-label="Today at a glance">
-          <Link href="/clients"><strong>{followUpsToday}</strong><span>Follow-ups today</span></Link>
-          <Link href="/clients"><strong>{activeCompanies.length}</strong><span>Active clients</span></Link>
-          <Link href="/monitor"><strong>{alerts.length}</strong><span>Alerts</span></Link>
-        </section>
-        <section className="pm-home-grid" aria-label="Workspace shortcuts">
-          <article className="pm-home-panel">
-            <div className="pm-home-panel-head"><div><span>Next up</span><strong>Follow-ups</strong></div><Link href="/clients">Companies</Link></div>
-            <div className="pm-home-list">
-              {upcomingCompanies.length === 0 && <div className="pm-home-empty">Nothing scheduled.</div>}
-              {upcomingCompanies.map((company) => <Link key={company.id} href={companyPath(company.id)}><span><strong>{company.name}</strong><small>{portfolioSummary(company)}</small></span><time>{formatShortDate((company as CompanyWithFollowUp).followUpAt)}</time></Link>)}
-            </div>
-          </article>
-          <article className="pm-home-panel">
-            <div className="pm-home-panel-head"><div><span>Recent</span><strong>Companies</strong></div><Link href="/clients">Open all</Link></div>
-            <div className="pm-home-list">
-              {recentlyUpdatedCompanies.length === 0 && <div className="pm-home-empty">No activity yet.</div>}
-              {recentlyUpdatedCompanies.map((company) => <Link key={company.id} href={companyPath(company.id)}><span><strong>{company.name}</strong><small>{company.market || 'Location not verified'} · {companyLifecycle(company.stage)}</small></span><ChevronRight size={16} /></Link>)}
-            </div>
-          </article>
-        </section>
-      </div>
-    );
-  };
+  const renderHome = () => (
+    <PumaHomeScreen
+      now={now}
+      profileName={profileName}
+      followUpsToday={followUpsToday}
+      prospects={prospects}
+      alerts={alerts.length}
+    />
+  );
 
   const renderCompanies = () => (
     <div className="pm-page">
@@ -552,8 +473,8 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
 
   const renderCompany = () => {
     const company = selectedCompany as CompanyWithFollowUp | undefined;
-    if (!company) return <div className="pm-page"><div className="pm-empty"><strong>Company not found.</strong></div></div>;
-    const properties = companyProperties(company, workspace);
+    if (!company) return <div className="pm-page"><div className="pm-empty"><strong>Company not found.</strong><Link href="/clients">Back to Companies</Link></div></div>;
+    const properties = companyProperties(company, workspace!);
     const status = companyLifecycle(company.stage);
     return (
       <div className="pm-page">
@@ -599,8 +520,8 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
   };
 
   const renderBuildings = () => {
-    if (!selectedCompany) return <div className="pm-page"><div className="pm-empty"><strong>Company not found.</strong></div></div>;
-    const properties = companyProperties(selectedCompany, workspace);
+    if (!selectedCompany) return <div className="pm-page"><div className="pm-empty"><strong>Company not found.</strong><Link href="/clients">Back to Companies</Link></div></div>;
+    const properties = companyProperties(selectedCompany, workspace!);
     return (
       <div className="pm-page">
         <Link className="pm-back" href={companyPath(selectedCompany.id)}><ChevronLeft size={17} /> {selectedCompany.name}</Link>
@@ -611,9 +532,13 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
   };
 
   const renderBuilding = () => {
-    if (!selectedCompany || !selectedProperty) return <div className="pm-page"><div className="pm-empty"><strong>Building not found.</strong></div></div>;
-    const utilities = propertyUtilities(selectedProperty, workspace);
-    const parcels = workspace.parcels.filter((parcel) => selectedProperty.parcelIds.includes(parcel.id));
+    if (!selectedCompany || !selectedProperty) {
+      const recoveryHref = selectedCompany ? buildingListPath(selectedCompany.id) : '/clients';
+      const recoveryLabel = selectedCompany ? 'Back to Buildings' : 'Back to Companies';
+      return <div className="pm-page"><div className="pm-empty"><strong>Building not found.</strong><Link href={recoveryHref}>{recoveryLabel}</Link></div></div>;
+    }
+    const utilities = propertyUtilities(selectedProperty, workspace!);
+    const parcels = workspace!.parcels.filter((parcel) => selectedProperty.parcelIds.includes(parcel.id));
     return (
       <div className="pm-page">
         <Link className="pm-back" href={buildingListPath(selectedCompany.id)}><ChevronLeft size={17} /> Buildings</Link>
@@ -644,7 +569,7 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
   const renderMonitor = () => (
     <div className="pm-page">
       <div className="pm-page-head"><div><h1>Monitor</h1><p>Client-authorized water alerts</p></div></div>
-      <div className="pm-alert-list">{alerts.length === 0 && <div className="pm-empty"><Bell size={20} /><strong>No alerts right now.</strong><span>Alerts appear only from authorized client readings.</span></div>}{alerts.map((alert) => { const property = workspace.properties.find((item) => item.id === alert.propertyId); return <article key={alert.id}><Bell size={17} /><div><strong>{alert.title}</strong><span>{property?.name || 'Building'} · {alert.detail}</span></div></article>; })}</div>
+      <div className="pm-alert-list">{alerts.length === 0 && <div className="pm-empty"><Bell size={20} /><strong>No alerts right now.</strong><span>Alerts appear only from authorized client readings.</span></div>}{alerts.map((alert) => { const property = workspace!.properties.find((item) => item.id === alert.propertyId); return <article key={alert.id}><Bell size={17} /><div><strong>{alert.title}</strong><span>{property?.name || 'Building'} · {alert.detail}</span></div></article>; })}</div>
     </div>
   );
 
@@ -652,7 +577,7 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
     <div className="pm-page">
       <div className="pm-page-head"><div><h1>Find Leads</h1><p>Discover, cross-reference, qualify, and save evidence-backed prospects</p></div></div>
       <PumaResearchPanel onSave={(result) => {
-        const merged = mergeResearchRunIntoWorkspace(workspace, result);
+        const merged = mergeResearchRunIntoWorkspace(workspace!, result);
         saveWorkspace(merged.workspace);
         setWorkspace(merged.workspace);
         return merged.summary;
@@ -661,7 +586,7 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
   );
 
   const renderAccountsPayable = () => {
-    const items = workspace.accountsPayable ?? [];
+    const items = workspace!.accountsPayable ?? [];
     const summary = summarizeAccountsPayable(items, now ?? new Date());
     return (
       <div className="pm-page">
@@ -698,46 +623,31 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
     </div>
   );
 
-  let content = renderHome();
-  if (view === 'clients' && subview === 'buildings') content = renderBuildings();
-  else if (view === 'clients' && subview === 'building') content = renderBuilding();
-  else if (view === 'clients' && companyId) content = renderCompany();
-  else if (view === 'clients') content = renderCompanies();
-  else if (view === 'monitor') content = renderMonitor();
-  else if (view === 'engine') content = renderEngine();
-  else if (view === 'accounts-payable') content = renderAccountsPayable();
-  else if (view === 'settings') content = renderSettings();
+  let content = workspace ? renderHome() : <div className="pm-loading">Loading Puma…</div>;
+  if (workspace) {
+    if (view === 'clients' && subview === 'buildings') content = renderBuildings();
+    else if (view === 'clients' && subview === 'building') content = renderBuilding();
+    else if (view === 'clients' && companyId) content = renderCompany();
+    else if (view === 'clients') content = renderCompanies();
+    else if (view === 'monitor') content = renderMonitor();
+    else if (view === 'engine') content = renderEngine();
+    else if (view === 'accounts-payable') content = renderAccountsPayable();
+    else if (view === 'settings') content = renderSettings();
+  }
 
   const pageLabel = view === 'clients' ? 'Companies' : view === 'monitor' ? 'Monitor' : view === 'engine' ? 'Find Leads' : view === 'accounts-payable' ? 'Accounts Payable' : view === 'settings' ? 'Settings' : 'Home';
 
+  const shellRoute = view as PumaShellRouteId;
+
   return (
-    <main className="pm-shell">
-      <aside className="pm-desktop-sidebar">
-        <div className="pm-desktop-brand"><BrandMark size={30} /><span><strong>Puma Utilities</strong><small>Water Intelligence</small></span></div>
-        <nav className="pm-desktop-nav" aria-label="Desktop navigation">
-          <Link href="/" className={view === 'home' ? 'active' : ''}><BrandMark size={20} /><span>Home</span></Link>
-          <Link href="/clients" className={view === 'clients' ? 'active' : ''}><Building2 size={19} /><span>Companies</span></Link>
-          <Link href="/engine" className={view === 'engine' ? 'active' : ''}><SlidersHorizontal size={19} /><span>Find Leads</span></Link>
-          <Link href="/monitor" className={view === 'monitor' ? 'active' : ''}><Activity size={19} /><span>Monitor</span></Link>
-        </nav>
-        <Link className="pm-desktop-profile" href="/settings"><UserRound size={19} /><span><strong>{profileName || 'Profile'}</strong><small>Settings</small></span><ChevronRight size={16} /></Link>
-      </aside>
-
-      <div className="pm-main">
-        <header className="pm-appbar">
-          <div className="pm-brand"><BrandMark size={28} /><span><strong>Puma Utilities</strong><small>{pageLabel}</small></span></div>
-          <button type="button" className={`pm-mic ${voicePhase === 'recording' ? 'recording' : ''}`} aria-label="Record voice note" onClick={() => void toggleVoice()}><Mic size={20} /></button>
-        </header>
-
-        <section className="pm-content">{content}</section>
-
-        <nav className="pm-bottom-nav" aria-label="Primary navigation">
-          <Link href="/" className={view === 'home' ? 'active' : ''}><BrandMark size={22} /><span>Home</span></Link>
-          <Link href="/clients" className={view === 'clients' ? 'active' : ''}><Building2 size={19} /><span>Companies</span></Link>
-          <Link href="/engine" className={view === 'engine' ? 'active' : ''}><SlidersHorizontal size={19} /><span>Find Leads</span></Link>
-          <Link href="/monitor" className={view === 'monitor' ? 'active' : ''}><Activity size={19} /><span>Monitor</span></Link>
-        </nav>
-      </div>
+    <>
+      <PumaAppShell
+        currentRoute={shellRoute}
+        pageLabel={pageLabel}
+        headerAction={workspace ? <button type="button" className={`pm-mic ${voicePhase === 'recording' ? 'recording' : ''}`} aria-label="Record voice note" onClick={() => void toggleVoice()}><Mic size={20} /></button> : undefined}
+      >
+        {content}
+      </PumaAppShell>
 
       <VoiceReviewSheet phase={voicePhase} message={voiceMessage} draft={voiceDraft} destination={voiceDestinationLabel} onDraft={setVoiceDraft} onSave={saveVoiceNote} onCancel={cancelVoice} />
       {voicePhase === 'requesting' && <div className="pm-toast">Requesting microphone…</div>}
@@ -745,7 +655,7 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
       {voicePhase === 'processing' && <div className="pm-toast">Processing voice…</div>}
       {(voicePhase === 'error' || voicePhase === 'permission-denied' || voicePhase === 'unsupported') && voiceMessage && <button type="button" className="pm-toast error" onClick={cancelVoice}>{voiceMessage}</button>}
       <style>{styles}</style>
-    </main>
+    </>
   );
 }
 
