@@ -8,9 +8,9 @@ test('service worker only retires Puma-namespaced stale caches', () => {
   assert.match(source, /const CACHE_PREFIX = 'puma-utilities-';/);
   assert.match(source, /shell-v6/);
   assert.match(source, /key\.startsWith\(CACHE_PREFIX\) && key !== VERSION/);
-  assert.match(source, /puma-app-icon-180\.png/);
-  assert.match(source, /puma-app-icon-192\.png/);
-  assert.match(source, /puma-app-icon-512\.png/);
+  assert.match(source, /apple-touch-icon/);
+  assert.match(source, /pwa-icon-192/);
+  assert.match(source, /pwa-icon-512/);
   assert.doesNotMatch(source, /puma-home-icon\.jpeg/);
   assert.doesNotMatch(source, /keys\.map\(\(key\) => caches\.delete\(key\)\)/);
   assert.doesNotMatch(source, /CLEAR_CACHES/);
