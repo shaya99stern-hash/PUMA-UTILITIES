@@ -73,8 +73,70 @@ html body .pm-brand-mark {
 }
 
 html body .pm-brand-mark svg {
-  display: block !important;
-  width: 100% !important;
-  height: 100% !important;
-  overflow: visible !important;
+  display: none !important;
+}
+
+html body .pm-brand-mark::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: url('/puma-logo?v=20260923-1') center / contain no-repeat;
+}
+
+html body .puma-update-card {
+  position: fixed;
+  right: 16px;
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  z-index: 90;
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(11, 13, 15, 0.94);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+html body .puma-update-copy {
+  display: grid;
+  gap: 4px;
+}
+
+html body .puma-update-copy strong {
+  color: rgba(255, 255, 255, 0.96);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+html body .puma-update-copy span {
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+html body .puma-update-button {
+  min-height: 42px;
+  border: 1px solid rgba(242, 99, 42, 0.36);
+  border-radius: 12px;
+  background: rgba(242, 99, 42, 0.12);
+  color: #f2632a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+html body .puma-update-button:disabled {
+  cursor: default;
+  opacity: 0.52;
+}
+
+@media (min-width: 900px) {
+  html body .puma-update-card {
+    right: 24px;
+    bottom: 24px;
+  }
 }
