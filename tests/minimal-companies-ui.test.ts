@@ -17,9 +17,10 @@ test('routes Puma through the final minimal Companies implementation', () => {
 test('Companies stays minimal and uses real workspace data without legacy Clients copy', () => {
   const source = readFileSync(implementationPath, 'utf8');
 
-  assert.match(source, /No companies yet/);
-  assert.match(source, /Find real companies/);
-  assert.match(source, />Companies</);
+  assert.match(source, /<h1>Companies<\/h1>/);
+  assert.match(source, /No companies here yet/);
+  assert.match(source, /Companies move here when their status changes/);
+  assert.match(source, /visibleCompanies\.map/);
   assert.doesNotMatch(source, />Clients</);
   assert.doesNotMatch(source, /Authorized Alerts/);
   assert.doesNotMatch(source, /<SectionTitle>Workspace<\/SectionTitle>/);
