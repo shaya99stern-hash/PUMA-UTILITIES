@@ -32,8 +32,16 @@ jobs:
         run: npm ci
       - name: Apply final foundation cleanup
         run: python3 scripts/product-foundation-finalize.py
-      - name: Tests
-        run: npm test
+      - name: Core workflow tests
+        run: npx tsx --test tests/evidence-gating.test.ts tests/monitor-alerts.test.ts tests/pwa-cache-scope.test.ts tests/client-workflow.test.ts tests/client-presentation.test.ts tests/voice-notes.test.ts tests/building-routing.test.ts tests/minimal-companies-ui.test.ts
+      - name: Foundation UI tests
+        run: npx tsx --test tests/minimal-settings-navigation.test.ts tests/iphone-dashboard-polish.test.ts tests/ios-native-shell.test.ts tests/puma-brand.test.ts tests/company-lifecycle.test.ts tests/accounts-payable.test.ts tests/final-ui-wiring.test.ts tests/product-foundation-shell.test.ts
+      - name: Research engine tests
+        run: npx tsx --test tests/research-engine.test.ts tests/research-productization.test.ts tests/research-strengthening-v2.test.ts tests/research-intelligence-v3.test.ts tests/research-intelligence-v4.test.ts tests/research-intelligence-v5.test.ts
+      - name: Product intelligence tests
+        run: npx tsx --test tests/product-quality-v6.test.ts tests/product-intelligence-v7.test.ts tests/product-intelligence-v8.test.ts tests/product-quality-v9.test.ts tests/product-intelligence-v10.test.ts tests/product-intelligence-v11.test.ts
+      - name: Browser parser tests
+        run: node --test workers/browser-research/parser.test.mjs
       - name: TypeScript
         run: npm run typecheck
       - name: Next build
