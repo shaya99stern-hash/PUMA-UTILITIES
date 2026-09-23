@@ -1,20 +1,24 @@
 name: CI
 
 on:
+  push:
+    branches:
+      - main
+      - 'puma/**'
   pull_request:
     branches:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  foundation-diagnose:
-    if: github.head_ref == 'puma/product-foundation-v1'
+  foundation-finalize:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/puma/product-foundation-v1'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout foundation branch
+      - name: Checkout branch
         uses: actions/checkout@v4
         with:
           ref: puma/product-foundation-v1
@@ -26,17 +30,45 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
-      - name: Apply final foundation cleanup
-        run: python3 scripts/product-foundation-finalize.py
-      - name: Research engine
-        run: npx tsx --test tests/research-engine.test.ts
-      - name: Research productization
-        run: npx tsx --test tests/research-productization.test.ts
-      - name: Research strengthening v2
-        run: npx tsx --test tests/research-strengthening-v2.test.ts
-      - name: Research intelligence v3
-        run: npx tsx --test tests/research-intelligence-v3.test.ts
-      - name: Research intelligence v4
-        run: npx tsx --test tests/research-intelligence-v4.test.ts
-      - name: Research intelligence v5
-        run: npx tsx --test tests/research-intelligence-v5.test.ts
+      - name: Materialize final foundation tree
+        run: |
+          python3 scripts/product-foundation-finalize.py
+          git show fd3978df5976fd7816c6a2d7df1314836db36f42:package.json > package.json
+          git show fd3978df5976fd7816c6a2d7df1314836db36f42:.github/workflows/ci.yml > .github/workflows/ci.yml
+          git rm -f scripts/product-foundation-finalize.py
+      - name: Tests on final tree
+        run: npm test
+      - name: TypeScript on final tree
+        run: npm run typecheck
+      - name: Next build on final tree
+        run: npx next build
+      - name: Diff check
+        run: git diff --check
+      - name: Commit exact verified tree
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "cleanup: materialize Puma product foundation"
+          git push origin HEAD:puma/product-foundation-v1
+
+  verify:
+    if: github.event_name == 'pull_request' || github.ref != 'refs/heads/puma/product-foundation-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Tests
+        run: npm test
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Next build
+        run: npx next build
