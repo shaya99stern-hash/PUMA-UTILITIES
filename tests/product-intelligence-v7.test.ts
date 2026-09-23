@@ -135,7 +135,8 @@ test('install metadata uses PNG icon endpoints rendering the uploaded Puma artwo
   assert.match(manifest, /pwa-icon-512\?v=20260923-2/);
   assert.doesNotMatch(layout, /puma-home-icon\.jpeg/);
   assert.doesNotMatch(manifest, /puma-home-icon\.jpeg/);
-  assert.match(iconResponse, /puma-home-icon\.jpeg/);
+  assert.match(iconResponse, /data:image\/jpeg;base64,/);
+  assert.doesNotMatch(iconResponse, /new URL\('\/puma-home-icon\.jpeg'/);
   assert.match(iconResponse, /<img/);
   assert.doesNotMatch(iconResponse, /<svg/);
   assert.match(worker, /shell-v6/);
