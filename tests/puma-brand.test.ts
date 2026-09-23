@@ -16,15 +16,16 @@ test('in-app Puma marks use the transparent uploaded brand artwork', () => {
   assert.doesNotMatch(brand, /apple-touch-icon/);
 });
 
-test('Home Screen metadata uses PNG endpoints backed by the uploaded Puma artwork', () => {
+test('Home Screen metadata uses self-contained PNG endpoints backed by the uploaded Puma artwork', () => {
   assert.match(layout, /APPLE_ICON = '\/apple-touch-icon\?v=20260923-2'/);
   assert.match(layout, /PWA_ICON_192 = '\/pwa-icon-192\?v=20260923-2'/);
   assert.match(layout, /PWA_ICON_512 = '\/pwa-icon-512\?v=20260923-2'/);
   assert.match(layout, /apple:\s*\[\{ url: APPLE_ICON, sizes: '180x180', type: 'image\/png' \}\]/);
   assert.match(manifest, /src:\s*'\/pwa-icon-192\?v=20260923-2'/);
   assert.match(manifest, /src:\s*'\/pwa-icon-512\?v=20260923-2'/);
-  assert.match(iconResponse, /puma-home-icon\.jpeg/);
+  assert.match(iconResponse, /data:image\/jpeg;base64,/);
   assert.match(iconResponse, /<img/);
+  assert.doesNotMatch(iconResponse, /new URL\('\/puma-home-icon\.jpeg'/);
   assert.doesNotMatch(iconResponse, /<svg/);
   assert.doesNotMatch(layout, /puma-home-icon\.jpeg/);
   assert.doesNotMatch(manifest, /puma-home-icon\.jpeg/);
