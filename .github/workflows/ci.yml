@@ -10,50 +10,10 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  foundation-finalize:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/puma/product-foundation-v1'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout branch
-        uses: actions/checkout@v4
-        with:
-          ref: puma/product-foundation-v1
-          fetch-depth: 0
-      - name: Node 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install
-        run: npm ci
-      - name: Materialize final foundation tree
-        run: |
-          python3 scripts/product-foundation-finalize.py
-          git show fd3978df5976fd7816c6a2d7df1314836db36f42:package.json > package.json
-          git show fd3978df5976fd7816c6a2d7df1314836db36f42:.github/workflows/ci.yml > .github/workflows/ci.yml
-          git rm -f scripts/product-foundation-finalize.py
-      - name: Tests on final tree
-        run: npm test
-      - name: TypeScript on final tree
-        run: npm run typecheck
-      - name: Next build on final tree
-        run: npx next build
-      - name: Diff check
-        run: git diff --check
-      - name: Commit exact verified tree
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "cleanup: materialize Puma product foundation"
-          git push origin HEAD:puma/product-foundation-v1
-
   verify:
-    if: github.event_name == 'pull_request' || github.ref != 'refs/heads/puma/product-foundation-v1'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
