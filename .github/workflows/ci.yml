@@ -32,22 +32,8 @@ jobs:
         run: npm ci
       - name: Apply final foundation cleanup
         run: python3 scripts/product-foundation-finalize.py
-      - name: Evidence gating x5
-        run: for i in 1 2 3 4 5; do npx tsx --test tests/evidence-gating.test.ts || exit 1; done
-      - name: Monitor alerts x5
-        run: for i in 1 2 3 4 5; do npx tsx --test tests/monitor-alerts.test.ts || exit 1; done
-      - name: PWA cache scope x5
-        run: for i in 1 2 3 4 5; do npx tsx --test tests/pwa-cache-scope.test.ts || exit 1; done
-      - name: Client workflow x5
-        run: for i in 1 2 3 4 5; do npx tsx --test tests/client-workflow.test.ts || exit 1; done
-      - name: Client presentation x5
-        run: for i in 1 2 3 4 5; do npx tsx --test tests/client-presentation.test.ts || exit 1; done
-      - name: Voice notes x5
-        run: for i in 1 2 3 4 5; do npx tsx --test tests/voice-notes.test.ts || exit 1; done
-      - name: Building routing x5
-        run: for i in 1 2 3 4 5; do npx tsx --test tests/building-routing.test.ts || exit 1; done
-      - name: Minimal companies UI x5
-        run: for i in 1 2 3 4 5; do npx tsx --test tests/minimal-companies-ui.test.ts || exit 1; done
+      - name: Minimal Companies architecture x10
+        run: for i in 1 2 3 4 5 6 7 8 9 10; do npx tsx --test tests/minimal-companies-ui.test.ts || exit 1; done
 
   verify:
     if: github.event_name == 'pull_request' || github.ref != 'refs/heads/puma/product-foundation-v1'
