@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 type UpdateStatus = 'idle' | 'checking' | 'available' | 'updating' | 'current' | 'error' | 'unsupported';
+type VersionResponse = { deploymentId?: string };
 
 const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
@@ -26,45 +27,49 @@ function statusMessage(status: UpdateStatus) {
   }
 }
 
-export default function PwaUpdateManager() {
+export default function PwaUpdateManager({ currentDeploymentId }: { currentDeploymentId: string }) {
   const pathname = usePathname();
   const [status, setStatus] = useState<UpdateStatus>('idle');
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const lastCheckRef = useRef(0);
+  const newerDeploymentRef = useRef(false);
   const reloadOnControllerChangeRef = useRef(false);
   const hasReloadedRef = useRef(false);
 
   const checkForUpdates = useCallback(async (announce = true) => {
-    const registration = registrationRef.current;
-    if (!registration) {
-      if (announce) setStatus('unsupported');
-      return;
-    }
-
     if (announce) setStatus('checking');
 
     try {
-      const updatedRegistration = await registration.update();
-      lastCheckRef.current = Date.now();
+      const versionPromise = fetch('/api/version', { cache: 'no-store' })
+        .then(async (response) => {
+          if (!response.ok) return undefined;
+          return (await response.json()) as VersionResponse;
+        });
+      const registration = registrationRef.current;
+      const registrationPromise = registration ? registration.update() : Promise.resolve(null);
+      const [version, updatedRegistration] = await Promise.all([versionPromise, registrationPromise]);
+      const deploymentChanged = Boolean(
+        version?.deploymentId
+          && version.deploymentId !== 'development'
+          && version.deploymentId !== currentDeploymentId,
+      );
 
-      if (updatedRegistration.waiting) {
+      lastCheckRef.current = Date.now();
+      newerDeploymentRef.current = deploymentChanged;
+
+      if (updatedRegistration?.waiting || deploymentChanged) {
         setStatus('available');
-      } else if (updatedRegistration.installing) {
+      } else if (updatedRegistration?.installing) {
         if (announce) setStatus('checking');
       } else if (announce) {
-        setStatus('current');
+        setStatus(registration ? 'current' : 'unsupported');
       }
     } catch {
       if (announce) setStatus('error');
     }
-  }, []);
+  }, [currentDeploymentId]);
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) {
-      setStatus('unsupported');
-      return;
-    }
-
     let disposed = false;
     let registration: ServiceWorkerRegistration | null = null;
     let installingWorker: ServiceWorker | null = null;
@@ -95,8 +100,14 @@ export default function PwaUpdateManager() {
       void checkForUpdates(false);
     };
 
-    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
     document.addEventListener('visibilitychange', handleVisibility);
+
+    if (!('serviceWorker' in navigator)) {
+      void checkForUpdates(false);
+      return () => document.removeEventListener('visibilitychange', handleVisibility);
+    }
+
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
 
     void navigator.serviceWorker
       .register('/sw.js', { scope: '/', updateViaCache: 'none' })
@@ -106,15 +117,11 @@ export default function PwaUpdateManager() {
         registrationRef.current = nextRegistration;
         nextRegistration.addEventListener('updatefound', handleUpdateFound);
 
-        if (nextRegistration.waiting) {
-          setStatus('available');
-          return;
-        }
-
+        if (nextRegistration.waiting) setStatus('available');
         void checkForUpdates(false);
       })
       .catch(() => {
-        if (!disposed) setStatus('error');
+        if (!disposed) void checkForUpdates(false);
       });
 
     return () => {
@@ -128,19 +135,21 @@ export default function PwaUpdateManager() {
 
   const applyUpdate = useCallback(async () => {
     const registration = registrationRef.current;
-    if (!registration) {
-      setStatus('unsupported');
+
+    if (registration?.waiting) {
+      setStatus('updating');
+      reloadOnControllerChangeRef.current = true;
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
       return;
     }
 
-    if (!registration.waiting) {
-      await checkForUpdates(true);
+    if (newerDeploymentRef.current) {
+      setStatus('updating');
+      window.location.reload();
       return;
     }
 
-    setStatus('updating');
-    reloadOnControllerChangeRef.current = true;
-    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    await checkForUpdates(true);
   }, [checkForUpdates]);
 
   const showSettingsCard = pathname === '/settings';
@@ -159,7 +168,7 @@ export default function PwaUpdateManager() {
       <button
         className="puma-update-button"
         type="button"
-        disabled={isBusy || status === 'unsupported'}
+        disabled={isBusy}
         onClick={status === 'available' ? applyUpdate : () => void checkForUpdates(true)}
       >
         {buttonLabel}

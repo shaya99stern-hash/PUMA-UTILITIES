@@ -10,6 +10,7 @@ import './ios-native.css';
 import './puma-responsive-v6.css';
 
 const HOME_ICON = '/puma-home-icon.jpeg?v=20260923-1';
+const DEPLOYMENT_ID = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? 'development';
 
 export const metadata: Metadata = {
   applicationName: 'Puma Utilities',
@@ -40,7 +41,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en" className="dark">
       <body>
         {children}
-        <PwaUpdateManager />
+        <PwaUpdateManager currentDeploymentId={DEPLOYMENT_ID} />
       </body>
     </html>
   );
