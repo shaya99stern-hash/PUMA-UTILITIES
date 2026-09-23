@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { Activity, Building2, ChevronLeft, SlidersHorizontal } from 'lucide-react';
+import { Activity, Building2, ChevronLeft, Settings, SlidersHorizontal } from 'lucide-react';
 
 type PumaSettingsShellProps = {
   title: string;
@@ -16,6 +16,17 @@ function BrandMark({ size = 28 }: { size?: number }) {
 export default function PumaSettingsShell({ title, subtitle, backHref, children }: PumaSettingsShellProps) {
   return (
     <main className="pm-shell pm-settings-shell">
+      <aside className="pm-desktop-sidebar">
+        <div className="pm-desktop-brand"><BrandMark size={30} /><span><strong>Puma Utilities</strong><small>Water Intelligence</small></span></div>
+        <nav className="pm-desktop-nav" aria-label="Desktop navigation">
+          <Link href="/"><BrandMark size={20} /><span>Home</span></Link>
+          <Link href="/clients"><Building2 size={19} /><span>Companies</span></Link>
+          <Link href="/engine"><SlidersHorizontal size={19} /><span>Find Leads</span></Link>
+          <Link href="/monitor"><Activity size={19} /><span>Monitor</span></Link>
+          <Link href="/settings" className="active"><Settings size={19} /><span>Settings</span></Link>
+        </nav>
+      </aside>
+
       <div className="pm-main">
         <header className="pm-appbar pm-settings-appbar">
           <div className="pm-brand">
