@@ -1,10 +1,13 @@
+import PumaAppShell from '../../components/puma-app-shell';
 import PumaDataSourcesSettings from '../../components/puma-data-sources-settings';
-import PumaSettingsShell from '../../components/puma-settings-shell';
+import PumaSettingsPage from '../../components/puma-settings-page';
 
 export default function DataSourcesSettingsPage() {
   return (
-    <PumaSettingsShell title="Data Sources" backHref="/settings">
-      <PumaDataSourcesSettings />
-    </PumaSettingsShell>
+    <PumaAppShell currentRoute="settings" pageLabel="Data Sources">
+      <PumaSettingsPage title="Data Sources" backHref="/settings">
+        <PumaDataSourcesSettings />
+      </PumaSettingsPage>
+    </PumaAppShell>
   );
 }

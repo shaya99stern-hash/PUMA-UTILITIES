@@ -1,10 +1,13 @@
+import PumaAppShell from '../components/puma-app-shell';
 import PumaSettingsHub from '../components/puma-settings-hub';
-import PumaSettingsShell from '../components/puma-settings-shell';
+import PumaSettingsPage from '../components/puma-settings-page';
 
 export default function SettingsPage() {
   return (
-    <PumaSettingsShell title="Settings">
-      <PumaSettingsHub />
-    </PumaSettingsShell>
+    <PumaAppShell currentRoute="settings" pageLabel="Settings">
+      <PumaSettingsPage title="Settings">
+        <PumaSettingsHub />
+      </PumaSettingsPage>
+    </PumaAppShell>
   );
 }

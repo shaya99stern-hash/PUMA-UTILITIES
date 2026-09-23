@@ -1,24 +1,5 @@
 /* Minimal navigation pass: work screens stay focused; configuration lives in Settings. */
 
-.pm-home .pm-home-settings,
-.pm-home .pm-zero-state,
-.pm-home .pm-stat-strip,
-.pm-home .pm-home-grid {
-  display: none !important;
-}
-
-.pm-home .pm-welcome {
-  padding-bottom: 0 !important;
-}
-
-.pm-desktop-profile {
-  display: none !important;
-}
-
-.pm-research-sources {
-  display: none !important;
-}
-
 .pm-page:has(.pm-research) > .pm-page-head,
 .pm-research-discover .pm-research-title,
 .pm-research-title span {
@@ -31,10 +12,6 @@
 
 .pm-research-title {
   margin-bottom: 10px !important;
-}
-
-.pm-settings-launcher {
-  display: none;
 }
 
 .pm-settings-list,
@@ -233,94 +210,4 @@
   margin: 0;
   color: #e5a77d;
   font-size: 10.5px;
-}
-
-@media (max-width: 899px) {
-  html body .pm-bottom-nav {
-    left: 14px !important;
-    right: 82px !important;
-    width: auto !important;
-    max-width: none !important;
-    transform: none !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  }
-
-  html body .pm-settings-launcher {
-    position: fixed;
-    z-index: 27;
-    right: 14px;
-    bottom: calc(8px + env(safe-area-inset-bottom));
-    width: 58px;
-    height: 62px;
-    display: grid;
-    place-items: center;
-    border: 1px solid rgba(255,255,255,.1);
-    border-radius: 19px;
-    background: rgba(14,16,18,.96);
-    color: #7f858a;
-    text-decoration: none;
-    box-shadow: 0 12px 40px rgba(0,0,0,.4);
-    backdrop-filter: blur(18px);
-  }
-
-  html body .pm-settings-launcher.active {
-    color: var(--pm-orange);
-  }
-
-  .pm-settings-launcher span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-
-  .pm-settings-appbar {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-  }
-
-  .pm-settings-page {
-    padding-top: 24px !important;
-  }
-}
-
-@media (min-width: 900px) {
-  html body .pm-settings-launcher {
-    position: fixed;
-    z-index: 40;
-    left: 12px;
-    bottom: 14px;
-    width: 224px;
-    min-height: 46px;
-    padding: 0 11px;
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    border-radius: 11px;
-    background: var(--pm-bg);
-    color: #92979c;
-    text-decoration: none;
-    font-size: 13px;
-  }
-
-  html body .pm-settings-launcher:hover,
-  html body .pm-settings-launcher.active {
-    background: #151719;
-    color: #f1f1ef;
-  }
-
-  .pm-settings-launcher span {
-    display: inline;
-  }
-
-  .pm-settings-shell + .pm-settings-launcher {
-    display: none !important;
-  }
-
-  .pm-settings-shell .pm-page {
-    max-width: 980px !important;
-  }
 }

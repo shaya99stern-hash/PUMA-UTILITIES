@@ -6,6 +6,8 @@ import { canonicalNycBbl, ingestNycPluto, type NycPlutoRecord } from '../lib/res
 
 const layout = readFileSync('app/layout.tsx', 'utf8');
 const shell = readFileSync('app/components/puma-workspace-app-v4.tsx', 'utf8');
+const appShell = readFileSync('app/components/puma-app-shell.tsx', 'utf8');
+const appShellCss = readFileSync('app/puma-app-shell.css', 'utf8');
 const research = readFileSync('app/components/puma-research-panel.tsx', 'utf8');
 
 test('responsive V6 stylesheet loads after iOS overrides', () => {
@@ -14,21 +16,20 @@ test('responsive V6 stylesheet loads after iOS overrides', () => {
 });
 
 test('desktop has persistent navigation while mobile exposes four primary tabs', () => {
-  assert.match(shell, /pm-desktop-sidebar/);
-  assert.match(shell, /pm-main/);
-  assert.match(shell, /aria-label="Desktop navigation"/);
-  assert.match(shell, /aria-label="Primary navigation"/);
+  assert.match(appShell, /pu-sidebar/);
+  assert.match(appShell, /pu-mobile-nav/);
+  assert.match(appShell, /aria-label="Desktop navigation"/);
+  assert.match(appShell, /aria-label="Primary navigation"/);
   for (const label of ['Home', 'Companies', 'Find Leads', 'Monitor']) {
-    assert.match(shell, new RegExp(`<span>${label}<\\/span>`));
+    assert.match(appShell, new RegExp(label));
   }
 });
 
-test('responsive CSS turns desktop into a wide workspace and keeps compact mobile navigation', () => {
+test('responsive CSS keeps content wide while AppShell owns desktop and mobile navigation', () => {
   const css = readFileSync('app/puma-responsive-v6.css', 'utf8');
-  assert.match(css, /@media\s*\(min-width:\s*900px\)/);
-  assert.match(css, /\.pm-desktop-sidebar[\s\S]*display:\s*flex/);
-  assert.match(css, /\.pm-bottom-nav[\s\S]*display:\s*none/);
-  assert.match(css, /\.pm-content[\s\S]*max-width:\s*none/);
+  assert.match(appShellCss, /@media\s*\(min-width:\s*900px\)/);
+  assert.match(appShellCss, /\.pu-sidebar[\s\S]*display:\s*flex/);
+  assert.match(appShellCss, /\.pu-mobile-nav,[\s\S]*\.pu-mobile-settings[\s\S]*display:\s*none/);
   assert.match(css, /\.pm-page[\s\S]*max-width:\s*1400px/);
   assert.match(css, /\.pm-check[\s\S]*(?:width|min-width):\s*44px/);
   assert.match(css, /\.pm-check[\s\S]*(?:height|min-height):\s*44px/);

@@ -11,6 +11,7 @@ const shell = readFileSync('app/components/puma-workspace-app-v4.tsx', 'utf8');
 const research = readFileSync('app/components/puma-research-panel.tsx', 'utf8');
 const ios = readFileSync('app/ios-native.css', 'utf8');
 const responsive = readFileSync('app/puma-responsive-v6.css', 'utf8');
+const appShellCss = readFileSync('app/puma-app-shell.css', 'utf8');
 
 test('in-app Puma mark uses the transparent uploaded artwork without a square app-icon tile', () => {
   const brand = readFileSync('app/puma-brand.css', 'utf8');
@@ -21,12 +22,11 @@ test('in-app Puma mark uses the transparent uploaded artwork without a square ap
 });
 
 test('desktop sidebar and mobile active navigation use the same black surface without boxed icon tiles', () => {
-  const sidebarBlock = responsive.match(/\.pm-desktop-sidebar\s*\{[^}]*\}/g)?.join('\n') ?? '';
-  const activeNavBlock = responsive.match(/\.pm-bottom-nav a\.active\s*\{[^}]*\}/g)?.join('\n') ?? '';
-  const brandBlock = responsive.match(/\.pm-brand-mark\s*\{[^}]*\}/g)?.join('\n') ?? '';
-  assert.match(sidebarBlock, /background:\s*var\(--pm-bg\)/);
-  assert.match(activeNavBlock, /background:\s*transparent/);
-  assert.doesNotMatch(brandBlock, /background:\s*#(?:fff|ffffff|101214)/i);
+  assert.match(appShellCss, /\.pu-sidebar[\s\S]*background:\s*var\(--pm-bg\)/);
+  const activeNavBlock = appShellCss.match(/\.pu-mobile-nav a\.active[\s\S]*?\}/)?.[0] ?? '';
+  assert.doesNotMatch(activeNavBlock, /background:\s*#(?:fff|ffffff|101214)/i);
+  const brand = readFileSync('app/puma-brand.css', 'utf8');
+  assert.doesNotMatch(brand, /background:\s*#(?:fff|ffffff|101214)/i);
 });
 
 test('water benchmark labels always include literal currency symbols', () => {
@@ -41,7 +41,7 @@ test('raw research evidence is progressively disclosed', () => {
 });
 
 test('mobile primary navigation labels remain legible', () => {
-  const match = responsive.match(/\.pm-bottom-nav a span\s*\{[^}]*font-size:\s*([\d.]+)px/);
+  const match = appShellCss.match(/\.pu-mobile-nav a\s*\{[\s\S]*?font-size:\s*([\d.]+)px/);
   assert.ok(match);
   assert.ok(Number(match?.[1]) >= 10);
 });

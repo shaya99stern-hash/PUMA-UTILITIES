@@ -83,7 +83,7 @@ test('CRM projection refuses to promote inferred contact data into verified-publ
   assert.equal(merged.workspace.companies[0].publicEmail, undefined);
 });
 
-test('product contains bounded APIs, optional browser enrichment, and a live Find Leads workflow', () => {
+test('product contains bounded APIs, optional browser enrichment, and a focused Find Leads workflow', () => {
   for (const path of [
     '../app/api/research/run/route.ts',
     '../app/api/research/discover/route.ts',
@@ -98,7 +98,7 @@ test('product contains bounded APIs, optional browser enrichment, and a live Fin
   assert.match(panel, /\/api\/research\/run/);
   assert.match(panel, /\/api\/research\/discover/);
   assert.match(panel, /Save to Prospects/);
-  assert.match(panel, /Browser\/ContactOut enrichment/);
+  assert.doesNotMatch(panel, /Browser\/ContactOut enrichment/);
 
   const adapter = readFileSync(new URL('../lib/research/browser-research.ts', import.meta.url), 'utf8');
   assert.match(adapter, /PUMA_BROWSER_RESEARCH_URL/);
