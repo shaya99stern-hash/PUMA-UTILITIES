@@ -1,4 +1,5 @@
 import type { ResearchClaim, ResearchGraph } from './types';
+import { tariffTextUsableNow } from './tariff-metadata';
 
 export const EPA_MULTIFAMILY_GALLONS_PER_UNIT_YEAR = 43_600;
 export const EPA_MULTIFAMILY_WUI = {
@@ -52,7 +53,7 @@ export function estimatePropertyWaterCost(graph: ResearchGraph, propertyId: stri
 
   const parsedRateClaims = trustedClaims(graph, utility.id, 'utility.rateSchedule')
     .flatMap((claim) => {
-      if (typeof claim.value !== 'string') return [];
+      if (typeof claim.value !== 'string' || !tariffTextUsableNow(claim.value)) return [];
       const parsed = parseVariableWaterRate(claim.value);
       return parsed ? [{ claim, parsed }] : [];
     });
@@ -68,7 +69,7 @@ export function estimatePropertyWaterCost(graph: ResearchGraph, propertyId: stri
 
   const fixedChargeClaims = trustedClaims(graph, utility.id, 'utility.rateSchedule')
     .flatMap((claim) => {
-      if (typeof claim.value !== 'string') return [];
+      if (typeof claim.value !== 'string' || !tariffTextUsableNow(claim.value)) return [];
       const parsed = parseFixedWaterCharge(claim.value);
       return parsed ? [{ claim, parsed }] : [];
     });
@@ -135,8 +136,8 @@ export function estimatePropertyWaterCost(graph: ResearchGraph, propertyId: stri
     includesFixedCharges: Boolean(fixedCharge),
     sourceUrls,
     methodology: methodology + (fixedCharge
-      ? ' A single unambiguous published monthly water service charge is included. Sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges are excluded.'
-      : ' Fixed, sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges are excluded.'),
+      ? ' A single unambiguous published monthly water service charge is included. Explicitly expired or future tariff periods, sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges are excluded.'
+      : ' Explicitly expired or future tariff periods, fixed, sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges are excluded.'),
   };
 }
 
@@ -149,9 +150,7 @@ export function parseFixedWaterCharge(text: string): ParsedFixedWaterCharge | un
   const add = (amountText: string, divisor: number, sourceText: string) => {
     const amount = Number(amountText);
     const monthlyDollars = amount / divisor;
-    if (Number.isFinite(monthlyDollars) && monthlyDollars > 0 && monthlyDollars < 100_000) {
-      candidates.push({ monthlyDollars, sourceText });
-    }
+    if (Number.isFinite(monthlyDollars) && monthlyDollars > 0 && monthlyDollars < 100_000) candidates.push({ monthlyDollars, sourceText });
   };
 
   const patterns: Array<{ pattern: RegExp; divisor: number }> = [
@@ -164,13 +163,8 @@ export function parseFixedWaterCharge(text: string): ParsedFixedWaterCharge | un
     { pattern:/(?:annual|yearly)\s+(?:water\s+)?(?:service|base|customer|minimum)\s+charge\s*[:\-]?\s*\$\s*(\d+(?:\.\d{1,2})?)/gi, divisor:12 },
     { pattern:/(?:water\s+)?(?:service|base|customer|minimum)\s+charge(?:\s+of)?\s*\$\s*(\d+(?:\.\d{1,2})?)\s*(?:per|\/)\s*year\b/gi, divisor:12 },
   ];
-  for (const { pattern, divisor } of patterns) {
-    for (const match of normalized.matchAll(pattern)) add(match[1], divisor, match[0]);
-  }
-
-  const unique = candidates.filter((candidate, index, all) =>
-    all.findIndex((item) => Math.abs(item.monthlyDollars - candidate.monthlyDollars) < 0.0001) === index
-  );
+  for (const { pattern, divisor } of patterns) for (const match of normalized.matchAll(pattern)) add(match[1], divisor, match[0]);
+  const unique = candidates.filter((candidate, index, all) => all.findIndex((item) => Math.abs(item.monthlyDollars - candidate.monthlyDollars) < 0.0001) === index);
   return unique.length === 1 ? unique[0] : undefined;
 }
 
@@ -179,25 +173,11 @@ export function parseVariableWaterRate(text: string): ParsedWaterRate | undefine
   if (/\b(sewer|wastewater)\b/i.test(normalized)) return undefined;
   if (/\b(irrigation-only|fire protection|hydrant service)\b/i.test(normalized)) return undefined;
   const candidates: ParsedWaterRate[] = [];
-
-  for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:10,?000|10000)\s*(?:gallons?|gal)\b/gi)) {
-    candidates.push({ dollarsPer1000Gallons: Number(match[1]) / 10, sourceText: match[0], sourceUnit: '10000-gallons' });
-  }
-  for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:1,?000|1000)\s*(?:gallons?|gal)\b/gi)) {
-    candidates.push({ dollarsPer1000Gallons: Number(match[1]), sourceText: match[0], sourceUnit: '1000-gallons' });
-  }
-  for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:ccf|hcf|100\s*cubic\s*feet)\b/gi)) {
-    const amount = Number(match[1]);
-    candidates.push({ dollarsPer1000Gallons: amount / GALLONS_PER_CCF * 1000, sourceText: match[0], sourceUnit: 'ccf' });
-  }
-  for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:1,?000|1000)\s*cubic\s*feet\b/gi)) {
-    const amount = Number(match[1]);
-    candidates.push({ dollarsPer1000Gallons: amount / (GALLONS_PER_CCF * 10) * 1000, sourceText: match[0], sourceUnit: '1000-cubic-feet' });
-  }
-
-  const unique = candidates.filter((candidate, index, all) =>
-    all.findIndex((item) => Math.abs(item.dollarsPer1000Gallons - candidate.dollarsPer1000Gallons) < 0.0001) === index
-  );
+  for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:10,?000|10000)\s*(?:gallons?|gal)\b/gi)) candidates.push({ dollarsPer1000Gallons:Number(match[1]) / 10, sourceText:match[0], sourceUnit:'10000-gallons' });
+  for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:1,?000|1000)\s*(?:gallons?|gal)\b/gi)) candidates.push({ dollarsPer1000Gallons:Number(match[1]), sourceText:match[0], sourceUnit:'1000-gallons' });
+  for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:ccf|hcf|100\s*cubic\s*feet)\b/gi)) { const amount = Number(match[1]); candidates.push({ dollarsPer1000Gallons:amount / GALLONS_PER_CCF * 1000, sourceText:match[0], sourceUnit:'ccf' }); }
+  for (const match of normalized.matchAll(/\$\s*(\d+(?:\.\d{1,4})?)\s*(?:per|\/)\s*(?:1,?000|1000)\s*cubic\s*feet\b/gi)) { const amount = Number(match[1]); candidates.push({ dollarsPer1000Gallons:amount / (GALLONS_PER_CCF * 10) * 1000, sourceText:match[0], sourceUnit:'1000-cubic-feet' }); }
+  const unique = candidates.filter((candidate, index, all) => all.findIndex((item) => Math.abs(item.dollarsPer1000Gallons - candidate.dollarsPer1000Gallons) < 0.0001) === index);
   if (unique.length !== 1 || !Number.isFinite(unique[0].dollarsPer1000Gallons) || unique[0].dollarsPer1000Gallons <= 0) return undefined;
   return unique[0];
 }
@@ -205,27 +185,9 @@ export function parseVariableWaterRate(text: string): ParsedWaterRate | undefine
 function numericTrustedClaim(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): ResearchClaim | undefined {
   return trustedClaims(graph, subjectId, fact).find((item) => typeof item.value === 'number' && Number.isFinite(item.value));
 }
-
 function trustedClaims(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): ResearchClaim[] {
-  return graph.claims.filter((claim) =>
-    claim.subjectId === subjectId &&
-    claim.fact === fact &&
-    (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') &&
-    claim.confidence >= 0.7
-  );
+  return graph.claims.filter((claim) => claim.subjectId === subjectId && claim.fact === fact && (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7);
 }
-
-function claimUrls(graph: ResearchGraph, claim: ResearchClaim): string[] {
-  return claim.evidenceIds.flatMap((id) => {
-    const evidence = graph.evidence.find((item) => item.id === id);
-    return evidence?.url ? [evidence.url] : [];
-  });
-}
-
-function round(value: number): number {
-  return Math.round(value);
-}
-
-function money(value: number): number {
-  return Math.round(value * 100) / 100;
-}
+function claimUrls(graph: ResearchGraph, claim: ResearchClaim): string[] { return claim.evidenceIds.flatMap((id) => { const evidence = graph.evidence.find((item) => item.id === id); return evidence?.url ? [evidence.url] : []; }); }
+function round(value: number): number { return Math.round(value); }
+function money(value: number): number { return Math.round(value * 100) / 100; }
