@@ -12,12 +12,12 @@ const research = readFileSync('app/components/puma-research-panel.tsx', 'utf8');
 const ios = readFileSync('app/ios-native.css', 'utf8');
 const responsive = readFileSync('app/puma-responsive-v6.css', 'utf8');
 
-test('in-app Puma mark is vector artwork with no square app-icon image behind it', () => {
-  const block = shell.match(/function BrandMark[\s\S]*?\n\}/)?.[0] ?? '';
-  assert.match(block, /<svg/);
-  assert.doesNotMatch(block, /<img\b/);
-  assert.doesNotMatch(block, /apple-touch-icon/);
-  assert.match(ios, /\.pm-brand-mark\s*\{[\s\S]*background:\s*transparent\s*!important/);
+test('in-app Puma mark uses the transparent uploaded artwork without a square app-icon tile', () => {
+  const brand = readFileSync('app/puma-brand.css', 'utf8');
+  assert.match(brand, /--puma-brand-logo:\s*url\("data:image\/png;base64,/);
+  assert.match(ios, /\.pm-brand-mark\s*\{[\s\S]*background-image:\s*var\(--puma-brand-logo\)\s*!important/);
+  assert.match(ios, /\.pm-brand-mark svg\s*\{[\s\S]*display:\s*none\s*!important/);
+  assert.doesNotMatch(ios, /apple-touch-icon/);
 });
 
 test('desktop sidebar and mobile active navigation use the same black surface without boxed icon tiles', () => {
@@ -123,15 +123,14 @@ test('Philadelphia OPA registry capability never promises gross-area evidence', 
 });
 
 
-test('install metadata uses generated Puma icons rather than the retired baked PNG route', () => {
+test('install metadata uses the dedicated uploaded Puma Home Screen icon', () => {
   const layout = readFileSync('app/layout.tsx', 'utf8');
   const manifest = readFileSync('app/manifest.ts', 'utf8');
   const worker = readFileSync('public/sw.js', 'utf8');
-  assert.match(layout, /\/apple-touch-icon\?v=20260922-1/);
-  assert.match(layout, /\/pwa-icon-192\?v=20260922-1/);
-  assert.match(layout, /\/pwa-icon-512\?v=20260922-1/);
-  assert.doesNotMatch(layout, /apple-touch-icon\.png/);
-  assert.match(manifest, /pwa-icon-192/);
-  assert.match(manifest, /pwa-icon-512/);
-  assert.match(worker, /shell-v4/);
+  assert.match(layout, /\/puma-home-icon\.jpeg\?v=20260923-1/);
+  assert.match(layout, /sizes:\s*'1254x1254'/);
+  assert.match(manifest, /puma-home-icon\.jpeg\?v=20260923-1/);
+  assert.doesNotMatch(manifest, /pwa-icon-192|pwa-icon-512/);
+  assert.match(worker, /shell-v5/);
+  assert.match(worker, /puma-home-icon\.jpeg/);
 });
