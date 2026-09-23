@@ -1,0 +1,292 @@
+/* Minimal navigation pass: work screens stay focused; configuration lives in Settings. */
+
+.pm-home .pm-home-settings,
+.pm-home .pm-zero-state,
+.pm-home .pm-stat-strip,
+.pm-home .pm-home-grid {
+  display: none !important;
+}
+
+.pm-home .pm-welcome {
+  padding-bottom: 0 !important;
+}
+
+.pm-desktop-profile {
+  display: none !important;
+}
+
+.pm-research-sources {
+  display: none !important;
+}
+
+.pm-research-card {
+  padding: 13px !important;
+}
+
+.pm-research-title {
+  margin-bottom: 10px !important;
+}
+
+.pm-settings-launcher {
+  display: none;
+}
+
+.pm-settings-list,
+.pm-source-list {
+  border-top: 1px solid var(--pm-line);
+}
+
+.pm-settings-hub-row,
+.pm-source-row {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--pm-line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.pm-settings-hub-row > span,
+.pm-source-row > span {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 3px;
+}
+
+.pm-settings-hub-row strong,
+.pm-source-row strong {
+  font-size: 13.5px;
+  font-weight: 590;
+}
+
+.pm-settings-hub-row small,
+.pm-source-row small {
+  color: var(--pm-muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pm-settings-hub-row > svg:first-child {
+  color: #a6aaae;
+}
+
+.pm-settings-hub-row > svg:last-child {
+  color: #686d72;
+}
+
+.pm-profile-settings-page {
+  max-width: 560px;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.pm-profile-settings-page label {
+  display: grid;
+  gap: 7px;
+}
+
+.pm-profile-settings-page label > span,
+.pm-add-source label > span {
+  color: var(--pm-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.pm-profile-settings-page input,
+.pm-add-source input {
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--pm-line);
+  border-radius: 11px;
+  outline: 0;
+  background: #080a0c;
+  color: var(--pm-text);
+  font-size: 14px;
+}
+
+.pm-profile-settings-page > button,
+.pm-add-source-button {
+  min-height: 42px;
+  margin-top: 12px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--pm-orange);
+  color: #111;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.pm-profile-settings-page > button:disabled {
+  opacity: .38;
+}
+
+.pm-profile-settings-page > small,
+.pm-add-source > small {
+  display: block;
+  margin-top: 10px;
+  color: var(--pm-muted);
+  font-size: 10.5px;
+}
+
+.pm-source-settings {
+  max-width: 680px;
+}
+
+.pm-custom-source-list {
+  margin-top: 22px;
+}
+
+.pm-source-status {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-style: normal;
+  color: var(--pm-muted);
+}
+
+.pm-source-status.active {
+  color: #bfc9bf;
+}
+
+.pm-source-status.unavailable {
+  color: #8a8e92;
+}
+
+.pm-source-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pm-source-toggle,
+.pm-source-remove {
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--pm-line);
+  border-radius: 9px;
+  background: transparent;
+  color: #9ca1a5;
+  font-size: 10.5px;
+}
+
+.pm-source-toggle.active {
+  color: var(--pm-orange);
+  border-color: color-mix(in srgb, var(--pm-orange) 38%, transparent);
+}
+
+.pm-source-remove {
+  border-color: transparent;
+  color: #6f7478;
+}
+
+.pm-add-source {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--pm-line);
+}
+
+.pm-add-source label {
+  display: grid;
+  gap: 6px;
+}
+
+.pm-add-source-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pm-add-source-actions button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--pm-line);
+  border-radius: 9px;
+  background: #111315;
+  color: #c9ccce;
+  font-size: 11px;
+}
+
+.pm-add-source-actions button[type='submit'] {
+  border-color: transparent;
+  background: var(--pm-orange);
+  color: #111;
+  font-weight: 650;
+}
+
+.pm-source-error {
+  margin: 0;
+  color: #e5a77d;
+  font-size: 10.5px;
+}
+
+@media (max-width: 899px) {
+  html body .pm-bottom-nav {
+    left: 14px !important;
+    right: 82px !important;
+    width: auto !important;
+    max-width: none !important;
+    transform: none !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  html body .pm-settings-launcher {
+    position: fixed;
+    z-index: 27;
+    right: 14px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    width: 58px;
+    height: 62px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 19px;
+    background: rgba(14,16,18,.96);
+    color: #7f858a;
+    text-decoration: none;
+    box-shadow: 0 12px 40px rgba(0,0,0,.4);
+    backdrop-filter: blur(18px);
+  }
+
+  html body .pm-settings-launcher.active {
+    color: var(--pm-orange);
+  }
+
+  .pm-settings-launcher span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .pm-settings-appbar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+  }
+
+  .pm-settings-page {
+    padding-top: 24px !important;
+  }
+}
+
+@media (min-width: 900px) {
+  .pm-settings-launcher {
+    display: none !important;
+  }
+
+  .pm-settings-shell .pm-page {
+    max-width: 980px !important;
+  }
+}
