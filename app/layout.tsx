@@ -11,6 +11,7 @@ import './ios-native.css';
 import './puma-responsive-v6.css';
 import './puma-minimal-settings.css';
 import './puma-polish-v12.css';
+import './puma-app-shell.css';
 
 const APPLE_ICON = '/apple-touch-icon?v=20260923-2';
 const PWA_ICON_192 = '/pwa-icon-192?v=20260923-2';
