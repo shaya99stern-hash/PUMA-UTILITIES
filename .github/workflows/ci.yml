@@ -32,12 +32,14 @@ jobs:
         run: npm ci
       - name: Apply final foundation cleanup
         run: python3 scripts/product-foundation-finalize.py
-      - name: Full verification
-        run: |
-          npm test
-          npm run typecheck
-          npx next build
-          git diff --check
+      - name: Tests
+        run: npm test
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Next build
+        run: npx next build
+      - name: Diff check
+        run: git diff --check
       - name: Commit verified cleanup and restore CI
         run: |
           git config user.name "github-actions[bot]"
