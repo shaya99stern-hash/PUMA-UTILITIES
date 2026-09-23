@@ -39,7 +39,9 @@ export function companyResearchRecency(workspace: Workspace, companyId: string, 
     ...company.provenance,
     ...workspace.properties.filter((property) => propertyIds.has(property.id)).flatMap((property) => property.provenance),
   ];
-  const retrieved = provenance.map((item) => item.retrievedAt).filter((value): value is string => Boolean(value) && Number.isFinite(Date.parse(value)));
+  const retrieved = provenance
+    .map((item) => item.retrievedAt)
+    .filter((value): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value)));
   const latestRetrievedAt = retrieved.sort((a,b) => Date.parse(b) - Date.parse(a))[0];
   const sources = new Set(provenance.map((item) => item.reference ?? item.label).filter(Boolean));
   return { latestRetrievedAt, status:researchRecencyStatus(latestRetrievedAt, now), sourceCount:sources.size };
