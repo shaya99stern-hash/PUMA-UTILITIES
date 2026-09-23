@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 const brand = readFileSync('app/puma-brand.css', 'utf8');
 const ios = readFileSync('app/ios-native.css', 'utf8');
 const layout = readFileSync('app/layout.tsx', 'utf8');
 const manifest = readFileSync('app/manifest.ts', 'utf8');
+const iconResponse = readFileSync('app/components/puma-icon-response.tsx', 'utf8');
 
 test('in-app Puma marks use the transparent uploaded brand artwork', () => {
   assert.match(brand, /--puma-brand-logo:\s*url\("data:image\/png;base64,/);
@@ -15,16 +16,16 @@ test('in-app Puma marks use the transparent uploaded brand artwork', () => {
   assert.doesNotMatch(brand, /apple-touch-icon/);
 });
 
-test('Home Screen metadata uses dedicated PNG Puma app icons', () => {
-  assert.match(layout, /HOME_ICON_180 = '\/puma-app-icon-180\.png\?v=20260923-2'/);
-  assert.match(layout, /HOME_ICON_192 = '\/puma-app-icon-192\.png\?v=20260923-2'/);
-  assert.match(layout, /HOME_ICON_512 = '\/puma-app-icon-512\.png\?v=20260923-2'/);
-  assert.match(layout, /apple:\s*\[\{ url: HOME_ICON_180, sizes: '180x180', type: 'image\/png' \}\]/);
-  assert.match(manifest, /src:\s*'\/puma-app-icon-192\.png\?v=20260923-2'/);
-  assert.match(manifest, /src:\s*'\/puma-app-icon-512\.png\?v=20260923-2'/);
-  assert.equal(existsSync('public/puma-app-icon-180.png'), true);
-  assert.equal(existsSync('public/puma-app-icon-192.png'), true);
-  assert.equal(existsSync('public/puma-app-icon-512.png'), true);
+test('Home Screen metadata uses PNG endpoints backed by the uploaded Puma artwork', () => {
+  assert.match(layout, /APPLE_ICON = '\/apple-touch-icon\?v=20260923-2'/);
+  assert.match(layout, /PWA_ICON_192 = '\/pwa-icon-192\?v=20260923-2'/);
+  assert.match(layout, /PWA_ICON_512 = '\/pwa-icon-512\?v=20260923-2'/);
+  assert.match(layout, /apple:\s*\[\{ url: APPLE_ICON, sizes: '180x180', type: 'image\/png' \}\]/);
+  assert.match(manifest, /src:\s*'\/pwa-icon-192\?v=20260923-2'/);
+  assert.match(manifest, /src:\s*'\/pwa-icon-512\?v=20260923-2'/);
+  assert.match(iconResponse, /puma-home-icon\.jpeg/);
+  assert.match(iconResponse, /<img/);
+  assert.doesNotMatch(iconResponse, /<svg/);
   assert.doesNotMatch(layout, /puma-home-icon\.jpeg/);
   assert.doesNotMatch(manifest, /puma-home-icon\.jpeg/);
 });
