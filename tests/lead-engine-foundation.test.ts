@@ -41,3 +41,17 @@ test('.env.example contains names but no JWT-like secret', () => {
   assert.match(source, /SUPABASE_SERVICE_ROLE_KEY=/);
   assert.doesNotMatch(source, /eyJ[A-Za-z0-9_-]{20,}/);
 });
+
+test('foundation migration defines canonical tables, RLS and atomic leasing', () => {
+  const sql = readFileSync(new URL('../supabase/migrations/202609240001_lead_engine_foundation.sql', import.meta.url), 'utf8');
+  for (const table of [
+    'workspaces','companies','people','company_people','properties','company_properties',
+    'utilities','property_utilities','tariffs','activity_notes','follow_ups','pipeline_events',
+    'research_runs','research_tasks','research_sources','research_evidence','research_claims',
+    'research_entities','entity_aliases','entity_links','source_health_events',
+    'provider_accounts','provider_quota_snapshots','provider_usage_events','provider_backoff_state',
+  ]) assert.match(sql, new RegExp(`create table(?: if not exists)? public\\.${table}\\b`, 'i'));
+  assert.match(sql, /enable row level security/i);
+  assert.match(sql, /create or replace function public\.lease_research_tasks/i);
+  assert.match(sql, /for update skip locked/i);
+});
