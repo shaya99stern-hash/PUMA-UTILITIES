@@ -120,7 +120,7 @@ export function updateContact(workspace: Workspace, companyId: string, personId:
         ...(patch.role !== undefined ? { role: clean(patch.role) } : {}),
         ...(patch.email !== undefined ? { email: clean(patch.email) } : {}),
         ...(patch.phone !== undefined ? { phone: clean(patch.phone) } : {}),
-        status: person.status === 'verified-public' || person.status === 'client-authorized' ? person.status : 'user-entered',
+        status: 'user-entered' as const,
       };
     });
     return changed ? { ...company, people, updatedAt: now } : company;
