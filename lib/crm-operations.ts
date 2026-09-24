@@ -29,7 +29,7 @@ export type BuildingInput = {
   units?: number;
 };
 
-export type BuildingPatch = Partial<BuildingInput> & {
+export type BuildingPatch = Omit<Partial<BuildingInput>, 'units' | 'address'> & {
   units?: number | null;
   address?: string | null;
 };
