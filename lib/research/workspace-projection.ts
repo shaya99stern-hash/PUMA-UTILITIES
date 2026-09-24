@@ -202,9 +202,46 @@ function projectPortfolioMetrics(graph: ResearchGraph, companyId: string): Portf
 function mergePortfolio(existing: PortfolioMetric[], incoming: PortfolioMetric[]): PortfolioMetric[] { const map = new Map(existing.map((item) => [`${item.label}:${item.value}:${item.qualifier ?? 'exact'}`,item])); for (const item of incoming) map.set(`${item.label}:${item.value}:${item.qualifier ?? 'exact'}`,item); return [...map.values()]; }
 function trustedClaims(graph: ResearchGraph, subjectId: string, fact: ResearchClaim['fact']): ResearchClaim[] { return graph.claims.filter((claim) => claim.subjectId === subjectId && claim.fact === fact && trusted(claim)); }
 function trusted(claim: ResearchClaim): boolean { return (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7; }
-function mergePeople(existing: Person[], incoming: Person[]): Person[] { const map = new Map(existing.map((item) => [normalizeLabel(item.name),item])); for (const item of incoming) { const key = normalizeLabel(item.name); const current = map.get(key); map.set(key,current ? { ...current,...item,id:current.id } : item); } return [...map.values()]; }
+function mergePeople(existing: Person[], incoming: Person[]): Person[] {
+  const map = new Map(existing.map((item) => [normalizeLabel(item.name), item]));
+  for (const item of incoming) {
+    const key = normalizeLabel(item.name);
+    const current = map.get(key);
+    if (current?.status === 'user-entered') {
+      map.set(key, current);
+      continue;
+    }
+    map.set(key, current ? { ...current, ...item, id: current.id } : item);
+  }
+  return [...map.values()];
+}
 function mergeProvenance(existing: Provenance[], incoming: Provenance[]): Provenance[] { const map = new Map(existing.map((item) => [item.reference ?? item.id,item])); for (const item of incoming) map.set(item.reference ?? item.id,item); return [...map.values()]; }
-function mergeProperties(existing: Property[], incoming: Property[]): Property[] { const next=[...existing]; for (const property of incoming) { const index=next.findIndex((item) => item.companyId===property.companyId && normalizeLabel(item.name)===normalizeLabel(property.name)); if (index>=0) next[index]={...next[index],...property,id:next[index].id,createdAt:next[index].createdAt}; else next.push(property); } return next; }
+function mergeProperties(existing: Property[], incoming: Property[]): Property[] {
+  const next = [...existing];
+  for (const property of incoming) {
+    const index = next.findIndex((item) =>
+      item.companyId === property.companyId && normalizeLabel(item.name) === normalizeLabel(property.name),
+    );
+    if (index < 0) {
+      next.push(property);
+      continue;
+    }
+
+    const current = next[index];
+    next[index] = {
+      ...current,
+      ...property,
+      id: current.id,
+      createdAt: current.createdAt,
+      address: current.address.status === 'user-entered' ? current.address : property.address,
+      units: current.units?.status === 'user-entered' ? current.units : (property.units ?? current.units),
+      grossSquareFeet: current.grossSquareFeet?.status === 'user-entered'
+        ? current.grossSquareFeet
+        : (property.grossSquareFeet ?? current.grossSquareFeet),
+    };
+  }
+  return next;
+}
 function parcelIdentifiers(aliases: string[]): string[] { return [...new Set(aliases.filter((alias) => /^(?:BBL\s|NJ PAMS\s|Philadelphia OPA\s|NYS tax parcel\s|(?:Bucks|Montgomery|Chester|Delaware) County parcel\s)/i.test(alias.trim())).map((alias) => alias.trim()))]; }
 function mergeParcels(existing: Parcel[], incoming: Parcel[]): Parcel[] { const next=[...existing]; for (const parcel of incoming) { const index=next.findIndex((item) => item.propertyId===parcel.propertyId && normalizeLabel(item.identifier)===normalizeLabel(parcel.identifier)); if (index>=0) next[index]={...next[index],...parcel,id:next[index].id}; else next.push(parcel); } return next; }
 function mergeUtilities(existing: UtilityService[], incoming: UtilityService[]): UtilityService[] { const next=[...existing]; for (const utility of incoming) { const index=next.findIndex((item) => item.propertyId===utility.propertyId && normalizeLabel(item.provider)===normalizeLabel(utility.provider)); if (index>=0) next[index]={...next[index],...utility,id:next[index].id}; else next.push(utility); } return next; }
