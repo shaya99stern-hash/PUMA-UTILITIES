@@ -40,7 +40,7 @@ test('CRM operations create and edit a company without inventing evidence', () =
   assert.equal(updated?.nextAction, 'Email COO');
 });
 
-test('CRM operations create and edit user-entered contacts distinctly from verified-public evidence', () => {
+test('CRM operations create and edit contacts as user-entered rather than verified-public', () => {
   const seeded = addCompany(emptyWorkspace(), { name: 'Northstar Management' }, NOW);
   const companyId = seeded.companies[0]!.id;
   const withContact = addContact(seeded, companyId, {
@@ -52,10 +52,16 @@ test('CRM operations create and edit user-entered contacts distinctly from verif
 
   const contact = withContact.companies[0]!.people[0]!;
   assert.equal(contact.status, 'user-entered');
-  assert.equal(contact.role, 'COO');
 
-  const edited = updateContact(withContact, companyId, contact.id, { role: 'Chief Operating Officer' }, NOW);
+  const verified = {
+    ...withContact,
+    companies: withContact.companies.map((company) => company.id === companyId
+      ? { ...company, people: company.people.map((person) => ({ ...person, status: 'verified-public' as const })) }
+      : company),
+  };
+  const edited = updateContact(verified, companyId, contact.id, { role: 'Chief Operating Officer' }, NOW);
   assert.equal(edited.companies[0]!.people[0]!.role, 'Chief Operating Officer');
+  assert.equal(edited.companies[0]!.people[0]!.status, 'user-entered');
 });
 
 test('CRM operations create and edit user-entered buildings without claiming public verification', () => {
@@ -101,7 +107,7 @@ test('activity notes can be edited in place', () => {
 });
 
 test('current CRM UI exposes actionable creation, editing, call logging, contact-aware search, and due follow-ups', () => {
-  const workspace = readFileSync('app/components/puma-workspace-app-v4.tsx', 'utf8');
+  const workspace = readFileSync('app/components/puma-crm-workspace.tsx', 'utf8');
   const home = readFileSync('app/components/puma-home-screen.tsx', 'utf8');
 
   assert.match(workspace, /Add company/);
