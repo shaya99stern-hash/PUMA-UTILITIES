@@ -20,8 +20,6 @@ test('CRM operations create and edit a company without inventing evidence', () =
     name: 'Northstar Management',
     market: 'NY',
     website: 'https://northstar.example',
-    publicEmail: 'hello@northstar.example',
-    publicPhone: '212-555-0100',
     nextAction: 'Call Friday',
   }, NOW);
 
@@ -33,11 +31,19 @@ test('CRM operations create and edit a company without inventing evidence', () =
   assert.equal(company?.headquarters.status, 'unknown');
   assert.equal(company?.portfolioBuildings.status, 'unknown');
 
-  const edited = updateCompanyRecord(created, company!.id, { name: 'Northstar Residential', market: 'NJ', nextAction: 'Email COO' }, NOW);
+  const withPublishedContact = {
+    ...created,
+    companies: created.companies.map((item) => item.id === company!.id
+      ? { ...item, publicEmail: 'published@northstar.example', publicPhone: '212-555-0111' }
+      : item),
+  };
+  const edited = updateCompanyRecord(withPublishedContact, company!.id, { name: 'Northstar Residential', market: 'NJ', nextAction: 'Email COO' }, NOW);
   const updated = edited.companies[0];
   assert.equal(updated?.name, 'Northstar Residential');
   assert.equal(updated?.market, 'NJ');
   assert.equal(updated?.nextAction, 'Email COO');
+  assert.equal(updated?.publicEmail, 'published@northstar.example');
+  assert.equal(updated?.publicPhone, '212-555-0111');
 });
 
 test('CRM operations create and edit contacts as user-entered rather than verified-public', () => {
@@ -56,12 +62,13 @@ test('CRM operations create and edit contacts as user-entered rather than verifi
   const verified = {
     ...withContact,
     companies: withContact.companies.map((company) => company.id === companyId
-      ? { ...company, people: company.people.map((person) => ({ ...person, status: 'verified-public' as const })) }
+      ? { ...company, people: company.people.map((person) => ({ ...person, status: 'verified-public' as const, provenanceId: 'published-source' })) }
       : company),
   };
   const edited = updateContact(verified, companyId, contact.id, { role: 'Chief Operating Officer' }, NOW);
   assert.equal(edited.companies[0]!.people[0]!.role, 'Chief Operating Officer');
   assert.equal(edited.companies[0]!.people[0]!.status, 'user-entered');
+  assert.equal(edited.companies[0]!.people[0]!.provenanceId, undefined);
 });
 
 test('CRM operations create and edit user-entered buildings without claiming public verification', () => {
@@ -121,6 +128,8 @@ test('current CRM UI exposes actionable creation, editing, call logging, contact
   assert.match(workspace, /Edit note/);
   assert.match(workspace, /company\.people\.some/);
   assert.match(workspace, /companyMode === 'followups'/);
+  assert.doesNotMatch(workspace, /Public email/);
+  assert.doesNotMatch(workspace, /Public phone/);
   assert.match(home, /href="\/clients\/follow-ups"/);
   assert.equal(existsSync('app/clients/follow-ups/page.tsx'), true);
 });
