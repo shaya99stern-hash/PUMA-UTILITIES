@@ -8,6 +8,7 @@ export type StateCode = string;
 export type EvidenceStatus =
   | 'verified-public'
   | 'client-authorized'
+  | 'user-entered'
   | 'estimated'
   | 'unknown';
 
