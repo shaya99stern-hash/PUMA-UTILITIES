@@ -313,9 +313,12 @@ export type MonitorAlert = {
   companyId: string;
   propertyId: string;
   meterId: string;
+  readingId: string;
+  meterLabel: string;
   kind: AlertKind;
   title: string;
   detail: string;
+  periodStart?: string;
   periodEnd?: string;
   status: 'client-authorized';
   provenanceId?: string;
