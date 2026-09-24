@@ -181,3 +181,14 @@ test('verified research does not silently relabel matching user-entered CRM valu
   assert.equal(savedProperty.units?.value, 77);
   assert.equal(savedProperty.units?.status, 'user-entered');
 });
+
+test('Find Leads exposes partial discovery warnings and a direct saved-company handoff', () => {
+  const panel = readFileSync(new URL('../app/components/puma-research-panel.tsx', import.meta.url), 'utf8');
+  assert.match(panel, /discoveryWarnings/);
+  assert.match(panel, /Partial discovery/);
+  assert.match(panel, /result\.stopReason/);
+  assert.match(panel, /saveSummary/);
+  assert.match(panel, /summary\.companyId/);
+  assert.match(panel, /Open company/);
+  assert.match(panel, /\/clients\//);
+});
