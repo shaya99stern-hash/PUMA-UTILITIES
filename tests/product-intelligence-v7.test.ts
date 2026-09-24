@@ -123,24 +123,25 @@ test('Philadelphia OPA registry capability never promises gross-area evidence', 
 });
 
 
-test('install metadata uses PNG icon endpoints rendering the stable uploaded Puma artwork', () => {
+test('install metadata pins iOS to the stable embedded PNG while retaining generated PWA sizes', () => {
   const layout = readFileSync('app/layout.tsx', 'utf8');
   const manifest = readFileSync('app/manifest.ts', 'utf8');
   const worker = readFileSync('public/sw.js', 'utf8');
   const iconResponse = readFileSync('app/components/puma-icon-response.tsx', 'utf8');
-  assert.match(layout, /\/apple-touch-icon\?v=20260923-2/);
+  const applePngRoute = readFileSync('app/apple-touch-icon.png/route.ts', 'utf8');
+  assert.match(layout, /\/apple-touch-icon\.png\?v=20260923-3/);
   assert.match(layout, /\/pwa-icon-192\?v=20260923-2/);
   assert.match(layout, /\/pwa-icon-512\?v=20260923-2/);
   assert.match(manifest, /pwa-icon-192\?v=20260923-2/);
   assert.match(manifest, /pwa-icon-512\?v=20260923-2/);
-  assert.doesNotMatch(layout, /puma-home-icon\.jpeg/);
-  assert.doesNotMatch(manifest, /puma-home-icon\.jpeg/);
+  assert.match(applePngRoute, /Buffer\.from/);
+  assert.match(applePngRoute, /'Content-Type': 'image\/png'/);
   assert.match(iconResponse, /new URL\('\/puma-home-icon\.jpeg',\s*_request\.url\)/);
   assert.doesNotMatch(iconResponse, /data:image\/jpeg;base64,/);
   assert.match(iconResponse, /<img/);
   assert.doesNotMatch(iconResponse, /<svg/);
-  assert.match(worker, /shell-v6/);
-  assert.match(worker, /apple-touch-icon/);
+  assert.match(worker, /shell-v7/);
+  assert.match(worker, /apple-touch-icon\.png/);
   assert.match(worker, /pwa-icon-192/);
   assert.match(worker, /pwa-icon-512/);
 });

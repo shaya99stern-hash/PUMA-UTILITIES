@@ -6,9 +6,9 @@ import test from 'node:test';
 test('service worker only retires Puma-namespaced stale caches', () => {
   const source = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8');
   assert.match(source, /const CACHE_PREFIX = 'puma-utilities-';/);
-  assert.match(source, /shell-v6/);
+  assert.match(source, /shell-v7/);
   assert.match(source, /key\.startsWith\(CACHE_PREFIX\) && key !== VERSION/);
-  assert.match(source, /apple-touch-icon/);
+  assert.match(source, /apple-touch-icon\.png/);
   assert.match(source, /pwa-icon-192/);
   assert.match(source, /pwa-icon-512/);
   assert.doesNotMatch(source, /puma-home-icon\.jpeg/);

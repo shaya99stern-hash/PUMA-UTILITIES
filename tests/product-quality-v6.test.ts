@@ -8,6 +8,7 @@ const layout = readFileSync('app/layout.tsx', 'utf8');
 const shell = readFileSync('app/components/puma-workspace-app-v4.tsx', 'utf8');
 const appShell = readFileSync('app/components/puma-app-shell.tsx', 'utf8');
 const appShellCss = readFileSync('app/puma-app-shell.css', 'utf8');
+const navigation = readFileSync('lib/puma-navigation.ts', 'utf8');
 const research = readFileSync('app/components/puma-research-panel.tsx', 'utf8');
 
 test('responsive V6 stylesheet loads after iOS overrides', () => {
@@ -15,13 +16,14 @@ test('responsive V6 stylesheet loads after iOS overrides', () => {
   assert.equal(existsSync('app/puma-responsive-v6.css'), true);
 });
 
-test('desktop has persistent navigation while mobile exposes four primary tabs', () => {
+test('desktop and mobile shell consume the canonical four-destination navigation model', () => {
   assert.match(appShell, /pu-sidebar/);
   assert.match(appShell, /pu-mobile-nav/);
   assert.match(appShell, /aria-label="Desktop navigation"/);
   assert.match(appShell, /aria-label="Primary navigation"/);
+  assert.match(appShell, /PRIMARY_NAV\.map/);
   for (const label of ['Home', 'Companies', 'Find Leads', 'Monitor']) {
-    assert.match(appShell, new RegExp(label));
+    assert.match(navigation, new RegExp(`label:\\s*['\"]${label}['\"]`));
   }
 });
 

@@ -1,6 +1,6 @@
 const CACHE_PREFIX = 'puma-utilities-';
-const VERSION = `${CACHE_PREFIX}shell-v6`;
-const APP_SHELL = ['/', '/manifest.webmanifest', '/apple-touch-icon', '/pwa-icon-192', '/pwa-icon-512'];
+const VERSION = `${CACHE_PREFIX}shell-v7`;
+const APP_SHELL = ['/', '/manifest.webmanifest', '/apple-touch-icon.png', '/pwa-icon-192', '/pwa-icon-512'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
