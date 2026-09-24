@@ -1,5 +1,5 @@
-import PumaWorkspaceApp from '../components/puma-workspace-app';
+import PumaMonitorWorkspace from '../components/puma-monitor-workspace';
 
 export default function MonitorPage() {
-  return <PumaWorkspaceApp view="monitor" />;
+  return <PumaMonitorWorkspace />;
 }

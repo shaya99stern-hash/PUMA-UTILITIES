@@ -81,8 +81,11 @@ test('authorized readings still cannot alert for a non-client company', () => {
 });
 
 test('Monitor renders exact alert building drill-down and authorized meter context', () => {
-  const source = readFileSync(new URL('../app/components/puma-workspace-app-v4.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../app/components/puma-monitor-workspace.tsx', import.meta.url), 'utf8');
+  const route = readFileSync(new URL('../app/monitor/page.tsx', import.meta.url), 'utf8');
+  assert.match(route, /PumaMonitorWorkspace/);
   assert.match(source, /buildingDetailPath\(alert\.companyId, alert\.propertyId\)/);
   assert.match(source, /alert\.meterLabel/);
   assert.match(source, /alert\.periodEnd/);
+  assert.match(source, /buildMonitorAlerts\(workspace\)/);
 });

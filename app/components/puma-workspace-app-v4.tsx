@@ -569,25 +569,7 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
   const renderMonitor = () => (
     <div className="pm-page">
       <div className="pm-page-head"><div><h1>Monitor</h1><p>Client-authorized water alerts</p></div></div>
-      <div className="pm-alert-list">
-        {alerts.length === 0 && <div className="pm-empty"><Bell size={20} /><strong>No alerts right now.</strong><span>Alerts appear only from authorized client readings.</span></div>}
-        {alerts.map((alert) => {
-          const property = workspace!.properties.find((item) => item.id === alert.propertyId);
-          return (
-            <article key={alert.id}>
-              <Bell size={17} />
-              <div>
-                <strong>{alert.title}</strong>
-                <span>{property?.name || 'Building'} · {alert.detail}</span>
-                <small>{alert.meterLabel}{alert.periodStart || alert.periodEnd ? ` · ${[alert.periodStart, alert.periodEnd].filter(Boolean).join(' → ')}` : ''}</small>
-              </div>
-              <Link href={buildingDetailPath(alert.companyId, alert.propertyId)} aria-label={`Open ${property?.name || 'building'}`}>
-                <ChevronRight size={18} />
-              </Link>
-            </article>
-          );
-        })}
-      </div>
+      <div className="pm-alert-list">{alerts.length === 0 && <div className="pm-empty"><Bell size={20} /><strong>No alerts right now.</strong><span>Alerts appear only from authorized client readings.</span></div>}{alerts.map((alert) => { const property = workspace!.properties.find((item) => item.id === alert.propertyId); return <article key={alert.id}><Bell size={17} /><div><strong>{alert.title}</strong><span>{property?.name || 'Building'} · {alert.detail}</span></div></article>; })}</div>
     </div>
   );
 
@@ -618,7 +600,7 @@ export default function PumaWorkspaceApp({ view, companyId, propertyId, subview 
           {items.length === 0 && <div className="pm-empty"><CircleDollarSign size={21} /><strong>No billing records yet.</strong><span>Payment records will appear here.</span></div>}
           {[...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((item) => {
             const company = allCompanies.find((candidate) => candidate.id === item.companyId);
-            return <article key={item.id} className="pm-ap-row"><div><strong>{company?.name ?? 'Company'}</strong><span>{item.description}</span><small>{item.dueDate ? `Due ${formatShortDate(item.dueDate)}` : item.status}</small></div><div><strong>{money(item.amount)}</strong><button type="button" className={item.status === 'Paid' ? 'paid' : ''} onClick={() => setAccountsPayablePaid(item, item.status !== 'Paid')}>{item.status === 'Paid' ? 'Paid' : 'Mark paid'}</button></div></div>;
+            return <article key={item.id} className="pm-ap-row"><div><strong>{company?.name ?? 'Company'}</strong><span>{item.description}</span><small>{item.dueDate ? `Due ${formatShortDate(item.dueDate)}` : item.status}</small></div><div><strong>{money(item.amount)}</strong><button type="button" className={item.status === 'Paid' ? 'paid' : ''} onClick={() => setAccountsPayablePaid(item, item.status !== 'Paid')}>{item.status === 'Paid' ? 'Paid' : 'Mark paid'}</button></div></article>;
           })}
         </div>
       </div>
@@ -761,11 +743,9 @@ button,input,textarea,select { font:inherit; }
 .pm-utility > div { display:flex; flex-direction:column; gap:5px; }
 .pm-utility strong { font-size:12.5px; font-weight:560; }
 .pm-alert-list article { min-height:66px; display:flex; align-items:flex-start; gap:11px; padding:13px 2px; border-bottom:1px solid var(--pm-line); }
-.pm-alert-list article > div { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
-.pm-alert-list article > a { align-self:center; display:grid; place-items:center; width:34px; height:34px; border-radius:9px; color:#8d9297; text-decoration:none; }
+.pm-alert-list article > div { display:flex; flex-direction:column; gap:4px; }
 .pm-alert-list strong { font-size:12.5px; font-weight:590; }
-.pm-alert-list span,.pm-alert-list small { color:var(--pm-muted); font-size:10.5px; line-height:1.4; }
-.pm-alert-list small { font-size:9.5px; }
+.pm-alert-list span { color:var(--pm-muted); font-size:10.5px; line-height:1.4; }
 .pm-ap-row { min-height:76px; display:flex; justify-content:space-between; gap:12px; align-items:center; padding:12px 2px; border-bottom:1px solid var(--pm-line); }
 .pm-ap-row > div { min-width:0; display:flex; flex-direction:column; gap:3px; }
 .pm-ap-row > div:last-child { align-items:flex-end; flex:0 0 auto; }
