@@ -188,7 +188,7 @@ test('Find Leads exposes partial discovery warnings and a direct saved-company h
   assert.match(panel, /Partial discovery/);
   assert.match(panel, /result\.stopReason/);
   assert.match(panel, /saveSummary/);
-  assert.match(panel, /summary\.companyId/);
+  assert.match(panel, /saveSummary\.companyId/);
   assert.match(panel, /Open company/);
   assert.match(panel, /\/clients\//);
 });
