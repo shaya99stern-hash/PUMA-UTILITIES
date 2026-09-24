@@ -1,6 +1,6 @@
-import PumaWorkspaceApp from '../../../components/puma-workspace-app';
+import PumaCrmWorkspace from '../../../components/puma-crm-workspace';
 
 export default async function BuildingsPage({ params }: { params: Promise<{ companyId: string }> }) {
   const { companyId } = await params;
-  return <PumaWorkspaceApp view="clients" companyId={companyId} subview="buildings" />;
+  return <PumaCrmWorkspace companyId={companyId} subview="buildings" />;
 }
