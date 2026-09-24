@@ -62,8 +62,6 @@ function CompaniesIndex({ companyMode = 'all' }: { companyMode?: CompanyMode }) 
   const [name, setName] = useState('');
   const [market, setMarket] = useState('');
   const [website, setWebsite] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [nextAction, setNextAction] = useState('');
 
   useEffect(() => {
@@ -90,7 +88,7 @@ function CompaniesIndex({ companyMode = 'all' }: { companyMode?: CompanyMode }) 
 
   const createCompany = () => {
     if (!workspace || !name.trim()) return;
-    const next = addCompany(workspace, { name, market, website, publicEmail: email, publicPhone: phone, nextAction });
+    const next = addCompany(workspace, { name, market, website, nextAction });
     const created = next.companies.at(-1);
     setWorkspace(persist(next));
     setSheetOpen(false);
@@ -98,7 +96,7 @@ function CompaniesIndex({ companyMode = 'all' }: { companyMode?: CompanyMode }) 
   };
 
   const resetForm = () => {
-    setName(''); setMarket(''); setWebsite(''); setEmail(''); setPhone(''); setNextAction('');
+    setName(''); setMarket(''); setWebsite(''); setNextAction('');
   };
 
   const title = companyMode === 'followups' ? 'Follow-ups' : 'Companies';
@@ -141,9 +139,8 @@ function CompaniesIndex({ companyMode = 'all' }: { companyMode?: CompanyMode }) 
         <div className="crm-form">
           <label>Company name<input value={name} onChange={(event) => setName(event.target.value)} autoFocus /></label>
           <div className="crm-form-grid"><label>Market / state<input value={market} onChange={(event) => setMarket(event.target.value)} /></label><label>Website<input value={website} onChange={(event) => setWebsite(event.target.value)} inputMode="url" /></label></div>
-          <div className="crm-form-grid"><label>Public email<input value={email} onChange={(event) => setEmail(event.target.value)} inputMode="email" /></label><label>Public phone<input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" /></label></div>
           <label>Next action<input value={nextAction} onChange={(event) => setNextAction(event.target.value)} /></label>
-          <div className="crm-form-note">Research-only facts such as verified portfolio size, ownership, utility evidence, and benchmark data are not overwritten here.</div>
+          <div className="crm-form-note">Published company email and phone remain research-owned. Add manual contact details through Add contact so Puma keeps them labeled as user-entered.</div>
         </div>
         <div className="crm-sheet-actions"><button className="crm-button" type="button" onClick={() => setSheetOpen(false)}>Cancel</button><button className="crm-button primary" type="button" disabled={!name.trim()} onClick={createCompany}>Save company</button></div>
       </section></div>}
@@ -154,7 +151,7 @@ function CompaniesIndex({ companyMode = 'all' }: { companyMode?: CompanyMode }) 
 function CrmActionDock({ companyId, propertyId, subview = 'company' }: { companyId: string; propertyId?: string; subview?: ClientSubview }) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [sheet, setSheet] = useState<SheetKind>(null);
-  const [companyDraft, setCompanyDraft] = useState({ name:'', market:'', website:'', email:'', phone:'', nextAction:'' });
+  const [companyDraft, setCompanyDraft] = useState({ name:'', market:'', website:'', nextAction:'' });
   const [contactId, setContactId] = useState('');
   const [contactDraft, setContactDraft] = useState({ name:'', role:'', email:'', phone:'' });
   const [buildingDraft, setBuildingDraft] = useState({ name:'', address:'', state:'', units:'' });
@@ -180,7 +177,7 @@ function CrmActionDock({ companyId, propertyId, subview = 'company' }: { company
 
   const openCompany = () => {
     if (!company) return;
-    setCompanyDraft({ name:company.name, market:company.market ?? '', website:company.website ?? '', email:company.publicEmail ?? '', phone:company.publicPhone ?? '', nextAction:company.nextAction ?? '' });
+    setCompanyDraft({ name:company.name, market:company.market ?? '', website:company.website ?? '', nextAction:company.nextAction ?? '' });
     setSheet('company');
   };
 
@@ -207,7 +204,7 @@ function CrmActionDock({ companyId, propertyId, subview = 'company' }: { company
 
   const saveCompany = () => {
     if (!workspace || !company) return;
-    commit(updateCompanyRecord(workspace, company.id, { name:companyDraft.name, market:companyDraft.market, website:companyDraft.website, publicEmail:companyDraft.email, publicPhone:companyDraft.phone, nextAction:companyDraft.nextAction }), 'Company updated');
+    commit(updateCompanyRecord(workspace, company.id, { name:companyDraft.name, market:companyDraft.market, website:companyDraft.website, nextAction:companyDraft.nextAction }), 'Company updated');
   };
   const saveContact = () => {
     if (!workspace || !company || !contactDraft.name.trim()) return;
@@ -254,8 +251,8 @@ function CrmActionDock({ companyId, propertyId, subview = 'company' }: { company
       {sheet === 'company' && <div className="crm-form">
         <label>Company name<input value={companyDraft.name} onChange={(event) => setCompanyDraft((current) => ({...current,name:event.target.value}))} /></label>
         <div className="crm-form-grid"><label>Market / state<input value={companyDraft.market} onChange={(event) => setCompanyDraft((current) => ({...current,market:event.target.value}))} /></label><label>Website<input value={companyDraft.website} onChange={(event) => setCompanyDraft((current) => ({...current,website:event.target.value}))} /></label></div>
-        <div className="crm-form-grid"><label>Public email<input value={companyDraft.email} onChange={(event) => setCompanyDraft((current) => ({...current,email:event.target.value}))} /></label><label>Public phone<input value={companyDraft.phone} onChange={(event) => setCompanyDraft((current) => ({...current,phone:event.target.value}))} /></label></div>
         <label>Next action<input value={companyDraft.nextAction} onChange={(event) => setCompanyDraft((current) => ({...current,nextAction:event.target.value}))} /></label>
+        <div className="crm-form-note">Published company email and phone stay untouched here. Use Add contact for manual contact details.</div>
       </div>}
 
       {(sheet === 'contact-add' || sheet === 'contact-edit') && <>
