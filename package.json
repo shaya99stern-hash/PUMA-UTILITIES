@@ -11,6 +11,13 @@
     "test": "tsx --test tests/evidence-gating.test.ts tests/monitor-alerts.test.ts tests/pwa-cache-scope.test.ts tests/client-workflow.test.ts tests/client-presentation.test.ts tests/voice-notes.test.ts tests/building-routing.test.ts tests/minimal-companies-ui.test.ts tests/minimal-settings-navigation.test.ts tests/iphone-dashboard-polish.test.ts tests/ios-native-shell.test.ts tests/product-foundation-shell.test.ts tests/puma-brand.test.ts tests/company-lifecycle.test.ts tests/accounts-payable.test.ts tests/final-ui-wiring.test.ts tests/crm-functionality.test.ts tests/research-engine.test.ts tests/research-productization.test.ts tests/research-monitor-hardening.test.ts tests/lead-engine-foundation.test.ts tests/research-strengthening-v2.test.ts tests/research-intelligence-v3.test.ts tests/research-intelligence-v4.test.ts tests/research-intelligence-v5.test.ts tests/product-quality-v6.test.ts tests/product-intelligence-v7.test.ts tests/product-intelligence-v8.test.ts tests/product-quality-v9.test.ts tests/product-intelligence-v10.test.ts tests/product-intelligence-v11.test.ts && node --test workers/browser-research/parser.test.mjs"
   },
   "engines": { "node": ">=20.9.0" },
-  "dependencies": { "lucide-react": "0.468.0", "next": "16.2.12", "react": "19.2.3", "react-dom": "19.2.3" },
+  "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.109.0",
+    "lucide-react": "0.468.0",
+    "next": "16.2.12",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
   "devDependencies": { "@types/node": "22.18.0", "@types/react": "19.1.12", "@types/react-dom": "19.1.9", "tsx": "4.20.6", "typescript": "5.9.2" }
 }

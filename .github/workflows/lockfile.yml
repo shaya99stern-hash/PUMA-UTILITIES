@@ -1,0 +1,33 @@
+name: Generate package lock
+
+on:
+  push:
+    branches:
+      - 'puma/lead-engine-v2'
+    paths:
+      - package.json
+      - .github/workflows/lockfile.yml
+
+permissions:
+  contents: read
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Generate package lock
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Upload package lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-lock-generated
+          path: package-lock.json
+          retention-days: 1
