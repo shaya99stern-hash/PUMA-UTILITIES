@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ExternalLink, Search } from 'lucide-react';
 import type { ResearchRunResult } from '@/lib/research/runner';
@@ -13,6 +14,7 @@ import { parseTariffMetadata, tariffFreshness } from '@/lib/research/tariff-meta
 import type { ResearchMergeSummary } from '@/lib/research/workspace-projection';
 
 type Candidate = { name: string; website: string; snippet?: string; sourceUrl: string; confidence: number; score: number; hits: number; markets: string[]; reasons: string[] };
+type DiscoveryDiagnostics = { attempted: number; succeeded: number; failed: number; backends: string[] };
 type Capability = {
   webDiscoveryConfigured: boolean;
   webDiscoveryBackend?: 'searxng' | 'duckduckgo-html';
@@ -37,6 +39,9 @@ export default function PumaResearchPanel({ onSave }: Props) {
   const [status, setStatus] = useState<'idle'|'discovering'|'researching'|'saved'>('idle');
   const [error, setError] = useState('');
   const [hasDiscovered, setHasDiscovered] = useState(false);
+  const [discoveryWarnings, setDiscoveryWarnings] = useState<string[]>([]);
+  const [discoveryDiagnostics, setDiscoveryDiagnostics] = useState<DiscoveryDiagnostics | null>(null);
+  const [saveSummary, setSaveSummary] = useState<ResearchMergeSummary | null>(null);
 
   useEffect(() => {
     fetch('/api/research/run', { cache: 'no-store' })
@@ -76,18 +81,18 @@ export default function PumaResearchPanel({ onSave }: Props) {
     : [], [result]);
 
   const discover = async () => {
-    setStatus('discovering'); setError(''); setResult(null); setHasDiscovered(false);
+    setStatus('discovering'); setError(''); setResult(null); setHasDiscovered(false); setSaveSummary(null); setDiscoveryWarnings([]); setDiscoveryDiagnostics(null);
     try {
       const response = await fetch('/api/research/discover', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ geography: markets, minBuildings, maxBuildings, count:10 }) });
-      const payload = await response.json() as { candidates?: Candidate[]; error?: string };
+      const payload = await response.json() as { candidates?: Candidate[]; warnings?: string[]; diagnostics?: DiscoveryDiagnostics; error?: string };
       if (!response.ok) throw new Error(payload.error || 'Discovery failed.');
-      setCandidates(payload.candidates ?? []); setHasDiscovered(true); setStatus('idle');
+      setCandidates(payload.candidates ?? []); setDiscoveryWarnings(payload.warnings ?? []); setDiscoveryDiagnostics(payload.diagnostics ?? null); setHasDiscovered(true); setStatus('idle');
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); setStatus('idle'); }
   };
 
   const deepResearch = async (name = company, url = website, targetGeography = geography) => {
     const label = name.trim(); if (!label) return;
-    setCompany(label); setWebsite(url); setGeography(targetGeography); setStatus('researching'); setError(''); setResult(null);
+    setCompany(label); setWebsite(url); setGeography(targetGeography); setStatus('researching'); setError(''); setResult(null); setSaveSummary(null);
     try {
       const response = await fetch('/api/research/run', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ label, geography:targetGeography, website:url || undefined, maxTasks:60, maxBudgetUnits:82, maxDepth:4, concurrency:5, perNeed:6 }) });
       const payload = await response.json() as ResearchRunResult & { error?: string };
@@ -96,7 +101,18 @@ export default function PumaResearchPanel({ onSave }: Props) {
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); setStatus('idle'); }
   };
 
-  const save = () => { if (!result) return; onSave(result); setStatus('saved'); };
+  const save = () => {
+    if (!result) return;
+    try {
+      const summary = onSave(result);
+      setSaveSummary(summary);
+      setStatus('saved');
+      setError('');
+    } catch (cause) {
+      setStatus('idle');
+      setError(cause instanceof Error ? cause.message : 'Could not save this research result.');
+    }
+  };
 
   return (
     <div className="pm-research">
@@ -107,6 +123,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
         <button className="pm-research-primary" type="button" disabled={status === 'discovering' || !capability?.webDiscoveryConfigured} onClick={() => void discover()}><Search size={16} /> {status === 'discovering' ? 'Searching public sources…' : 'Find real companies'}</button>
       </section>
 
+      {discoveryWarnings.length > 0 && <div className="pm-research-error" role="status"><strong>Partial discovery</strong><span>{discoveryDiagnostics?.succeeded ?? 0} of {discoveryDiagnostics?.attempted ?? 0} searches completed. Results below come only from successful searches.</span></div>}
       {hasDiscovered && candidates.length === 0 && <div className="pm-research-empty"><strong>No strong candidates found.</strong><span>Try broader markets or loosen the advanced portfolio range. Puma will not fill the list with weak pseudo-leads.</span></div>}
       {candidates.length > 0 && <section className="pm-research-list pm-research-candidates">{candidates.map((candidate) => <article key={candidate.website}><div><strong>{candidate.name}</strong><span>{candidate.markets.join(', ')} · Discovery {candidate.score}/100 · {candidate.hits} signal{candidate.hits === 1 ? '' : 's'}</span><span>{candidate.reasons.slice(0,2).join(' · ') || candidate.snippet || candidate.website}</span><a href={candidate.sourceUrl} target="_blank" rel="noreferrer">Discovery source <ExternalLink size={11} /></a></div><button type="button" onClick={() => void deepResearch(candidate.name, candidate.website, candidate.markets[0] ?? geography)}>Research</button></article>)}</section>}
 
@@ -120,7 +137,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
 
       {error && <div className="pm-research-error">{error}</div>}
       {result && <section className="pm-research-result">
-        <div className="pm-research-result-head"><div><span>Research dossier</span><h2>{root?.label}</h2><p>{Math.round(result.rootCompleteness * 100)}% core completeness · {result.tasksExecuted} tasks · {result.budgetUnitsSpent ?? 0}/{result.maxBudgetUnits ?? '—'} effort units · {result.blocked} blocked · {result.failed} failed</p></div>{assessment && <div className="pm-research-scores"><div><strong>{assessment.fit}</strong><span>Fit</span></div><div><strong>{assessment.actionability}</strong><span>Actionability</span></div></div>}</div>
+        <div className="pm-research-result-head"><div><span>Research dossier</span><h2>{root?.label}</h2><p>{Math.round(result.rootCompleteness * 100)}% core completeness · {result.tasksExecuted} tasks · {result.budgetUnitsSpent ?? 0}/{result.maxBudgetUnits ?? '—'} effort units · {result.blocked} blocked · {result.failed} failed · stopped: {result.stopReason}</p></div>{assessment && <div className="pm-research-scores"><div><strong>{assessment.fit}</strong><span>Fit</span></div><div><strong>{assessment.actionability}</strong><span>Actionability</span></div></div>}</div>
         <div className="pm-research-facts"><div><span>Decision-makers</span><strong>{decisionMakers.length}</strong></div><div><span>Properties found</span><strong>{properties.length}</strong></div><div><span>Utilities found</span><strong>{utilities.length}</strong></div><div><span>Official owners</span><strong>{officialOwnershipProperties}</strong></div><div><span>Evidence items</span><strong>{result.graph.evidence.length}</strong></div></div>
 
         {opportunity && <div className="pm-research-section pm-opportunity-intelligence"><span>Opportunity intelligence</span><div><strong>Priority</strong><small>{opportunity.priority}/100 · {opportunity.confidence} confidence</small></div><div><strong>Portfolio coverage</strong><small>{opportunity.linkedProperties} linked · {opportunity.officialOwnershipProperties} official owners · {opportunity.utilityResolvedProperties} utilities · {opportunity.rateResolvedProperties} rates</small></div><div><strong>Water benchmark</strong><small>{opportunity.annualWaterSpendBenchmark ? `~$${opportunity.annualWaterSpendBenchmark.toLocaleString()}/yr across ${opportunity.benchmarkedProperties} benchmarked propert${opportunity.benchmarkedProperties === 1 ? 'y' : 'ies'}` : 'Not enough sourced residential + active tariff evidence yet'}</small></div>{opportunity.topContact && <div><strong>Top contact</strong><small>{opportunity.topContact.name}{opportunity.topContact.title ? ` · ${opportunity.topContact.title}` : ''} · {opportunity.topContact.score}/100</small></div>}{opportunity.nextActions.slice(0,3).map((action,index) => <div key={`action-${index}`}><strong>{index === 0 ? 'Next best action' : `Then #${index + 1}`}</strong><small>{action}</small></div>)}{opportunity.gaps.length > 0 && <details><summary>Unresolved gaps ({opportunity.gaps.length})</summary>{opportunity.gaps.map((gap) => <p key={gap}>{gap}</p>)}</details>}</div>}
@@ -133,6 +150,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
 
         <details className="pm-research-evidence"><summary>Evidence <span>{result.graph.evidence.length}</span></summary><div className="pm-research-evidence-list">{result.graph.evidence.slice(0,12).map((evidence) => <a key={evidence.id} href={evidence.url} target="_blank" rel="noreferrer"><strong>{evidence.sourceId}</strong><small>{evidence.excerpt || evidence.url}</small><ExternalLink size={12} /></a>)}</div></details>
         <button className="pm-research-save" type="button" onClick={save}>{status === 'saved' ? <><CheckCircle2 size={16} /> Saved to Prospects</> : 'Save to Prospects'}</button>
+        {saveSummary && <div className="pm-research-section pm-research-save-summary" role="status"><span>{saveSummary.createdCompany ? 'Prospect created' : 'Prospect updated'}</span><div><strong>Saved to Puma CRM</strong><small>{saveSummary.peopleAdded} contacts · {saveSummary.propertiesAdded} buildings · {saveSummary.utilitiesAdded} utilities · {saveSummary.parcelsAdded} parcels · {saveSummary.tariffsAdded} tariffs added</small></div><Link href={`/clients/${encodeURIComponent(saveSummary.companyId)}`}>Open company</Link></div>}
         <p className="pm-research-capability">Water-cost estimates appear only when Puma has sourced residential unit evidence plus one unambiguous published variable water rate; sourced gross floor area can refine the multifamily benchmark range. Explicitly expired or future tariff periods are excluded. One unambiguous published water service charge may be normalized to a monthly amount and included. Sewer, wastewater, tax, demand, meter-size-dependent and unresolved tiered charges remain excluded. Customer-class labels are displayed only when explicitly published; Puma does not infer the applicable tariff class.</p>
       </section>}
     </div>
