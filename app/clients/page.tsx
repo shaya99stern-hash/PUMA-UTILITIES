@@ -1,5 +1,5 @@
-import PumaWorkspaceApp from '../components/puma-workspace-app';
+import PumaCrmWorkspace from '../components/puma-crm-workspace';
 
 export default function ClientsPage() {
-  return <PumaWorkspaceApp view="clients" />;
+  return <PumaCrmWorkspace />;
 }
