@@ -1,0 +1,34 @@
+name: Diagnose post-PR27 tests
+
+on:
+  push:
+    branches:
+      - puma/post-pr27-repair
+
+permissions:
+  contents: read
+
+jobs:
+  test-file:
+    name: ${{ matrix.test }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - tests/product-foundation-shell.test.ts
+          - tests/product-quality-v6.test.ts
+          - tests/product-intelligence-v7.test.ts
+          - tests/final-ui-wiring.test.ts
+          - tests/minimal-companies-ui.test.ts
+          - tests/minimal-settings-navigation.test.ts
+          - tests/iphone-dashboard-polish.test.ts
+          - tests/ios-native-shell.test.ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsx --test ${{ matrix.test }}
