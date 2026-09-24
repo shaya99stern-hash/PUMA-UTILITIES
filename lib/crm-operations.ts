@@ -5,8 +5,6 @@ export type CompanyRecordInput = {
   name: string;
   market?: string;
   website?: string;
-  publicEmail?: string;
-  publicPhone?: string;
   nextAction?: string;
 };
 
@@ -57,8 +55,6 @@ export function addCompany(workspace: Workspace, input: CompanyRecordInput, now 
     people: [],
     provenance: [],
     website: clean(input.website),
-    publicEmail: clean(input.publicEmail),
-    publicPhone: clean(input.publicPhone),
     nextAction: clean(input.nextAction),
     createdAt: now,
     updatedAt: now,
@@ -76,8 +72,6 @@ export function updateCompanyRecord(workspace: Workspace, companyId: string, pat
       ...(patch.name !== undefined ? { name: clean(patch.name) ?? company.name } : {}),
       ...(patch.market !== undefined ? { market: clean(patch.market) } : {}),
       ...(patch.website !== undefined ? { website: clean(patch.website) } : {}),
-      ...(patch.publicEmail !== undefined ? { publicEmail: clean(patch.publicEmail) } : {}),
-      ...(patch.publicPhone !== undefined ? { publicPhone: clean(patch.publicPhone) } : {}),
       ...(patch.nextAction !== undefined ? { nextAction: clean(patch.nextAction) } : {}),
       ...(patch.stage !== undefined ? { stage: patch.stage } : {}),
       ...(patch.followUpAt !== undefined ? { followUpAt: clean(patch.followUpAt) } : {}),
@@ -121,6 +115,7 @@ export function updateContact(workspace: Workspace, companyId: string, personId:
         ...(patch.email !== undefined ? { email: clean(patch.email) } : {}),
         ...(patch.phone !== undefined ? { phone: clean(patch.phone) } : {}),
         status: 'user-entered' as const,
+        provenanceId: undefined,
       };
     });
     return changed ? { ...company, people, updatedAt: now } : company;
