@@ -26,7 +26,7 @@ export default function PumaHomeScreen({ now, profileName, followUpsToday, prosp
       <section className="pm-home-today" aria-label="Today at a glance">
         <div className="pm-home-section-head"><strong>Today at a glance</strong></div>
         <div className="pm-home-metrics">
-          <Link href="/clients" aria-label={`${followUpsToday} follow-ups today`}><strong>{followUpsToday}</strong><span>Follow-ups</span></Link>
+          <Link href="/clients/follow-ups" aria-label={`${followUpsToday} follow-ups today`}><strong>{followUpsToday}</strong><span>Follow-ups</span></Link>
           <Link href="/clients" aria-label={`${prospects} prospects`}><strong>{prospects}</strong><span>Prospects</span></Link>
           <Link href="/monitor" aria-label={`${alerts} monitor alerts`}><strong>{alerts}</strong><span>Alerts</span></Link>
         </div>
