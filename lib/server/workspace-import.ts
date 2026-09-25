@@ -32,7 +32,10 @@ type EvidenceTagged = { status: string };
 
 const PROTECTED_EVIDENCE_STATUSES = new Set(['user-entered', 'client-authorized']);
 
-export function preserveProtectedEvidence<T extends EvidenceTagged>(existing: T | null | undefined, incoming: T): T {
+export function preserveProtectedEvidence<TExisting extends EvidenceTagged, TIncoming extends EvidenceTagged>(
+  existing: TExisting | null | undefined,
+  incoming: TIncoming,
+): TExisting | TIncoming {
   if (!existing) return incoming;
   const existingIsProtected = PROTECTED_EVIDENCE_STATUSES.has(existing.status);
   const incomingIsProtected = PROTECTED_EVIDENCE_STATUSES.has(incoming.status);
