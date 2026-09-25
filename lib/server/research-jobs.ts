@@ -275,7 +275,13 @@ async function recordProviderBackoff(
   disposition: ReturnType<typeof decideDurableTaskDisposition>,
   attemptCount: number,
 ) {
-  const record = disposition.retry
+  const record: {
+    workspace_id: string;
+    provider_id: string;
+    blocked_until: string | null;
+    reason: string | null;
+    consecutive_failures: number;
+  } = disposition.retry
     ? {
         workspace_id: workspaceId,
         provider_id: sourceId,
