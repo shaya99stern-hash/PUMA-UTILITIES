@@ -1,0 +1,214 @@
+name: Final OTP and durable repair
+
+on:
+  push:
+    branches: [puma/lead-engine-v2]
+    paths:
+      - .github/workflows/fix-otp-durable.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: puma/lead-engine-v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Restore OTP contract and fix durable typing
+        shell: bash
+        run: |
+          cat > app/login/page.tsx <<'EOF'
+          'use client';
+
+          import { FormEvent, useEffect, useMemo, useState } from 'react';
+          import { useRouter } from 'next/navigation';
+          import { createBrowserSupabase } from '../../lib/supabase-browser';
+
+          const REMEMBERED_EMAIL_KEY = 'puma-login-email';
+
+          type Step = 'email' | 'code';
+
+          export default function LoginPage() {
+            const router = useRouter();
+            const supabase = useMemo(() => createBrowserSupabase(), []);
+            const [email, setEmail] = useState('');
+            const [code, setCode] = useState('');
+            const [step, setStep] = useState<Step>('email');
+            const [busy, setBusy] = useState(false);
+            const [message, setMessage] = useState('');
+            const [error, setError] = useState('');
+
+            useEffect(() => {
+              const remembered = window.localStorage.getItem(REMEMBERED_EMAIL_KEY)?.trim();
+              if (remembered) setEmail(remembered);
+            }, []);
+
+            async function sendCode(event?: FormEvent) {
+              event?.preventDefault();
+              const normalized = email.trim().toLowerCase();
+              if (!normalized) return;
+              setBusy(true);
+              setError('');
+              setMessage('');
+              const { error: sendError } = await supabase.auth.signInWithOtp({
+                email: normalized,
+                options: { shouldCreateUser: true },
+              });
+              setBusy(false);
+              if (sendError) {
+                setError(sendError.message);
+                return;
+              }
+              window.localStorage.setItem(REMEMBERED_EMAIL_KEY, normalized);
+              setEmail(normalized);
+              setStep('code');
+              setMessage('Enter the 6-digit code sent to your email.');
+            }
+
+            async function verifyCode(event: FormEvent) {
+              event.preventDefault();
+              const token = code.replace(/\D/g, '').slice(0, 6);
+              if (token.length !== 6) {
+                setError('Enter the full 6-digit code.');
+                return;
+              }
+              setBusy(true);
+              setError('');
+              const { error: verifyError } = await supabase.auth.verifyOtp({
+                email: email.trim().toLowerCase(),
+                token,
+                type: 'email',
+              });
+              setBusy(false);
+              if (verifyError) {
+                setError(verifyError.message);
+                return;
+              }
+              window.localStorage.setItem(REMEMBERED_EMAIL_KEY, email.trim().toLowerCase());
+              router.replace('/');
+              router.refresh();
+            }
+
+            return (
+              <main className="pm-login-shell">
+                <section className="pm-login-card" aria-labelledby="puma-login-title">
+                  <div className="pm-login-mark">P</div>
+                  <p className="pm-login-eyebrow">Puma Utilities</p>
+                  <h1 id="puma-login-title">{step === 'email' ? 'Sign in' : 'Check your email'}</h1>
+                  <p className="pm-login-copy">
+                    {step === 'email'
+                      ? 'Use your email to receive a one-time 6-digit sign-in code.'
+                      : `We sent a 6-digit code to ${email}.`}
+                  </p>
+
+                  {step === 'email' ? (
+                    <form className="pm-login-form" onSubmit={sendCode}>
+                      <label>
+                        <span>Email</span>
+                        <input autoComplete="email" inputMode="email" name="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required />
+                      </label>
+                      <button type="submit" disabled={busy || !email.trim()}>{busy ? 'Sending…' : 'Send 6-digit code'}</button>
+                    </form>
+                  ) : (
+                    <form className="pm-login-form" onSubmit={verifyCode}>
+                      <label>
+                        <span>Verification code</span>
+                        <input autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]*" maxLength={6} name="code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" className="pm-login-code" required />
+                      </label>
+                      <button type="submit" disabled={busy || code.length !== 6}>{busy ? 'Verifying…' : 'Verify and continue'}</button>
+                      <div className="pm-login-secondary-actions">
+                        <button type="button" onClick={() => sendCode()} disabled={busy}>Resend code</button>
+                        <button type="button" onClick={() => { setStep('email'); setCode(''); setError(''); setMessage(''); }}>Change email</button>
+                      </div>
+                    </form>
+                  )}
+
+                  {message ? <p className="pm-login-message">{message}</p> : null}
+                  {error ? <p className="pm-login-error" role="alert">{error}</p> : null}
+                  <small>Your signed-in session is stored securely so Puma can remember you on this device.</small>
+                </section>
+              </main>
+            );
+          }
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+
+          foundation = Path('tests/lead-engine-foundation.test.ts')
+          text = foundation.read_text()
+          old = "test('Puma login uses a remembered Supabase sign-in link and returns to the current Puma origin', () => { const login = readFileSync(new URL('../app/login/page.tsx', import.meta.url), 'utf8'); assert.match(login, /signInWithOtp/); assert.match(login, /emailRedirectTo/); assert.match(login, /window\\.location\\.origin/); assert.match(login, /getSession/); assert.match(login, /onAuthStateChange/); assert.match(login, /puma-login-email/); assert.doesNotMatch(login, /verifyOtp/); assert.doesNotMatch(login, /maxLength=\\{6\\}/); });"
+          new = "test('Puma login uses remembered six-digit email OTP rather than magic-link navigation', () => { const login = readFileSync(new URL('../app/login/page.tsx', import.meta.url), 'utf8'); assert.match(login, /signInWithOtp/); assert.match(login, /verifyOtp/); assert.match(login, /type:\\s*['\"]email['\"]/); assert.match(login, /maxLength=\\{6\\}/); assert.match(login, /inputMode=['\"]numeric['\"]/); assert.match(login, /puma-login-email/); assert.doesNotMatch(login, /magic link/i); assert.doesNotMatch(login, /emailRedirectTo/); });"
+          if old not in text:
+              raise SystemExit('magic-link test contract not found')
+          foundation.write_text(text.replace(old, new))
+
+          durable = Path('tests/durable-research-jobs.test.ts')
+          text = durable.read_text()
+          text = text.replace("/unique index.*research_tasks.*run_id.*subject_key.*source_id.*capability/is", "/unique index[\\s\\S]*research_tasks[\\s\\S]*run_id[\\s\\S]*subject_key[\\s\\S]*source_id[\\s\\S]*capability/i")
+          text = text.replace("/Cache-Control.*no-store/s", "/Cache-Control[\\s\\S]*no-store/")
+          durable.write_text(text)
+
+          jobs = Path('lib/server/research-jobs.ts')
+          text = jobs.read_text()
+          old = """  const record = disposition.retry
+    ? {
+        workspace_id: workspaceId,
+        provider_id: sourceId,
+        blocked_until: new Date(Date.now() + disposition.backoffSeconds * 1000).toISOString(),
+        reason: result.message,
+        consecutive_failures: attemptCount,
+      }
+    : {
+        workspace_id: workspaceId,
+        provider_id: sourceId,
+        blocked_until: null,
+        reason: result.status === 'complete' ? null : result.message,
+        consecutive_failures: result.status === 'complete' ? 0 : attemptCount,
+      };"""
+          new = """  const record: {
+    workspace_id: string;
+    provider_id: string;
+    blocked_until: string | null;
+    reason: string | null;
+    consecutive_failures: number;
+  } = disposition.retry
+    ? {
+        workspace_id: workspaceId,
+        provider_id: sourceId,
+        blocked_until: new Date(Date.now() + disposition.backoffSeconds * 1000).toISOString(),
+        reason: result.message,
+        consecutive_failures: attemptCount,
+      }
+    : {
+        workspace_id: workspaceId,
+        provider_id: sourceId,
+        blocked_until: null,
+        reason: result.status === 'complete' ? null : result.message,
+        consecutive_failures: result.status === 'complete' ? 0 : attemptCount,
+      };"""
+          if old not in text:
+              raise SystemExit('provider backoff block not found')
+          jobs.write_text(text.replace(old, new))
+          PY
+      - name: Verify complete branch
+        run: |
+          npm test
+          npm run typecheck
+          npm run build
+      - name: Commit verified repair and remove runner
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-otp-durable.yml
+          git add app/login/page.tsx tests/lead-engine-foundation.test.ts tests/durable-research-jobs.test.ts lib/server/research-jobs.ts
+          git commit -m "fix: restore OTP auth and harden durable research typing"
+          git push origin HEAD:puma/lead-engine-v2
