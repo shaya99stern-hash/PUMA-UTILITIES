@@ -14,7 +14,7 @@ test('research engine has a secure autonomous worker tick driven by Supabase cro
   assert.match(worker, /next_research_run_for_worker/);
   assert.match(worker, /processResearchJob/);
   assert.match(migration, /create extension if not exists pg_cron/i);
-  assert.match(migration, /create extension if not exists pg_net/i);
+  assert.match(migration, /create extension if not exists pg_net\s+with\s+schema\s+extensions/i);
   assert.match(migration, /verify_research_worker_token/i);
   assert.match(migration, /claim_research_worker_tick/i);
   assert.match(migration, /next_research_run_for_worker/i);
