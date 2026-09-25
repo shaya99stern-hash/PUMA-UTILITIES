@@ -20,11 +20,17 @@ test('research engine has a secure autonomous worker tick driven by Supabase cro
   assert.match(migration, /next_research_run_for_worker/i);
   assert.match(migration, /net\.http_post/i);
   assert.match(migration, /cron\.schedule/i);
-  assert.doesNotMatch(migration, /grant\s+execute[\s\S]*\b(anon|authenticated)\b/i);
+  assert.doesNotMatch(migration, /grant\s+execute[^;]*\b(?:anon|authenticated)\b/i);
 });
 
-test('Engine UI watches durable jobs instead of requiring a browser pump loop', () => {
-  const ui = readFileSync(new URL('../app/components/puma-research-panel.tsx', import.meta.url), 'utf8');
-  assert.match(ui, /watchResearchJob/);
-  assert.doesNotMatch(ui, /for\s*\(let step\s*=\s*0;\s*step\s*<\s*90/);
+test('expired leased or running tasks can be reclaimed without consuming another attempt', () => {
+  const migration = readFileSync(new URL('../supabase/migrations/202609250009_autonomous_research_worker.sql', import.meta.url), 'utf8');
+  assert.match(migration, /status\s+in\s*\(\s*'leased'\s*,\s*'running'\s*\)/i);
+  assert.match(migration, /case\s+when\s+t\.status\s*=\s*'queued'[\s\S]*attempt_count\s*\+\s*1[\s\S]*else\s+t\.attempt_count/i);
+});
+
+test('browser pump shares the autonomous worker lease so two executors cannot mutate one run concurrently', () => {
+  const pump = readFileSync(new URL('../app/api/research/jobs/[runId]/pump/route.ts', import.meta.url), 'utf8');
+  assert.match(pump, /claim_research_worker_tick/);
+  assert.match(pump, /release_research_worker_tick/);
 });
