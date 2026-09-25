@@ -56,12 +56,12 @@ test('foundation migration defines canonical tables, RLS and atomic leasing', ()
   assert.match(sql, /for update skip locked/i);
 });
 
-test('workspace ownership helper is not a SECURITY DEFINER RPC and advisor indexes are migration-pinned', () => {
-  const foundation = readFileSync(new URL('../supabase/migrations/202609240001_lead_engine_foundation.sql', import.meta.url), 'utf8');
+test('effective workspace ownership helper is not a SECURITY DEFINER RPC and advisor indexes are migration-pinned', () => {
   const hardening = readFileSync(new URL('../supabase/migrations/202609240002_foundation_hardening.sql', import.meta.url), 'utf8');
-  const ownershipFunction = foundation.match(/create or replace function public\.owns_workspace[\s\S]*?\$\$;/i)?.[0] ?? '';
+  const ownershipFunction = hardening.match(/create or replace function public\.owns_workspace[\s\S]*?\$\$;/i)?.[0] ?? '';
   assert.match(ownershipFunction, /security invoker/i);
   assert.doesNotMatch(ownershipFunction, /security definer/i);
+  assert.match(hardening, /revoke all on function public\.owns_workspace\(uuid\) from anon/i);
   assert.match(hardening, /owner_user_id = \(select auth\.uid\(\)\)/i);
   assert.match(hardening, /create index if not exists research_tasks_workspace_id_idx/i);
   assert.match(hardening, /create index if not exists tariffs_utility_id_idx/i);
