@@ -66,3 +66,40 @@ test('effective workspace ownership helper is not a SECURITY DEFINER RPC and adv
   assert.match(hardening, /create index if not exists research_tasks_workspace_id_idx/i);
   assert.match(hardening, /create index if not exists tariffs_utility_id_idx/i);
 });
+
+test('Puma login uses remembered six-digit email OTP rather than magic-link navigation', () => {
+  const login = readFileSync(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
+  assert.match(login, /signInWithOtp/);
+  assert.match(login, /verifyOtp/);
+  assert.match(login, /type:\s*['"]email['"]/);
+  assert.match(login, /maxLength=\{6\}/);
+  assert.match(login, /inputMode=['"]numeric['"]/);
+  assert.match(login, /puma-login-email/);
+  assert.doesNotMatch(login, /magic link/i);
+  assert.doesNotMatch(login, /emailRedirectTo/);
+});
+
+test('authenticated boundary protects operational routes and preserves canonical redirect', () => {
+  const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
+  const workspace = readFileSync(new URL('../lib/server/current-workspace.ts', import.meta.url), 'utf8');
+  assert.match(proxy, /CANONICAL_HOST/);
+  for (const route of ['/clients', '/engine', '/monitor', '/settings']) assert.match(proxy, new RegExp(route.replace('/', '\\/')));
+  assert.match(proxy, /\/login/);
+  assert.match(workspace, /requireUser/);
+  assert.match(workspace, /requireWorkspace/);
+});
+
+test('Settings exposes Supabase health testing and safe reconnection controls', () => {
+  const hub = readFileSync(new URL('../app/components/puma-settings-hub.tsx', import.meta.url), 'utf8');
+  const health = readFileSync(new URL('../app/components/puma-supabase-health.tsx', import.meta.url), 'utf8');
+  const page = readFileSync(new URL('../app/settings/supabase/page.tsx', import.meta.url), 'utf8');
+  const healthRoute = readFileSync(new URL('../app/api/system/supabase-health/route.ts', import.meta.url), 'utf8');
+  assert.match(hub, /\/settings\/supabase/);
+  assert.match(page, /PumaSupabaseHealth/);
+  assert.match(health, /Test connection/i);
+  assert.match(health, /Reconnect Supabase/i);
+  assert.match(health, /\/api\/system\/supabase-health/);
+  assert.match(health, /refreshSession/);
+  assert.match(healthRoute, /latencyMs/);
+  assert.match(healthRoute, /database/);
+});
