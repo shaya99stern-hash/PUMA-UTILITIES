@@ -3,7 +3,8 @@ import { SOURCE_REGISTRY } from './source-registry';
 import { sourceCostUnits } from './planner';
 import { planEntityTasks } from './task-planner';
 import type { ResearchGraph, ResearchTask } from './types';
-import type { ResearchTaskResult, ResearchRunResult } from './runner';
+import type { ResearchTaskResult } from './executor';
+import type { ResearchRunResult } from './runner';
 
 export type DurableResearchInput = {
   label: string;
