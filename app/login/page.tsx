@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { createBrowserSupabase } from '../../lib/supabase-browser';
 
 const REMEMBERED_EMAIL_KEY = 'puma-login-email';
@@ -19,14 +20,14 @@ export default function LoginPage() {
     const remembered = window.localStorage.getItem(REMEMBERED_EMAIL_KEY)?.trim();
     if (remembered) setEmail(remembered);
 
-    void supabase.auth.getSession().then(({ data }) => {
+    void supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
       if (data.session) {
         router.replace('/');
         router.refresh();
       }
     });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       if (session) {
         router.replace('/');
         router.refresh();
