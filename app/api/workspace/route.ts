@@ -7,8 +7,11 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const { supabase, workspace } = await requireWorkspace();
-    const summary = await getCanonicalWorkspaceSummary(supabase, workspace.id);
-    return NextResponse.json({ ok: true, ...summary }, { headers: { 'Cache-Control': 'no-store' } });
+    const { localImportCompletedAt, counts } = await getCanonicalWorkspaceSummary(supabase, workspace.id);
+    return NextResponse.json(
+      { ok: true, localImportCompletedAt, counts },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to read Puma workspace status.';
     if (message === 'AUTH_REQUIRED') {
