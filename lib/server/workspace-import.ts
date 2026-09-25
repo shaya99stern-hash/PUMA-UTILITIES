@@ -28,6 +28,17 @@ export type WorkspaceImportPlan = {
   monitorSettings: MonitorSettings;
 };
 
+type EvidenceTagged = { status: string };
+
+const PROTECTED_EVIDENCE_STATUSES = new Set(['user-entered', 'client-authorized']);
+
+export function preserveProtectedEvidence<T extends EvidenceTagged>(existing: T | null | undefined, incoming: T): T {
+  if (!existing) return incoming;
+  const existingIsProtected = PROTECTED_EVIDENCE_STATUSES.has(existing.status);
+  const incomingIsProtected = PROTECTED_EVIDENCE_STATUSES.has(incoming.status);
+  return existingIsProtected && !incomingIsProtected ? existing : incoming;
+}
+
 export function buildWorkspaceImportPlan(workspace: Workspace): WorkspaceImportPlan {
   const people = new Map<string, { legacyId: string; companyLegacyIds: string[]; payload: Person }>();
   const activityNotes = new Map<string, { legacyId: string; payload: ActivityNote }>();
