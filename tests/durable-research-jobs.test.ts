@@ -53,14 +53,14 @@ test('Supabase migration and API expose run-scoped leasing without exposing the 
 
   assert.match(migration, /lease_research_tasks_for_run/i);
   assert.match(migration, /target_run_id/i);
-  assert.match(migration, /unique index.*research_tasks.*run_id.*subject_key.*source_id.*capability/is);
+  assert.match(migration, /unique index[\s\S]*research_tasks[\s\S]*run_id[\s\S]*subject_key[\s\S]*source_id[\s\S]*capability/i);
   assert.match(admin, /SUPABASE_SERVICE_ROLE_KEY|serviceRoleKey/);
   assert.match(jobs, /lease_research_tasks_for_run/);
   assert.match(jobs, /executeResearchTask/);
   assert.match(jobs, /provider_backoff_state/);
   assert.match(createRoute, /requireWorkspace/);
   assert.match(pumpRoute, /createAdminSupabase/);
-  assert.match(statusRoute, /Cache-Control.*no-store/s);
+  assert.match(statusRoute, /Cache-Control[\s\S]*no-store/);
   assert.match(ui, /\/api\/research\/jobs/);
   assert.match(ui, /puma-active-research-run/);
   assert.doesNotMatch(ui, /SUPABASE_SERVICE_ROLE_KEY/);
