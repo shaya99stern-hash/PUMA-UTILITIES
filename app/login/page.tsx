@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { buildEmailOtpOptions } from '../../lib/auth-login';
 import { createBrowserSupabase } from '../../lib/supabase-browser';
 
 const REMEMBERED_EMAIL_KEY = 'puma-login-email';
@@ -32,9 +33,10 @@ export default function LoginPage() {
     setError('');
     setMessage('');
 
+    const options = buildEmailOtpOptions(`${window.location.origin}/auth/callback`);
     const { error: sendError } = await supabase.auth.signInWithOtp({
       email: normalized,
-      options: { shouldCreateUser: true },
+      options,
     });
 
     setBusy(false);
@@ -46,7 +48,7 @@ export default function LoginPage() {
     window.localStorage.setItem(REMEMBERED_EMAIL_KEY, normalized);
     setEmail(normalized);
     setStep('code');
-    setMessage('Enter the 6-digit code sent to your email.');
+    setMessage('Use the 6-digit code if your email shows one. If it contains a secure sign-in link, tap that instead.');
   }
 
   async function verifyCode(event: FormEvent) {
@@ -84,8 +86,8 @@ export default function LoginPage() {
         <h1 id="puma-login-title">{step === 'email' ? 'Sign in' : 'Check your email'}</h1>
         <p className="pm-login-copy">
           {step === 'email'
-            ? 'Use your email to receive a one-time 6-digit sign-in code.'
-            : `We sent a 6-digit code to ${email}.`}
+            ? 'Use your email to receive a one-time sign-in email.'
+            : `We sent a sign-in email to ${email}.`}
         </p>
 
         {step === 'email' ? (
@@ -104,13 +106,13 @@ export default function LoginPage() {
               />
             </label>
             <button type="submit" disabled={busy || !email.trim()}>
-              {busy ? 'Sending…' : 'Send 6-digit code'}
+              {busy ? 'Sending…' : 'Send sign-in email'}
             </button>
           </form>
         ) : (
           <form className="pm-login-form" onSubmit={verifyCode}>
             <label>
-              <span>Verification code</span>
+              <span>6-digit code</span>
               <input
                 autoComplete="one-time-code"
                 inputMode="numeric"
@@ -121,14 +123,13 @@ export default function LoginPage() {
                 onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
                 placeholder="000000"
                 className="pm-login-code"
-                required
               />
             </label>
             <button type="submit" disabled={busy || code.length !== 6}>
-              {busy ? 'Verifying…' : 'Verify and continue'}
+              {busy ? 'Verifying…' : 'Verify code'}
             </button>
             <div className="pm-login-secondary-actions">
-              <button type="button" onClick={() => sendCode()} disabled={busy}>Resend code</button>
+              <button type="button" onClick={() => sendCode()} disabled={busy}>Resend sign-in email</button>
               <button type="button" onClick={() => { setStep('email'); setCode(''); setError(''); setMessage(''); }}>Change email</button>
             </div>
           </form>
@@ -136,7 +137,7 @@ export default function LoginPage() {
 
         {message ? <p className="pm-login-message">{message}</p> : null}
         {error ? <p className="pm-login-error" role="alert">{error}</p> : null}
-        <small>Your signed-in session is stored securely so Puma can remember you on this device.</small>
+        <small>Use either the code or secure sign-in link provided by Supabase. After sign-in, Puma remembers your session on this device.</small>
       </section>
     </main>
   );
