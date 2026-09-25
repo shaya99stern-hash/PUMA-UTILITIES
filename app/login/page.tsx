@@ -20,6 +20,9 @@ export default function LoginPage() {
     const remembered = window.localStorage.getItem(REMEMBERED_EMAIL_KEY)?.trim();
     if (remembered) setEmail(remembered);
 
+    const authError = new URLSearchParams(window.location.search).get('auth_error');
+    if (authError) setError('That sign-in link could not be completed. Request a fresh link and try again.');
+
     void supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
       if (data.session) {
         router.replace('/');
@@ -46,7 +49,7 @@ export default function LoginPage() {
     setError('');
     setMessage('');
 
-    const redirectTo = `${window.location.origin}/login`;
+    const redirectTo = `${window.location.origin}/auth/callback`;
     const { error: sendError } = await supabase.auth.signInWithOtp({
       email: normalized,
       options: {
