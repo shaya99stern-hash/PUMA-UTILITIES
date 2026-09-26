@@ -19,7 +19,7 @@ export async function POST(_request: Request, context: { params: Promise<{ runId
     // Authorization and all queue writes remain inside the signed-in workspace RLS scope.
     const current = await getResearchJobStatus(supabase, workspace.id, runId);
     const workerName = `web:${randomUUID()}`;
-    const lease = await supabase.rpc('claim_research_browser_tick', {
+    const lease = await supabase.rpc('claim_research_run_tick', {
       worker_name: workerName,
       target_run_id: runId,
       lease_seconds: 45,
@@ -32,7 +32,7 @@ export async function POST(_request: Request, context: { params: Promise<{ runId
     }
 
     releaseLease = async () => {
-      const released = await supabase.rpc('release_research_browser_tick', {
+      const released = await supabase.rpc('release_research_run_tick', {
         worker_name: workerName,
         target_run_id: runId,
       });
