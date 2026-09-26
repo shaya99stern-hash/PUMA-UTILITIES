@@ -16,12 +16,19 @@ function createDeviceToken() {
   return `${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '')}`;
 }
 
-async function bootstrapDeviceSession(deviceToken: string): Promise<PumaBootstrapSession> {
+function runtimeOidcToken(request: NextRequest) {
+  return request.headers.get('x-vercel-oidc-token')?.trim()
+    || process.env.VERCEL_OIDC_TOKEN?.trim()
+    || '';
+}
+
+async function bootstrapDeviceSession(deviceToken: string, oidcToken: string): Promise<PumaBootstrapSession> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (oidcToken) headers.Authorization = `Bearer ${oidcToken}`;
+
   const result = await fetch(DEVICE_BOOTSTRAP_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({ deviceToken }),
     cache: 'no-store',
   });
@@ -57,27 +64,26 @@ export async function proxy(request: NextRequest) {
     request.cookies.set(DEVICE_COOKIE, deviceToken);
   }
 
+  const oidcToken = runtimeOidcToken(request);
   let response = NextResponse.next({ request });
   const supabase = createServerClient(PUMA_SUPABASE_URL, PUMA_SUPABASE_PUBLISHABLE_KEY, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet, headers) {
+      setAll(cookiesToSet, headersToSet) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        Object.entries(headers ?? {}).forEach(([key, value]) => response.headers.set(key, value));
+        Object.entries(headersToSet ?? {}).forEach(([key, value]) => response.headers.set(key, value));
       },
     },
   });
 
   try {
-    await ensurePumaSession(supabase, () => bootstrapDeviceSession(deviceToken));
+    await ensurePumaSession(supabase, () => bootstrapDeviceSession(deviceToken, oidcToken));
     response.headers.set('x-puma-auth', 'ready');
   } catch {
-    // Keep the local-first UI available if auth infrastructure is temporarily unreachable.
-    // Server-backed routes still fail closed through requireWorkspace().
     response.headers.set('x-puma-auth', 'unavailable');
   }
 
