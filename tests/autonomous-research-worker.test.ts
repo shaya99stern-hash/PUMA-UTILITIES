@@ -82,3 +82,18 @@ test('autonomous worker uses delegated publishable access instead of a Vercel se
   assert.match(migration, /grant execute on function public\.lease_research_tasks_for_run[\s\S]*to anon, authenticated;/i);
   assert.doesNotMatch(migration, /grant\s+(?:select|insert|update|delete|all)[^;]*\bon\s+all\s+tables[^;]*\bto\s+anon/i);
 });
+
+test('delegated worker table privileges are explicitly least-privilege', () => {
+  const migration = readFileSync(new URL('../supabase/migrations/202609260013_worker_privilege_hardening.sql', import.meta.url), 'utf8');
+
+  assert.match(migration, /revoke all on table public\.research_worker_credentials from anon/i);
+  assert.match(migration, /grant select \(singleton_id, token_sha256\) on public\.research_worker_credentials to anon/i);
+  assert.match(migration, /revoke all on table public\.research_run_worker_leases from anon, authenticated/i);
+  assert.match(migration, /grant select, insert, update, delete on public\.research_run_worker_leases to anon, authenticated/i);
+  assert.match(migration, /revoke all on table public\.research_runs from anon/i);
+  assert.match(migration, /grant select, update on public\.research_runs to anon/i);
+  assert.match(migration, /grant select, insert, update on public\.research_tasks to anon/i);
+  assert.match(migration, /grant select, insert, update on public\.provider_backoff_state to anon/i);
+  assert.doesNotMatch(migration, /grant[^;]*delete[^;]*on public\.(?:research_runs|research_tasks|provider_backoff_state)/i);
+  assert.doesNotMatch(migration, /grant[^;]*(?:truncate|trigger|references)[^;]*to anon/i);
+});
