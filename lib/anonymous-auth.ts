@@ -1,6 +1,5 @@
 export type PumaAuthUser = {
   id: string;
-  [key: string]: unknown;
 };
 
 type AuthResult = {
