@@ -34,3 +34,28 @@ test('browser pump shares the autonomous worker lease so two executors cannot mu
   assert.match(pump, /claim_research_worker_tick/);
   assert.match(pump, /release_research_worker_tick/);
 });
+
+test('autonomous worker uses delegated publishable access instead of a Vercel service-role secret', () => {
+  const route = readFileSync(new URL('../app/api/research/worker-tick/route.ts', import.meta.url), 'utf8');
+  const workerClient = readFileSync(new URL('../lib/server/supabase-worker.ts', import.meta.url), 'utf8');
+  const pump = readFileSync(new URL('../app/api/research/jobs/[runId]/pump/route.ts', import.meta.url), 'utf8');
+  const migration = readFileSync(new URL('../supabase/migrations/202609260011_delegated_research_worker.sql', import.meta.url), 'utf8');
+
+  assert.match(route, /createWorkerSupabase/);
+  assert.doesNotMatch(route, /createAdminSupabase/);
+  assert.doesNotMatch(route, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(workerClient, /PUMA_SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(workerClient, /x-puma-worker-token/);
+  assert.doesNotMatch(workerClient, /serviceRoleKey|SUPABASE_SERVICE_ROLE_KEY/);
+
+  assert.doesNotMatch(pump, /createAdminSupabase/);
+  assert.match(pump, /processResearchJob\(supabase/);
+
+  assert.match(migration, /is_research_worker_request/i);
+  assert.match(migration, /current_setting\('request\.headers'/i);
+  assert.match(migration, /x-puma-worker-token/i);
+  assert.match(migration, /research_worker_all/i);
+  assert.match(migration, /grant execute on function public\.claim_research_worker_tick[\s\S]*to anon, authenticated/i);
+  assert.match(migration, /grant execute on function public\.lease_research_tasks_for_run[\s\S]*to anon, authenticated/i);
+  assert.doesNotMatch(migration, /grant\s+(?:select|insert|update|delete|all)[^;]*\bon\s+all\s+tables[^;]*\bto\s+anon/i);
+});
