@@ -1,0 +1,32 @@
+name: Promote verified Vercel artifact
+
+on:
+  push:
+    branches:
+      - ops/vercel-promote-verified
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require Vercel deployment token
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN secret is not configured"
+            exit 1
+          fi
+
+      - name: Promote tested artifact to production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npx --yes vercel@latest promote \
+            https://puma-utilities-181c3y8mw-shaya99stern-4910s-projects.vercel.app \
+            --token="$VERCEL_TOKEN" \
+            --scope=shaya99stern-4910s-projects \
+            --yes
