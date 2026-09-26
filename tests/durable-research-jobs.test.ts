@@ -65,3 +65,12 @@ test('Supabase migration and API expose run-scoped leasing without exposing the 
   assert.match(ui, /puma-active-research-run/);
   assert.doesNotMatch(ui, /SUPABASE_SERVICE_ROLE_KEY/);
 });
+
+test('Engine starts durable research at the strongest supported depth and budget', () => {
+  const ui = readFileSync(new URL('../app/components/puma-research-panel.tsx', import.meta.url), 'utf8');
+  assert.match(ui, /maxTasks:\s*80/);
+  assert.match(ui, /maxBudgetUnits:\s*120/);
+  assert.match(ui, /maxDepth:\s*5/);
+  assert.match(ui, /targetCompleteness:\s*0\.9/);
+  assert.match(ui, /perNeed:\s*6/);
+});
