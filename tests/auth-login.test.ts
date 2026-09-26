@@ -108,7 +108,7 @@ test('email sign-in exists as an optional recovery path and is never the front-d
   assert.match(login, /Sign in with email/i);
   assert.match(form, /email/i);
   assert.match(form, /password/i);
-  assert.match(proxy, /isAccountPath/);
+  assert.match(proxy, /isPublicAuthRequest/);
   assert.doesNotMatch(proxy, /PROTECTED_PREFIXES|loginUrl/);
 });
 
