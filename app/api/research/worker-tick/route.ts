@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { createAdminSupabase } from '@/lib/server/supabase-admin';
+import { createWorkerSupabase } from '@/lib/server/supabase-worker';
 import { processNextResearchWork } from '@/lib/server/research-worker';
 
 export const runtime = 'nodejs';
@@ -19,8 +19,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'Unauthorized.' }, { status: 401, headers: NO_STORE });
   }
 
-  const admin = createAdminSupabase();
-  const verified = await admin.rpc('verify_research_worker_token', { candidate_token: token });
+  let worker: ReturnType<typeof createWorkerSupabase>;
+  try {
+    worker = createWorkerSupabase(token);
+  } catch {
+    return NextResponse.json({ ok: false, error: 'Unauthorized.' }, { status: 401, headers: NO_STORE });
+  }
+
+  const verified = await worker.rpc('verify_research_worker_token', { candidate_token: token });
   if (verified.error) {
     console.error('research-worker auth check failed', verified.error.message);
     return NextResponse.json({ ok: false, error: 'Worker unavailable.' }, { status: 503, headers: NO_STORE });
@@ -30,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   const workerName = `cron:${randomUUID()}`;
-  const claimed = await admin.rpc('claim_research_worker_tick', {
+  const claimed = await worker.rpc('claim_research_worker_tick', {
     worker_name: workerName,
     lease_seconds: 45,
   });
@@ -43,7 +49,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await processNextResearchWork(admin, workerName);
+    const result = await processNextResearchWork(worker, workerName);
     return NextResponse.json(
       { ok: true, worked: result.worked, runId: result.runId, status: result.status },
       { status: result.worked ? 200 : 202, headers: NO_STORE },
@@ -52,7 +58,7 @@ export async function POST(request: Request) {
     console.error('research-worker tick failed', error instanceof Error ? error.message : String(error));
     return NextResponse.json({ ok: false, error: 'Worker tick failed.' }, { status: 500, headers: NO_STORE });
   } finally {
-    const released = await admin.rpc('release_research_worker_tick', { worker_name: workerName });
+    const released = await worker.rpc('release_research_worker_tick', { worker_name: workerName });
     if (released.error) console.error('research-worker lease release failed', released.error.message);
   }
 }
