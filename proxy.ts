@@ -8,6 +8,7 @@ const DEVICE_COOKIE = 'puma-device';
 const DEVICE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365 * 2;
 const DEVICE_BOOTSTRAP_URL = `${PUMA_SUPABASE_URL}/functions/v1/puma-device-bootstrap`;
 const MACHINE_PATHS = new Set(['/api/research/worker-tick']);
+const PUBLIC_AUTH_PATHS = new Set(['/login', '/api/account/sign-in']);
 
 function validDeviceToken(value: string | undefined): value is string {
   return Boolean(value && /^[a-f0-9]{64}$/.test(value));
@@ -19,6 +20,10 @@ function createDeviceToken() {
 
 function isMachineRequest(request: NextRequest) {
   return MACHINE_PATHS.has(request.nextUrl.pathname);
+}
+
+function isPublicAuthRequest(request: NextRequest) {
+  return PUBLIC_AUTH_PATHS.has(request.nextUrl.pathname);
 }
 
 function setDeviceCookie(response: NextResponse, deviceToken: string) {
@@ -41,9 +46,7 @@ function bootstrapDeviceCookie(request: NextRequest, deviceToken: string) {
 async function bootstrapDeviceSession(deviceToken: string): Promise<PumaBootstrapSession> {
   const result = await fetch(DEVICE_BOOTSTRAP_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ deviceToken }),
     cache: 'no-store',
   });
@@ -66,29 +69,18 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (isMachineRequest(request)) {
+  if (isMachineRequest(request) || isPublicAuthRequest(request)) {
     const response = NextResponse.next({ request });
     response.headers.set('Cache-Control', 'no-store');
     return response;
   }
 
-  if (request.nextUrl.pathname === '/login') {
-    const homeUrl = request.nextUrl.clone();
-    homeUrl.pathname = '/';
-    homeUrl.search = '';
-    return NextResponse.redirect(homeUrl);
-  }
-
   let deviceToken = request.cookies.get(DEVICE_COOKIE)?.value;
   if (!validDeviceToken(deviceToken)) {
     deviceToken = createDeviceToken();
-
-    // Serialize the very first browser visit. The redirect lets the browser commit one
-    // stable device cookie before any RSC/API requests can race to create identities.
     if (request.method === 'GET' || request.method === 'HEAD') {
       return bootstrapDeviceCookie(request, deviceToken);
     }
-
     request.cookies.set(DEVICE_COOKIE, deviceToken);
   }
 
@@ -111,8 +103,6 @@ export async function proxy(request: NextRequest) {
     await ensurePumaSession(supabase, () => bootstrapDeviceSession(deviceToken));
     response.headers.set('x-puma-auth', 'ready');
   } catch {
-    // Keep the local-first UI available if auth infrastructure is temporarily unreachable.
-    // Server-backed routes still fail closed through requireWorkspace().
     response.headers.set('x-puma-auth', 'unavailable');
   }
 
