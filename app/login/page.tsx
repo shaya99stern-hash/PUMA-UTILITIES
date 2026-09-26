@@ -8,7 +8,7 @@ export default function LoginPage() {
         <Link href="/" style={{ color: '#aaa', textDecoration: 'none', fontSize: 13 }}>← Back to Puma</Link>
         <div style={{ marginTop: 44, marginBottom: 28 }}>
           <div style={{ color: '#777', fontSize: 11, letterSpacing: '.22em', textTransform: 'uppercase' }}>Puma Utilities</div>
-          <h1 style={{ margin: '9px 0 8px', fontSize: 34, lineHeight: 1.05 }}>Sign in with email</h1>
+          <h1 style={{ margin: '9px 0 8px', fontSize: 34, lineHeight: 1.05 }}>Sign in with Email</h1>
           <p style={{ margin: 0, color: '#8c9195', fontSize: 14, lineHeight: 1.55 }}>Use the same Puma workspace on another phone or computer. Sign-in is optional on your current device.</p>
         </div>
         <PumaLoginForm />
