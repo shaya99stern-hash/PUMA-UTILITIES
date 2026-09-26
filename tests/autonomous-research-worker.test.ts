@@ -29,10 +29,12 @@ test('expired leased or running tasks can be reclaimed without consuming another
   assert.match(migration, /case\s+when\s+t\.status\s*=\s*'queued'[\s\S]*attempt_count\s*\+\s*1[\s\S]*else\s+t\.attempt_count/i);
 });
 
-test('browser pump shares the autonomous worker lease so two executors cannot mutate one run concurrently', () => {
+test('browser pump shares the autonomous worker lease through an owned-run RPC', () => {
   const pump = readFileSync(new URL('../app/api/research/jobs/[runId]/pump/route.ts', import.meta.url), 'utf8');
-  assert.match(pump, /claim_research_worker_tick/);
-  assert.match(pump, /release_research_worker_tick/);
+  assert.match(pump, /claim_research_browser_tick/);
+  assert.match(pump, /release_research_browser_tick/);
+  assert.match(pump, /target_run_id:\s*runId/);
+  assert.doesNotMatch(pump, /claim_research_worker_tick|release_research_worker_tick/);
 });
 
 test('autonomous worker uses delegated publishable access instead of a Vercel service-role secret', () => {
@@ -55,7 +57,12 @@ test('autonomous worker uses delegated publishable access instead of a Vercel se
   assert.match(migration, /current_setting\('request\.headers'/i);
   assert.match(migration, /x-puma-worker-token/i);
   assert.match(migration, /research_worker_all/i);
-  assert.match(migration, /grant execute on function public\.claim_research_worker_tick[\s\S]*to anon, authenticated/i);
-  assert.match(migration, /grant execute on function public\.lease_research_tasks_for_run[\s\S]*to anon, authenticated/i);
+  assert.match(migration, /claim_research_browser_tick/i);
+  assert.match(migration, /release_research_browser_tick/i);
+  assert.match(migration, /grant execute on function public\.claim_research_worker_tick[\s\S]*to anon;/i);
+  assert.match(migration, /grant execute on function public\.claim_research_browser_tick[\s\S]*to authenticated;/i);
+  assert.match(migration, /grant execute on function public\.lease_research_tasks_for_run[\s\S]*to anon, authenticated;/i);
+  assert.doesNotMatch(migration, /grant execute on function public\.claim_research_worker_tick[^;]*authenticated/i);
+  assert.doesNotMatch(migration, /grant execute on function public\.claim_research_browser_tick[^;]*anon/i);
   assert.doesNotMatch(migration, /grant\s+(?:select|insert|update|delete|all)[^;]*\bon\s+all\s+tables[^;]*\bto\s+anon/i);
 });
