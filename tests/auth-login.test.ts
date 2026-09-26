@@ -1,30 +1,87 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { buildEmailOtpOptions } from '../lib/auth-login';
+import { ensurePumaSession } from '../lib/anonymous-auth';
 
-test('email sign-in always returns through the Puma auth callback while preserving OTP signup', () => {
-  assert.deepEqual(
-    buildEmailOtpOptions('https://puma-utilities.vercel.app/auth/callback'),
-    {
-      shouldCreateUser: true,
-      emailRedirectTo: 'https://puma-utilities.vercel.app/auth/callback',
+function fakeSupabase(options: {
+  currentUser?: { id: string } | null;
+  sessionUser?: { id: string } | null;
+}) {
+  let setSessionCalls = 0;
+  return {
+    client: {
+      auth: {
+        async getUser() {
+          return { data: { user: options.currentUser ?? null }, error: null };
+        },
+        async setSession(session: { access_token: string; refresh_token: string }) {
+          setSessionCalls += 1;
+          assert.equal(session.access_token, 'access');
+          assert.equal(session.refresh_token, 'refresh');
+          return { data: { user: options.sessionUser ?? null }, error: null };
+        },
+      },
     },
-  );
+    setSessionCalls: () => setSessionCalls,
+  };
+}
+
+test('existing Puma session is reused without device bootstrap', async () => {
+  const fake = fakeSupabase({ currentUser: { id: 'existing-user' } });
+  let bootstraps = 0;
+  const user = await ensurePumaSession(fake.client, async () => {
+    bootstraps += 1;
+    return { access_token: 'access', refresh_token: 'refresh' };
+  });
+  assert.equal(user.id, 'existing-user');
+  assert.equal(bootstraps, 0);
+  assert.equal(fake.setSessionCalls(), 0);
 });
 
-test('login supports both a six-digit code and the secure sign-in-link fallback', () => {
+test('missing Puma session is replaced by OIDC device bootstrap session', async () => {
+  const fake = fakeSupabase({ currentUser: null, sessionUser: { id: 'device-user' } });
+  const user = await ensurePumaSession(fake.client, async () => ({ access_token: 'access', refresh_token: 'refresh' }));
+  assert.equal(user.id, 'device-user');
+  assert.equal(fake.setSessionCalls(), 1);
+});
+
+test('missing Puma session fails closed when no trusted bootstrap is available', async () => {
+  const fake = fakeSupabase({ currentUser: null });
+  await assert.rejects(() => ensurePumaSession(fake.client), /AUTH_UNAVAILABLE/);
+});
+
+test('Puma proxy silently bootstraps with a secure device cookie and Vercel OIDC', () => {
+  const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
+  assert.match(proxy, /puma-device/);
+  assert.match(proxy, /VERCEL_OIDC_TOKEN/);
+  assert.match(proxy, /puma-device-bootstrap/);
+  assert.match(proxy, /httpOnly:\s*true/);
+  assert.match(proxy, /secure:\s*true/);
+  assert.match(proxy, /ensurePumaSession/);
+  assert.doesNotMatch(proxy, /signInAnonymously/);
+  assert.doesNotMatch(proxy, /PROTECTED_PREFIXES/);
+  assert.doesNotMatch(proxy, /loginUrl/);
+});
+
+test('Supabase device bootstrap validates the exact Puma Vercel project identity', () => {
+  const edge = readFileSync(new URL('../supabase/functions/puma-device-bootstrap/index.ts', import.meta.url), 'utf8');
+  assert.match(edge, /oidc\.vercel\.com/);
+  assert.match(edge, /prj_C4OL0KlZAcpUC5PgUsVMpUpkHj5b/);
+  assert.match(edge, /team_jpn60UoglIwzJtcAwPyPEbmj/);
+  assert.match(edge, /jwtVerify/);
+  assert.match(edge, /createUser/);
+  assert.match(edge, /signInWithPassword/);
+  assert.doesNotMatch(edge, /Access-Control-Allow-Origin:\s*['"]\*['"]/);
+});
+
+test('legacy Puma login route is retired to the app home screen', () => {
   const login = readFileSync(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
-  assert.match(login, /buildEmailOtpOptions/);
-  assert.match(login, /window\.location\.origin/);
-  assert.match(login, /verifyOtp/);
-  assert.match(login, /six-digit|6-digit/i);
-  assert.match(login, /sign-in link/i);
+  assert.match(login, /redirect\(['"]\/['"]\)/);
+  assert.doesNotMatch(login, /signInWithOtp|verifyOtp|Check your email|Sign in/);
 });
 
-test('auth callback exchanges the PKCE code into a server cookie session', () => {
-  const callback = readFileSync(new URL('../app/auth/callback/route.ts', import.meta.url), 'utf8');
-  assert.match(callback, /exchangeCodeForSession/);
-  assert.match(callback, /createServerSupabase/);
-  assert.match(callback, /NextResponse\.redirect/);
+test('server-backed Puma routes require the proxy-established session rather than a login page', () => {
+  const workspace = readFileSync(new URL('../lib/server/current-workspace.ts', import.meta.url), 'utf8');
+  assert.match(workspace, /ensurePumaSession/);
+  assert.doesNotMatch(workspace, /AUTH_REQUIRED|signInWithOtp|signInAnonymously/);
 });
