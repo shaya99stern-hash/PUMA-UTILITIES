@@ -1,11 +1,12 @@
 import 'server-only';
 
 import { ensurePumaSession } from '../anonymous-auth';
+import { getDeviceBootstrapSession } from './device-session';
 import { createServerSupabase } from './supabase-server';
 
 export async function requireUser() {
   const supabase = await createServerSupabase();
-  const user = await ensurePumaSession(supabase);
+  const user = await ensurePumaSession(supabase, getDeviceBootstrapSession);
   return { supabase, user };
 }
 
