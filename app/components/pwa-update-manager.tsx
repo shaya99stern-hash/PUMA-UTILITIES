@@ -69,8 +69,10 @@ export default function PwaUpdateManager() {
   const [latestVersion, setLatestVersion] = useState('');
   const [standalone, setStandalone] = useState(false);
   const reloadRequested = useRef(false);
+  const updatingRef = useRef(false);
 
   const showTransientState = useCallback((nextState: 'updated' | 'current') => {
+    updatingRef.current = false;
     setState(nextState);
     window.setTimeout(() => setState('idle'), 4200);
   }, []);
@@ -137,6 +139,7 @@ export default function PwaUpdateManager() {
 
     const takeLatestInstalledVersion = async (version: string) => {
       if (!version || !isInstalledPwa() || cancelled) return;
+      updatingRef.current = true;
       setState('updating');
       rememberVersion(version);
       markUpdateForConfirmation(version);
@@ -172,7 +175,7 @@ export default function PwaUpdateManager() {
     };
 
     const handleControllerChange = () => {
-      if (!cancelled && state === 'updating') reloadOnce();
+      if (!cancelled && updatingRef.current) reloadOnce();
     };
 
     const timer = window.setInterval(() => void checkWhenVisible(), UPDATE_CHECK_INTERVAL_MS);
@@ -190,9 +193,10 @@ export default function PwaUpdateManager() {
       window.removeEventListener('focus', checkWhenVisible);
       navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
     };
-  }, [checkForUpdate, reloadOnce, showTransientState, state]);
+  }, [checkForUpdate, reloadOnce, showTransientState]);
 
   const applyUpdate = async () => {
+    updatingRef.current = true;
     setState('updating');
     let version = latestVersion;
 
@@ -211,6 +215,7 @@ export default function PwaUpdateManager() {
   };
 
   const refreshApp = async () => {
+    updatingRef.current = true;
     setState('updating');
     try {
       const before = storedVersion();
@@ -229,6 +234,7 @@ export default function PwaUpdateManager() {
       }
       reloadOnce();
     } catch {
+      updatingRef.current = false;
       setState('idle');
     }
   };

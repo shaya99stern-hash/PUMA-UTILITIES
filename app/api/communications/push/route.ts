@@ -32,8 +32,14 @@ export async function POST(request: Request) {
     }, { onConflict: 'workspace_id,endpoint' }).select('id').single();
     if (result.error) throw result.error;
 
-    await supabase.from('notification_preferences').upsert({ workspace_id: workspace.id, push_enabled: true, updated_at: new Date().toISOString() }, { onConflict: 'workspace_id' });
-    return NextResponse.json({ ok: true }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
+    const preference = await supabase.from('notification_preferences').upsert({
+      workspace_id: workspace.id,
+      push_enabled: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'workspace_id' });
+    if (preference.error) throw preference.error;
+
+    return NextResponse.json({ ok: true, pushEnabled: true }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Unable to enable phone alerts.' }, { status: 500 });
   }
@@ -42,13 +48,36 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const body = await request.json().catch(() => ({})) as { endpoint?: unknown };
+    const endpoint = typeof body.endpoint === 'string' ? body.endpoint : '';
+    if (!endpoint) return NextResponse.json({ ok: false, error: 'A push subscription endpoint is required.' }, { status: 400 });
+
     const { supabase, workspace } = await requireWorkspace();
-    let query = supabase.from('push_subscriptions').delete().eq('workspace_id', workspace.id);
-    if (typeof body.endpoint === 'string' && body.endpoint) query = query.eq('endpoint', body.endpoint);
-    const removed = await query;
+    const removed = await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('workspace_id', workspace.id)
+      .eq('endpoint', endpoint);
     if (removed.error) throw removed.error;
-    await supabase.from('notification_preferences').upsert({ workspace_id: workspace.id, push_enabled: false, updated_at: new Date().toISOString() }, { onConflict: 'workspace_id' });
-    return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } });
+
+    const remaining = await supabase
+      .from('push_subscriptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspace.id);
+    if (remaining.error) throw remaining.error;
+    const remainingSubscriptions = remaining.count ?? 0;
+
+    const preference = await supabase.from('notification_preferences').upsert({
+      workspace_id: workspace.id,
+      push_enabled: remainingSubscriptions > 0,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'workspace_id' });
+    if (preference.error) throw preference.error;
+
+    return NextResponse.json({
+      ok: true,
+      pushEnabled: remainingSubscriptions > 0,
+      remainingSubscriptions,
+    }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Unable to disable phone alerts.' }, { status: 500 });
   }
