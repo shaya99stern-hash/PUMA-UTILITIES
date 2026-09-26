@@ -1,12 +1,12 @@
 import 'server-only';
 
+import { ensurePumaSession } from '../anonymous-auth';
 import { createServerSupabase } from './supabase-server';
 
 export async function requireUser() {
   const supabase = await createServerSupabase();
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) throw new Error('AUTH_REQUIRED');
-  return { supabase, user: data.user };
+  const user = await ensurePumaSession(supabase);
+  return { supabase, user };
 }
 
 export async function requireWorkspace() {
