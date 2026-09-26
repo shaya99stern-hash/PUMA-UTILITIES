@@ -30,3 +30,12 @@ test('installed app checks deployment versions and exposes an update action', ()
   assert.match(versionRoute, /VERCEL_GIT_COMMIT_SHA/);
   assert.match(versionRoute, /Cache-Control': 'no-store, max-age=0'/);
 });
+
+test('installed iPhone PWA automatically takes over new deployments and always offers update-refresh control', () => {
+  const manager = readFileSync(resolve(process.cwd(), 'app/components/pwa-update-manager.tsx'), 'utf8');
+  assert.match(manager, /controllerchange/);
+  assert.match(manager, /display-mode:\s*standalone/);
+  assert.match(manager, /Update & refresh/i);
+  assert.match(manager, /Refresh app/i);
+  assert.match(manager, /registration\?\.update\(\)|registration\.update\(\)/);
+});
