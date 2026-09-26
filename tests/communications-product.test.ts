@@ -6,12 +6,14 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 
 test('Puma supports optional email identity without making sign-in mandatory', () => {
   const login = read('app/login/page.tsx');
+  const form = read('app/components/puma-login-form.tsx');
   const claim = read('app/api/account/claim/route.ts');
   const signIn = read('app/api/account/sign-in/route.ts');
   const profile = read('app/components/puma-profile-settings.tsx');
 
-  assert.match(login, /Email/);
-  assert.match(login, /Password/);
+  assert.match(login, /Email/i);
+  assert.match(form, /Email/i);
+  assert.match(form, /Password/i);
   assert.match(signIn, /signInWithPassword/);
   assert.match(claim, /updateUser/);
   assert.match(claim, /email/);
@@ -32,7 +34,7 @@ test('communications storage is workspace isolated and supports mailbox, schedul
   assert.match(migration, /follow_up/i);
 });
 
-test('communications worker uses the connected company mailbox and web push without another SaaS', () => {
+test('communications worker uses the connected company mailbox, Vault-backed secret RPC, and web push without another SaaS', () => {
   const worker = read('supabase/functions/puma-communications/index.ts');
   assert.match(worker, /nodemailer/);
   assert.match(worker, /web-push/);
@@ -41,7 +43,7 @@ test('communications worker uses the connected company mailbox and web push with
   assert.match(worker, /sendNotification/);
   assert.match(worker, /verify_communications_worker_token/);
   assert.match(worker, /lease_outbound_messages/);
-  assert.match(worker, /vault/i);
+  assert.match(worker, /get_mailbox_secret/);
 });
 
 test('communications settings expose company mailbox, scheduled email, email alerts, and phone alerts', () => {
@@ -59,6 +61,7 @@ test('communications settings expose company mailbox, scheduled email, email ale
 
 test('PWA update control confirms both successful updates and already-current builds', () => {
   const updater = read('app/components/pwa-update-manager.tsx');
+  assert.match(updater, /Update app/i);
   assert.match(updater, /Updated successfully/i);
   assert.match(updater, /already up to date/i);
   assert.match(updater, /sessionStorage/);
