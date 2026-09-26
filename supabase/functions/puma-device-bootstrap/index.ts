@@ -1,13 +1,4 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.109.0';
-import { createRemoteJWKSet, jwtVerify } from 'npm:jose@6.1.0';
-
-const TEAM_SLUG = 'shaya99stern-4910s-projects';
-const TEAM_ID = 'team_jpn60UoglIwzJtcAwPyPEbmj';
-const PROJECT_ID = 'prj_C4OL0KlZAcpUC5PgUsVMpUpkHj5b';
-const PROJECT_NAME = 'puma-utilities';
-const ISSUER = `https://oidc.vercel.com/${TEAM_SLUG}`;
-const AUDIENCE = `https://vercel.com/${TEAM_SLUG}`;
-const JWKS = createRemoteJWKSet(new URL('/.well-known/jwks', ISSUER));
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -43,33 +34,15 @@ async function hmac(secret: string, value: string) {
   return crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value));
 }
 
-async function verifyPumaVercelIdentity(token: string) {
-  const { payload } = await jwtVerify(token, JWKS, {
-    issuer: ISSUER,
-    audience: AUDIENCE,
-  });
-
-  const environment = String(payload.environment ?? '');
-  const valid = payload.owner_id === TEAM_ID
-    && payload.project_id === PROJECT_ID
-    && payload.project === PROJECT_NAME
-    && (environment === 'production' || environment === 'preview');
-
-  if (!valid) throw new Error('invalid Puma Vercel workload identity');
+function clientIp(request: Request) {
+  return request.headers.get('cf-connecting-ip')?.trim()
+    || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || request.headers.get('x-real-ip')?.trim()
+    || 'unknown';
 }
 
-Deno.serve(async (request) => {
+Deno.serve(async (request: Request) => {
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
-
-  const authorization = request.headers.get('authorization') ?? '';
-  const oidcToken = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
-  if (!oidcToken) return json({ error: 'unauthorized' }, 401);
-
-  try {
-    await verifyPumaVercelIdentity(oidcToken);
-  } catch {
-    return json({ error: 'unauthorized' }, 401);
-  }
 
   let body: { deviceToken?: unknown };
   try {
@@ -87,7 +60,8 @@ Deno.serve(async (request) => {
   if (!supabaseUrl || !publishableKey || !serviceRoleKey) return json({ error: 'server_misconfigured' }, 503);
 
   const deviceHash = bytesToHex(await sha256(deviceToken));
-  const passwordDigest = await hmac(serviceRoleKey, `puma-device-password:${deviceToken}`);
+  const ipHash = bytesToHex(await hmac(serviceRoleKey, `puma-bootstrap-ip:${clientIp(request)}`));
+  const passwordDigest = await sha256(`puma-device-password:${deviceToken}`);
   const email = `puma-device-${deviceHash.slice(0, 40)}@device.invalid`;
   const password = `${bytesToBase64Url(passwordDigest)}Aa1!`;
 
@@ -97,6 +71,20 @@ Deno.serve(async (request) => {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  const reserved = await adminClient.rpc('reserve_puma_device_bootstrap', {
+    p_device_hash: deviceHash,
+    p_ip_hash: ipHash,
+  });
+  if (reserved.error) return json({ error: 'bootstrap_registry_unavailable' }, 503);
+
+  const disposition = String(reserved.data ?? '');
+  if (disposition === 'ip_limit' || disposition === 'global_limit') {
+    return json({ error: 'bootstrap_rate_limited' }, 429);
+  }
+  if (disposition !== 'new' && disposition !== 'existing') {
+    return json({ error: 'bootstrap_registry_unavailable' }, 503);
+  }
 
   let signedIn = await authClient.auth.signInWithPassword({ email, password });
   if (signedIn.error || !signedIn.data.session) {
@@ -108,6 +96,9 @@ Deno.serve(async (request) => {
     });
 
     if (created.error && !/already|registered|exists/i.test(created.error.message)) {
+      if (disposition === 'new') {
+        await adminClient.from('puma_device_bootstrap_registry').delete().eq('device_hash', deviceHash);
+      }
       return json({ error: 'device_identity_unavailable' }, 503);
     }
 
@@ -115,9 +106,15 @@ Deno.serve(async (request) => {
   }
 
   const session = signedIn.data.session;
-  if (signedIn.error || !session?.access_token || !session.refresh_token) {
+  if (signedIn.error || !session?.access_token || !session.refresh_token || !session.user?.id) {
     return json({ error: 'device_session_unavailable' }, 503);
   }
+
+  const registryUpdate = await adminClient
+    .from('puma_device_bootstrap_registry')
+    .update({ user_id: session.user.id, last_seen_at: new Date().toISOString() })
+    .eq('device_hash', deviceHash);
+  if (registryUpdate.error) return json({ error: 'bootstrap_registry_unavailable' }, 503);
 
   return json({
     access_token: session.access_token,
