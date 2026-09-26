@@ -1,9 +1,40 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { ensurePumaSession } from './lib/anonymous-auth';
+import { ensurePumaSession, type PumaBootstrapSession } from './lib/anonymous-auth';
 import { PUMA_SUPABASE_PUBLISHABLE_KEY, PUMA_SUPABASE_URL } from './lib/supabase-config';
 
 const CANONICAL_HOST = 'puma-utilities.vercel.app';
+const DEVICE_COOKIE = 'puma-device';
+const DEVICE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365 * 2;
+const DEVICE_BOOTSTRAP_URL = `${PUMA_SUPABASE_URL}/functions/v1/puma-device-bootstrap`;
+
+function validDeviceToken(value: string | undefined): value is string {
+  return Boolean(value && /^[a-f0-9]{64}$/.test(value));
+}
+
+function createDeviceToken() {
+  return `${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '')}`;
+}
+
+async function bootstrapDeviceSession(deviceToken: string): Promise<PumaBootstrapSession> {
+  const oidcToken = process.env.VERCEL_OIDC_TOKEN?.trim();
+  if (!oidcToken) throw new Error('AUTH_UNAVAILABLE: missing Vercel workload identity');
+
+  const result = await fetch(DEVICE_BOOTSTRAP_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${oidcToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ deviceToken }),
+    cache: 'no-store',
+  });
+
+  if (!result.ok) throw new Error(`AUTH_UNAVAILABLE: device bootstrap returned ${result.status}`);
+  const body = await result.json() as Partial<PumaBootstrapSession>;
+  if (!body.access_token || !body.refresh_token) throw new Error('AUTH_UNAVAILABLE: incomplete device session');
+  return { access_token: body.access_token, refresh_token: body.refresh_token };
+}
 
 export async function proxy(request: NextRequest) {
   if (process.env.VERCEL_ENV === 'production') {
@@ -24,6 +55,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(homeUrl);
   }
 
+  let deviceToken = request.cookies.get(DEVICE_COOKIE)?.value;
+  if (!validDeviceToken(deviceToken)) {
+    deviceToken = createDeviceToken();
+    request.cookies.set(DEVICE_COOKIE, deviceToken);
+  }
+
   let response = NextResponse.next({ request });
   const supabase = createServerClient(PUMA_SUPABASE_URL, PUMA_SUPABASE_PUBLISHABLE_KEY, {
     cookies: {
@@ -40,13 +77,21 @@ export async function proxy(request: NextRequest) {
   });
 
   try {
-    await ensurePumaSession(supabase);
+    await ensurePumaSession(supabase, () => bootstrapDeviceSession(deviceToken));
+    response.headers.set('x-puma-auth', 'ready');
   } catch {
-    // Keep the local-first UI available if Auth is temporarily unreachable.
+    // Keep the local-first UI available if auth infrastructure is temporarily unreachable.
     // Server-backed routes still fail closed through requireWorkspace().
     response.headers.set('x-puma-auth', 'unavailable');
   }
 
+  response.cookies.set(DEVICE_COOKIE, deviceToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: DEVICE_MAX_AGE_SECONDS,
+  });
   response.headers.set('Cache-Control', 'private, no-store');
   return response;
 }
