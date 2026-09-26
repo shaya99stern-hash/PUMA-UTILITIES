@@ -22,7 +22,7 @@ function isMachineRequest(request: NextRequest) {
   return MACHINE_PATHS.has(request.nextUrl.pathname);
 }
 
-function isPublicAuthRequest(request: NextRequest) {
+function isAccountPath(request: NextRequest) {
   return PUBLIC_AUTH_PATHS.has(request.nextUrl.pathname);
 }
 
@@ -69,7 +69,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (isMachineRequest(request) || isPublicAuthRequest(request)) {
+  if (isMachineRequest(request) || isAccountPath(request)) {
     const response = NextResponse.next({ request });
     response.headers.set('Cache-Control', 'no-store');
     return response;
