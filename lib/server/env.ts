@@ -1,3 +1,5 @@
+import { PUMA_SUPABASE_PUBLISHABLE_KEY, PUMA_SUPABASE_URL } from '../supabase-config';
+
 function required(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required.`);
@@ -6,8 +8,8 @@ function required(name: string): string {
 
 export function publicSupabaseEnv() {
   return {
-    url: required('NEXT_PUBLIC_SUPABASE_URL'),
-    publishableKey: required('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'),
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || PUMA_SUPABASE_URL,
+    publishableKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || PUMA_SUPABASE_PUBLISHABLE_KEY,
   };
 }
 
