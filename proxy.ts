@@ -16,21 +16,10 @@ function createDeviceToken() {
   return `${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '')}`;
 }
 
-function runtimeOidcToken(request: NextRequest) {
-  // Vercel supplies a fresh workload identity on runtime requests. The env value is
-  // retained only as the documented local-development fallback.
-  return request.headers.get('x-vercel-oidc-token')?.trim()
-    || process.env.VERCEL_OIDC_TOKEN?.trim()
-    || '';
-}
-
-async function bootstrapDeviceSession(deviceToken: string, oidcToken: string): Promise<PumaBootstrapSession> {
-  if (!oidcToken) throw new Error('AUTH_UNAVAILABLE: missing Vercel workload identity');
-
+async function bootstrapDeviceSession(deviceToken: string): Promise<PumaBootstrapSession> {
   const result = await fetch(DEVICE_BOOTSTRAP_URL, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${oidcToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ deviceToken }),
@@ -68,7 +57,6 @@ export async function proxy(request: NextRequest) {
     request.cookies.set(DEVICE_COOKIE, deviceToken);
   }
 
-  const oidcToken = runtimeOidcToken(request);
   let response = NextResponse.next({ request });
   const supabase = createServerClient(PUMA_SUPABASE_URL, PUMA_SUPABASE_PUBLISHABLE_KEY, {
     cookies: {
@@ -85,7 +73,7 @@ export async function proxy(request: NextRequest) {
   });
 
   try {
-    await ensurePumaSession(supabase, () => bootstrapDeviceSession(deviceToken, oidcToken));
+    await ensurePumaSession(supabase, () => bootstrapDeviceSession(deviceToken));
     response.headers.set('x-puma-auth', 'ready');
   } catch {
     // Keep the local-first UI available if auth infrastructure is temporarily unreachable.
