@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { ChevronRight, Database, UserRound } from 'lucide-react';
+import { ChevronRight, Database, ServerCog, UserRound } from 'lucide-react';
 
 const PROFILE_KEY = 'puma-profile-name';
 
@@ -28,6 +28,14 @@ export default function PumaSettingsHub() {
         <span>
           <strong>Data Sources</strong>
           <small>Manage research sources</small>
+        </span>
+        <ChevronRight size={17} />
+      </Link>
+      <Link className="pm-settings-hub-row" href="/settings/supabase">
+        <ServerCog size={19} />
+        <span>
+          <strong>Supabase</strong>
+          <small>Database health, connection test, and recovery</small>
         </span>
         <ChevronRight size={17} />
       </Link>

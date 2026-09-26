@@ -24,7 +24,11 @@ type Capability = {
   structuredFirstParty?: string[];
   costEstimation?: string;
 };
+type ResearchJobPayload = { runId?: string; status?: string; result?: ResearchRunResult | null; error?: string };
 type Props = { onSave: (result: ResearchRunResult) => ResearchMergeSummary };
+
+const ACTIVE_RUN_KEY = 'puma-active-research-run';
+const TERMINAL_JOB_STATUSES = new Set(['completed', 'failed', 'cancelled']);
 
 export default function PumaResearchPanel({ onSave }: Props) {
   const [capability, setCapability] = useState<Capability | null>(null);
@@ -58,6 +62,9 @@ export default function PumaResearchPanel({ onSave }: Props) {
     if (savedCompany) setCompany(savedCompany);
     if (savedState && /^[A-Z]{2}$/.test(savedState)) setGeography(savedState);
     if (savedWebsite) setWebsite(savedWebsite);
+
+    const activeRunId = window.localStorage.getItem(ACTIVE_RUN_KEY);
+    if (activeRunId) void resumeResearchJob(activeRunId);
   }, []);
 
   const assessment = useMemo(() => result ? assessResearchRun(result) : null, [result]);
@@ -94,12 +101,55 @@ export default function PumaResearchPanel({ onSave }: Props) {
     const label = name.trim(); if (!label) return;
     setCompany(label); setWebsite(url); setGeography(targetGeography); setStatus('researching'); setError(''); setResult(null); setSaveSummary(null);
     try {
-      const response = await fetch('/api/research/run', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ label, geography:targetGeography, website:url || undefined, maxTasks:60, maxBudgetUnits:82, maxDepth:4, concurrency:5, perNeed:6 }) });
-      const payload = await response.json() as ResearchRunResult & { error?: string };
-      if (!response.ok) throw new Error(payload.error || 'Research failed.');
-      setResult(payload); setStatus('idle');
+      const response = await fetch('/api/research/jobs', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ label, geography:targetGeography, website:url || undefined, maxTasks:60, maxBudgetUnits:82, maxDepth:4, perNeed:6 }) });
+      const payload = await response.json() as ResearchJobPayload;
+      if (!response.ok || !payload.runId) throw new Error(payload.error || 'Research job could not be created.');
+      window.localStorage.setItem(ACTIVE_RUN_KEY, payload.runId);
+      await pumpResearchJob(payload.runId);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); setStatus('idle'); }
   };
+
+  async function resumeResearchJob(runId: string) {
+    setStatus('researching'); setError(''); setSaveSummary(null);
+    try {
+      const response = await fetch(`/api/research/jobs/${encodeURIComponent(runId)}`, { cache: 'no-store' });
+      const payload = await response.json() as ResearchJobPayload;
+      if (!response.ok) throw new Error(payload.error || 'Saved research could not be resumed.');
+      if (TERMINAL_JOB_STATUSES.has(payload.status ?? '')) {
+        window.localStorage.removeItem(ACTIVE_RUN_KEY);
+        if (payload.result) setResult(payload.result);
+        setStatus('idle');
+        if (!payload.result && payload.status === 'failed') setError('The saved research run ended without a usable dossier.');
+        return;
+      }
+      await pumpResearchJob(runId);
+    } catch (cause) {
+      setStatus('idle');
+      setError(cause instanceof Error ? cause.message : 'Saved research could not be resumed.');
+    }
+  }
+
+  async function pumpResearchJob(runId: string) {
+    for (let step = 0; step < 90; step += 1) {
+      const response = await fetch(`/api/research/jobs/${encodeURIComponent(runId)}/pump`, { method:'POST', cache:'no-store' });
+      const payload = await response.json() as ResearchJobPayload;
+      if (!response.ok) throw new Error(payload.error || 'Research worker stopped unexpectedly.');
+      if (TERMINAL_JOB_STATUSES.has(payload.status ?? '')) {
+        window.localStorage.removeItem(ACTIVE_RUN_KEY);
+        if (payload.result) {
+          setResult(payload.result);
+          setError('');
+        } else if (payload.status === 'failed') {
+          setError('Research ended without a usable dossier.');
+        }
+        setStatus('idle');
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 750));
+    }
+    setStatus('idle');
+    setError('Research progress is saved. Reopen Engine to continue this run.');
+  }
 
   const save = () => {
     if (!result) return;
@@ -132,7 +182,7 @@ export default function PumaResearchPanel({ onSave }: Props) {
         <label className="pm-research-field"><span>Company</span><input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company name" /></label>
         <label className="pm-research-field"><span>State</span><input value={geography} maxLength={2} onChange={(e) => setGeography(e.target.value.toUpperCase())} placeholder="NJ" /></label>
         <details className="pm-research-advanced"><summary>Advanced</summary><label className="pm-research-field"><span>Website hint</span><input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Optional" /></label></details>
-        <button className="pm-research-primary" type="button" disabled={!company.trim() || status === 'researching'} onClick={() => void deepResearch()}><Search size={16} /> {status === 'researching' ? 'Researching…' : 'Research company'}</button>
+        <button className="pm-research-primary" type="button" disabled={!company.trim() || status === 'researching'} onClick={() => void deepResearch()}><Search size={16} /> {status === 'researching' ? 'Researching… progress is saved' : 'Research company'}</button>
       </section>
 
       {error && <div className="pm-research-error">{error}</div>}
