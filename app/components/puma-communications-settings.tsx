@@ -11,6 +11,7 @@ type Mailbox = {
   smtp_secure: boolean;
   smtp_username: string;
   verified_at: string | null;
+  is_default: boolean;
 };
 
 type Preferences = {
@@ -50,6 +51,7 @@ export default function PumaCommunicationsSettings() {
   const [prefs, setPrefs] = useState<Preferences>({ research_complete: true, follow_up_due: true, email_delivery: true });
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [devicePushEnabled, setDevicePushEnabled] = useState(false);
 
   const [mailbox, setMailbox] = useState({
     mailboxId: '', fromName: '', fromEmail: '', smtpHost: '', smtpPort: '465', smtpSecure: true, smtpUsername: '', password: '',
@@ -57,8 +59,15 @@ export default function PumaCommunicationsSettings() {
   const [outreach, setOutreach] = useState({ recipientName: '', recipientEmail: '', subject: '', bodyText: '', scheduledFor: localDateTimeValue() });
   const [alertEmail, setAlertEmail] = useState('');
 
-  const primaryMailbox = mailboxes[0] ?? null;
+  const primaryMailbox = mailboxes.find((entry) => entry.is_default) ?? mailboxes[0] ?? null;
   const phoneSupported = useMemo(() => typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window, []);
+
+  const refreshDevicePushState = async () => {
+    if (!phoneSupported) { setDevicePushEnabled(false); return; }
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    setDevicePushEnabled(Boolean(subscription));
+  };
 
   const refresh = async () => {
     const [mailboxResponse, preferenceResponse, messageResponse] = await Promise.all([
@@ -71,18 +80,19 @@ export default function PumaCommunicationsSettings() {
     const messageBody = await messageResponse.json();
 
     if (mailboxResponse.ok && Array.isArray(mailboxBody.mailboxes)) {
-      setMailboxes(mailboxBody.mailboxes);
-      const first = mailboxBody.mailboxes[0] as Mailbox | undefined;
-      if (first) {
+      const nextMailboxes = mailboxBody.mailboxes as Mailbox[];
+      setMailboxes(nextMailboxes);
+      const selected = nextMailboxes.find((entry) => entry.is_default) ?? nextMailboxes[0];
+      if (selected) {
         setMailbox((current) => ({
           ...current,
-          mailboxId: first.id,
-          fromName: first.from_name ?? '',
-          fromEmail: first.from_email,
-          smtpHost: first.smtp_host,
-          smtpPort: String(first.smtp_port),
-          smtpSecure: first.smtp_secure,
-          smtpUsername: first.smtp_username,
+          mailboxId: selected.id,
+          fromName: selected.from_name ?? '',
+          fromEmail: selected.from_email,
+          smtpHost: selected.smtp_host,
+          smtpPort: String(selected.smtp_port),
+          smtpSecure: selected.smtp_secure,
+          smtpUsername: selected.smtp_username,
           password: '',
         }));
       }
@@ -94,7 +104,10 @@ export default function PumaCommunicationsSettings() {
     if (messageResponse.ok && Array.isArray(messageBody.messages)) setMessages(messageBody.messages);
   };
 
-  useEffect(() => { void refresh().catch(() => setStatus('Communications settings are temporarily unavailable.')); }, []);
+  useEffect(() => {
+    void refresh().catch(() => setStatus('Communications settings are temporarily unavailable.'));
+    void refreshDevicePushState().catch(() => setDevicePushEnabled(false));
+  }, []);
 
   const saveMailbox = async (event: FormEvent) => {
     event.preventDefault();
@@ -181,7 +194,8 @@ export default function PumaCommunicationsSettings() {
       });
       const saveBody = await saveResponse.json();
       if (!saveResponse.ok || !saveBody.ok) throw new Error(saveBody.error || 'Unable to save phone alerts.');
-      await savePreferences({ push_enabled: true });
+      setDevicePushEnabled(true);
+      setPrefs((current) => ({ ...current, push_enabled: true }));
       setStatus('Phone alerts enabled on this device.');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to enable phone alerts.');
@@ -192,12 +206,22 @@ export default function PumaCommunicationsSettings() {
     try {
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
-      if (subscription) {
-        await fetch('/api/communications/push', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: subscription.endpoint }) });
-        await subscription.unsubscribe();
+      if (!subscription) {
+        setDevicePushEnabled(false);
+        setStatus('Phone alerts are already disabled on this device.');
+        return;
       }
-      await savePreferences({ push_enabled: false });
-      setStatus('Phone alerts disabled on this device.');
+      const response = await fetch('/api/communications/push', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.ok) throw new Error(body.error || 'Unable to disable phone alerts.');
+      await subscription.unsubscribe();
+      setDevicePushEnabled(false);
+      setPrefs((current) => ({ ...current, push_enabled: body.pushEnabled === true }));
+      setStatus(body.pushEnabled ? 'Phone alerts disabled on this device. Other devices remain enabled.' : 'Phone alerts disabled on this device.');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to disable phone alerts.');
     }
@@ -235,7 +259,7 @@ export default function PumaCommunicationsSettings() {
 
       <section className="pm-card">
         <div className="pm-head"><div><h2>Alerts</h2><p>Get notified when research finishes, follow-ups are due, or scheduled emails are delivered.</p></div></div>
-        <div className="pm-alert-row"><span><strong>Phone alerts</strong><small>Web Push to this installed Puma app/device.</small></span><button type="button" onClick={() => void (prefs.push_enabled ? disablePhoneAlerts() : enablePhoneAlerts())}>{prefs.push_enabled ? 'Disable' : 'Enable'}</button></div>
+        <div className="pm-alert-row"><span><strong>Phone alerts</strong><small>{devicePushEnabled ? 'Enabled on this installed Puma app/device.' : 'Web Push to this installed Puma app/device.'}</small></span><button type="button" onClick={() => void (devicePushEnabled ? disablePhoneAlerts() : enablePhoneAlerts())}>{devicePushEnabled ? 'Disable' : 'Enable'}</button></div>
         <div className="pm-alert-row"><span><strong>Email alerts</strong><small>Send alerts to whoever uses this Puma workspace.</small></span><input type="checkbox" checked={prefs.email_enabled === true} onChange={(e) => void savePreferences({ email_enabled: e.target.checked }).catch((error) => setStatus(error.message))} /></div>
         <label><span>Alert email</span><input type="email" value={alertEmail} onChange={(e) => setAlertEmail(e.target.value)} onBlur={() => prefs.email_enabled && void savePreferences({}).catch((error) => setStatus(error.message))} placeholder="alerts@company.com" /></label>
         <div className="pm-kinds">
