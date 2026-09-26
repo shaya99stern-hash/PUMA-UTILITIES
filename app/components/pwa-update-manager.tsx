@@ -235,8 +235,8 @@ export default function PwaUpdateManager() {
 
   if (state === 'idle' && standalone) {
     return (
-      <button className="puma-refresh-button" type="button" onClick={() => void refreshApp()} aria-label="Refresh Puma Utilities">
-        Check update
+      <button className="puma-refresh-button" type="button" onClick={() => void refreshApp()} aria-label="Refresh app and check for updates">
+        Update app
         <style jsx>{`
           .puma-refresh-button {
             position: fixed;
