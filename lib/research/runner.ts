@@ -4,7 +4,7 @@ import { SOURCE_REGISTRY } from './source-registry';
 import { sourceCostUnits } from './planner';
 import { planEntityTasks } from './task-planner';
 import { linkedCompanyPropertyIds } from './portfolio-links';
-import type { ResearchGraph, ResearchTask } from './types';
+import type { ResearchClaim, ResearchFact, ResearchGraph, ResearchTask } from './types';
 
 export interface ResearchRunOptions {
   maxTasks?: number;
@@ -32,6 +32,23 @@ export interface ResearchRunResult {
   stopReason: 'target-completeness' | 'task-budget' | 'research-budget' | 'source-exhausted' | 'aborted';
 }
 
+const ROOT_CRITICAL_FACTS: ResearchFact[] = [
+  'company.identity',
+  'company.ownerOperator',
+  'company.portfolio',
+  'person.decisionMaker',
+];
+
+const CROSS_REFERENCE_FACTS = new Set<ResearchFact>([
+  'company.identity',
+  'company.ownerOperator',
+  'company.portfolio',
+  'person.decisionMaker',
+  'property.owner',
+  'property.manager',
+  'utility.provider',
+]);
+
 export async function runResearch(
   graph: ResearchGraph,
   rootEntityId: string,
@@ -58,7 +75,13 @@ export async function runResearch(
     pruneResolvedTasks();
     if (!queue.length) return summarize('source-exhausted');
     if (options.signal?.aborted) return summarize('aborted');
-    if (graphCompleteness(graph, rootEntityId) >= targetCompleteness && rootIsActionable(graph, rootEntityId) && rootHasOperationalCoverage(graph, rootEntityId)) {
+    if (
+      graphCompleteness(graph, rootEntityId) >= targetCompleteness &&
+      rootHasCriticalCoverage(graph, rootEntityId) &&
+      rootIsActionable(graph, rootEntityId) &&
+      rootHasOperationalCoverage(graph, rootEntityId) &&
+      !hasPendingCriticalCorroboration()
+    ) {
       return summarize('target-completeness');
     }
 
@@ -107,13 +130,21 @@ export async function runResearch(
   function pruneResolvedTasks(): void {
     for (let index = queue.length - 1; index >= 0; index -= 1) {
       const task = queue[index];
-      const claim = bestClaim(graph, task.subjectId, task.need.fact);
-      const resolved = Boolean(claim && (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7);
+      const resolved = CROSS_REFERENCE_FACTS.has(task.need.fact)
+        ? factHasIndependentCorroboration(graph, task.subjectId, task.need.fact)
+        : isTrustedClaim(bestClaim(graph, task.subjectId, task.need.fact));
       if (!resolved) continue;
       queue.splice(index, 1);
       queuedKeys.delete(taskKey(task));
       finishedKeys.add(taskKey(task));
     }
+  }
+
+  function hasPendingCriticalCorroboration(): boolean {
+    return queue.some((task) =>
+      CROSS_REFERENCE_FACTS.has(task.need.fact) &&
+      !factHasIndependentCorroboration(graph, task.subjectId, task.need.fact)
+    );
   }
 
   function enqueueTask(task: ResearchTask): void {
@@ -176,25 +207,59 @@ function taskKey(task: ResearchTask): string {
   return `${task.subjectId}:${task.need.fact}:${task.sourceId}`;
 }
 
+function rootHasCriticalCoverage(graph: ResearchGraph, rootEntityId: string): boolean {
+  const root = graph.entities.find((entity) => entity.id === rootEntityId);
+  if (root?.kind !== 'company') return true;
+  return ROOT_CRITICAL_FACTS.every((fact) => isTrustedClaim(bestClaim(graph, rootEntityId, fact)));
+}
+
+function factHasIndependentCorroboration(graph: ResearchGraph, subjectId: string, fact: ResearchFact): boolean {
+  const trustedClaims = graph.claims.filter((claim) => claim.subjectId === subjectId && claim.fact === fact && isTrustedClaim(claim));
+  if (!trustedClaims.length) return false;
+  const groups = new Map<string, ResearchClaim[]>();
+
+  for (const claim of trustedClaims) {
+    const key = claimValueKey(claim);
+    const group = groups.get(key) ?? [];
+    group.push(claim);
+    groups.set(key, group);
+  }
+
+  for (const claims of groups.values()) {
+    const evidence = claims.flatMap((claim) => claim.evidenceIds)
+      .map((id) => graph.evidence.find((item) => item.id === id))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+    if (evidence.some((item) => item.authority === 'official')) return true;
+    if (new Set(evidence.map((item) => item.sourceId)).size >= 2) return true;
+  }
+
+  return false;
+}
+
+function claimValueKey(claim: ResearchClaim): string {
+  if (claim.objectEntityId) return `entity:${claim.objectEntityId}`;
+  return `value:${String(claim.value ?? '').trim().toLowerCase()}`;
+}
+
 function rootIsActionable(graph: ResearchGraph, rootEntityId: string): boolean {
   const root = graph.entities.find((entity) => entity.id === rootEntityId);
   if (root?.kind !== 'company') return true;
   const decisionMakers = graph.claims.filter((claim) =>
     claim.subjectId === rootEntityId && claim.fact === 'person.decisionMaker' && claim.objectEntityId &&
-    (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7
+    isTrustedClaim(claim)
   );
   if (!decisionMakers.length) return false;
 
   const companyContact = graph.claims.some((claim) =>
     claim.subjectId === rootEntityId && (claim.fact === 'company.email' || claim.fact === 'company.phone') &&
-    (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7
+    isTrustedClaim(claim)
   );
   if (companyContact) return true;
 
   const personIds = new Set(decisionMakers.map((claim) => claim.objectEntityId).filter((value): value is string => Boolean(value)));
   return graph.claims.some((claim) =>
     personIds.has(claim.subjectId) && (claim.fact === 'person.email' || claim.fact === 'person.phone') &&
-    (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7
+    isTrustedClaim(claim)
   );
 }
 
@@ -218,8 +283,12 @@ function rootHasOperationalCoverage(graph: ResearchGraph, rootEntityId: string):
   return providersResolved >= Math.min(2, sample.length) && rateResolved;
 }
 
+function isTrustedClaim(claim?: ResearchClaim): boolean {
+  return Boolean(claim && (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7);
+}
+
 function trusted(claim: ResearchGraph['claims'][number]): boolean {
-  return (claim.state === 'VERIFIED' || claim.state === 'SUPPORTED') && claim.confidence >= 0.7;
+  return isTrustedClaim(claim);
 }
 
 function clampInteger(value: number, minimum: number, maximum: number): number {
