@@ -140,7 +140,7 @@ test('install metadata pins iOS to the stable embedded PNG while retaining gener
   assert.doesNotMatch(iconResponse, /data:image\/jpeg;base64,/);
   assert.match(iconResponse, /<img/);
   assert.doesNotMatch(iconResponse, /<svg/);
-  assert.match(worker, /shell-v7/);
+  assert.match(worker, /shell-v8-release-44/);
   assert.match(worker, /apple-touch-icon\.png/);
   assert.match(worker, /pwa-icon-192/);
   assert.match(worker, /pwa-icon-512/);
