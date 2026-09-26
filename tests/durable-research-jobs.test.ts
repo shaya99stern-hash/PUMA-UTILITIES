@@ -42,9 +42,8 @@ test('durable task disposition retries retryable failures with bounded backoff a
   );
 });
 
-test('Supabase migration and API expose run-scoped leasing without exposing the service role to the client', () => {
+test('Supabase migration and API expose run-scoped leasing without exposing privileged credentials to the browser', () => {
   const migration = readFileSync(new URL('../supabase/migrations/202609240004_durable_research_worker.sql', import.meta.url), 'utf8');
-  const admin = readFileSync(new URL('../lib/server/supabase-admin.ts', import.meta.url), 'utf8');
   const jobs = readFileSync(new URL('../lib/server/research-jobs.ts', import.meta.url), 'utf8');
   const createRoute = readFileSync(new URL('../app/api/research/jobs/route.ts', import.meta.url), 'utf8');
   const pumpRoute = readFileSync(new URL('../app/api/research/jobs/[runId]/pump/route.ts', import.meta.url), 'utf8');
@@ -54,12 +53,12 @@ test('Supabase migration and API expose run-scoped leasing without exposing the 
   assert.match(migration, /lease_research_tasks_for_run/i);
   assert.match(migration, /target_run_id/i);
   assert.match(migration, /unique index[\s\S]*research_tasks[\s\S]*run_id[\s\S]*subject_key[\s\S]*source_id[\s\S]*capability/i);
-  assert.match(admin, /SUPABASE_SERVICE_ROLE_KEY|serviceRoleKey/);
   assert.match(jobs, /lease_research_tasks_for_run/);
   assert.match(jobs, /executeResearchTask/);
   assert.match(jobs, /provider_backoff_state/);
   assert.match(createRoute, /requireWorkspace/);
-  assert.match(pumpRoute, /createAdminSupabase/);
+  assert.match(pumpRoute, /processResearchJob\(supabase/);
+  assert.doesNotMatch(pumpRoute, /createAdminSupabase|SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(statusRoute, /Cache-Control[\s\S]*no-store/);
   assert.match(ui, /\/api\/research\/jobs/);
   assert.match(ui, /puma-active-research-run/);
