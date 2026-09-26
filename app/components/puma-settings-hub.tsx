@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { ChevronRight, Database, ServerCog, UserRound } from 'lucide-react';
+import { BellRing, ChevronRight, Database, ServerCog, UserRound } from 'lucide-react';
 
 const PROFILE_KEY = 'puma-profile-name';
 
@@ -19,7 +19,15 @@ export default function PumaSettingsHub() {
         <UserRound size={19} />
         <span>
           <strong>Profile</strong>
-          <small>{profileName || 'Display name and personal preferences'}</small>
+          <small>{profileName || 'Display name, optional email sign-in, and personal preferences'}</small>
+        </span>
+        <ChevronRight size={17} />
+      </Link>
+      <Link className="pm-settings-hub-row" href="/settings/communications">
+        <BellRing size={19} />
+        <span>
+          <strong>Communications</strong>
+          <small>Company email, scheduled outreach, phone alerts, and email alerts</small>
         </span>
         <ChevronRight size={17} />
       </Link>

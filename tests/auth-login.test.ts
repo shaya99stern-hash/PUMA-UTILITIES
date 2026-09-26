@@ -112,14 +112,20 @@ test('Supabase device bootstrap is rate limited before it creates a device ident
   assert.match(migration, /grant execute on function public\.reserve_puma_device_bootstrap.*service_role/i);
 });
 
-test('legacy Puma login route is retired to the app home screen', () => {
+test('email sign-in exists as an optional recovery path and is never the front-door gate', () => {
   const login = readFileSync(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
-  assert.match(login, /redirect\(['"]\/['"]\)/);
-  assert.doesNotMatch(login, /signInWithOtp|verifyOtp|Check your email|Sign in/);
+  const form = readFileSync(new URL('../app/components/puma-login-form.tsx', import.meta.url), 'utf8');
+  const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
+  assert.match(login, /Sign in with email/i);
+  assert.match(form, /email/i);
+  assert.match(form, /password/i);
+  assert.match(proxy, /isAccountPath/);
+  assert.doesNotMatch(proxy, /PROTECTED_PREFIXES|loginUrl/);
 });
 
-test('server-backed Puma routes require a Puma session rather than a login page', () => {
+test('server-backed Puma routes can recover the device session without forcing a login page', () => {
   const workspace = readFileSync(new URL('../lib/server/current-workspace.ts', import.meta.url), 'utf8');
   assert.match(workspace, /ensurePumaSession/);
+  assert.match(workspace, /getDeviceBootstrapSession/);
   assert.doesNotMatch(workspace, /AUTH_REQUIRED|signInWithOtp|signInAnonymously/);
 });
