@@ -81,6 +81,17 @@ test('first browser request only establishes the device cookie, then redirects o
   assert.match(proxy, /!validDeviceToken\(deviceToken\)/);
 });
 
+test('server-backed routes can recover a missing Supabase auth cookie from the stable device cookie', () => {
+  const workspace = readFileSync(new URL('../lib/server/current-workspace.ts', import.meta.url), 'utf8');
+  const bootstrap = readFileSync(new URL('../lib/server/device-session.ts', import.meta.url), 'utf8');
+  assert.match(workspace, /getDeviceBootstrapSession/);
+  assert.match(workspace, /ensurePumaSession\(supabase, getDeviceBootstrapSession\)/);
+  assert.match(bootstrap, /puma-device/);
+  assert.match(bootstrap, /puma-device-bootstrap/);
+  assert.match(bootstrap, /access_token/);
+  assert.match(bootstrap, /refresh_token/);
+});
+
 test('Supabase device bootstrap is rate limited before it creates a device identity', () => {
   const edge = readFileSync(new URL('../supabase/functions/puma-device-bootstrap/index.ts', import.meta.url), 'utf8');
   const migration = readFileSync(new URL('../supabase/migrations/202609260001_device_bootstrap_registry.sql', import.meta.url), 'utf8');
@@ -107,7 +118,7 @@ test('legacy Puma login route is retired to the app home screen', () => {
   assert.doesNotMatch(login, /signInWithOtp|verifyOtp|Check your email|Sign in/);
 });
 
-test('server-backed Puma routes require the proxy-established session rather than a login page', () => {
+test('server-backed Puma routes require a Puma session rather than a login page', () => {
   const workspace = readFileSync(new URL('../lib/server/current-workspace.ts', import.meta.url), 'utf8');
   assert.match(workspace, /ensurePumaSession/);
   assert.doesNotMatch(workspace, /AUTH_REQUIRED|signInWithOtp|signInAnonymously/);
