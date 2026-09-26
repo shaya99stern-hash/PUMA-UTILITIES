@@ -7,6 +7,13 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_BODY_BYTES = 16_384;
+const DEEP_RESEARCH_PROFILE = {
+  maxTasks: 80,
+  maxDepth: 5,
+  maxBudgetUnits: 120,
+  perNeed: 6,
+  targetCompleteness: 0.9,
+} as const;
 
 export async function POST(request: Request) {
   try {
@@ -28,11 +35,7 @@ export async function POST(request: Request) {
       label,
       geography: geography || undefined,
       website: website || undefined,
-      maxTasks: boundedInteger(input.maxTasks, 60, 1, 80),
-      maxDepth: boundedInteger(input.maxDepth, 4, 0, 5),
-      maxBudgetUnits: boundedNumber(input.maxBudgetUnits, 82, 5, 120),
-      perNeed: boundedInteger(input.perNeed, 6, 1, 6),
-      targetCompleteness: boundedNumber(input.targetCompleteness, 0.82, 0.25, 1),
+      ...DEEP_RESEARCH_PROFILE,
     });
 
     return NextResponse.json(job, { status: 202, headers: { 'Cache-Control': 'no-store' } });
@@ -46,12 +49,4 @@ export async function POST(request: Request) {
 
 function invalid(message: string) {
   return NextResponse.json({ error: message }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
-}
-
-function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, Math.floor(value))) : fallback;
-}
-
-function boundedNumber(value: unknown, fallback: number, min: number, max: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
 }
