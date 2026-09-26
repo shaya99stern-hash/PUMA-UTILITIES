@@ -17,13 +17,9 @@ function createDeviceToken() {
 }
 
 async function bootstrapDeviceSession(deviceToken: string): Promise<PumaBootstrapSession> {
-  const oidcToken = process.env.VERCEL_OIDC_TOKEN?.trim();
-  if (!oidcToken) throw new Error('AUTH_UNAVAILABLE: missing Vercel workload identity');
-
   const result = await fetch(DEVICE_BOOTSTRAP_URL, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${oidcToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ deviceToken }),
