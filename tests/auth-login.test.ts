@@ -50,10 +50,12 @@ test('missing Puma session fails closed when no trusted bootstrap is available',
   await assert.rejects(() => ensurePumaSession(fake.client), /AUTH_UNAVAILABLE/);
 });
 
-test('Puma proxy silently bootstraps with a secure device cookie and Vercel OIDC', () => {
+test('Puma proxy silently bootstraps with a secure device cookie and fresh Vercel runtime OIDC', () => {
   const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
   assert.match(proxy, /puma-device/);
+  assert.match(proxy, /x-vercel-oidc-token/);
   assert.match(proxy, /VERCEL_OIDC_TOKEN/);
+  assert.match(proxy, /runtimeOidcToken/);
   assert.match(proxy, /puma-device-bootstrap/);
   assert.match(proxy, /httpOnly:\s*true/);
   assert.match(proxy, /secure:\s*true/);
