@@ -176,6 +176,55 @@ test('research runner executes each non-retryable task once', async () => {
   assert.ok([...counts.values()].every((count) => count === 1));
 });
 
+test('deep research keeps independent corroboration work after the first supported portfolio result', async () => {
+  const graph = createResearchGraph();
+  const now = '2026-09-25T23:59:00.000Z';
+  upsertEntity(graph, { id: 'company:deep', kind: 'company', label: 'Deep Cross Reference Group', geography: 'NJ' });
+  upsertEntity(graph, { id: 'person:deep', kind: 'person', label: 'Jane Operator', geography: 'NJ' });
+  addClaim(graph, { id: 'deep:identity', subjectId: 'company:deep', fact: 'company.identity', value: 'Deep Cross Reference Group', state: 'VERIFIED', confidence: 0.95, evidenceIds: [], observedAt: now });
+  addClaim(graph, { id: 'deep:website', subjectId: 'company:deep', fact: 'company.website', value: 'https://deep.example', state: 'VERIFIED', confidence: 0.95, evidenceIds: [], observedAt: now });
+  addClaim(graph, { id: 'deep:phone', subjectId: 'company:deep', fact: 'company.phone', value: '2125550100', state: 'VERIFIED', confidence: 0.95, evidenceIds: [], observedAt: now });
+  addClaim(graph, { id: 'deep:email', subjectId: 'company:deep', fact: 'company.email', value: 'info@deep.example', state: 'VERIFIED', confidence: 0.95, evidenceIds: [], observedAt: now });
+  addClaim(graph, { id: 'deep:owner', subjectId: 'company:deep', fact: 'company.ownerOperator', value: true, state: 'VERIFIED', confidence: 0.95, evidenceIds: [], observedAt: now });
+  addClaim(graph, { id: 'deep:dm', subjectId: 'company:deep', fact: 'person.decisionMaker', objectEntityId: 'person:deep', state: 'VERIFIED', confidence: 0.95, evidenceIds: [], observedAt: now });
+
+  const portfolioSources = new Set<string>();
+  const result = await runResearch(graph, 'company:deep', {
+    maxTasks: 20,
+    concurrency: 1,
+    perNeed: 6,
+    targetCompleteness: 0.82,
+    executor: async (targetGraph, task) => {
+      if (task.need.fact === 'company.portfolio') {
+        portfolioSources.add(task.sourceId);
+        const evidenceId = `deep:evidence:${task.sourceId}`;
+        addEvidence(targetGraph, {
+          id: evidenceId,
+          sourceId: task.sourceId,
+          url: task.sourceId === 'company-first-party-web' ? 'https://deep.example/portfolio' : 'https://research.example/deep-portfolio',
+          observedAt: now,
+          authority: task.sourceId === 'company-first-party-web' ? 'first-party' : 'discovery-only',
+          confidence: 0.85,
+        });
+        addClaim(targetGraph, {
+          id: `deep:portfolio:${task.sourceId}`,
+          subjectId: 'company:deep',
+          fact: 'company.portfolio',
+          value: 24,
+          state: 'SUPPORTED',
+          confidence: 0.85,
+          evidenceIds: [evidenceId],
+          observedAt: now,
+        });
+      }
+      return { taskId: task.id, status: 'complete', sourceId: task.sourceId, discoveredEntityIds: [], evidenceAdded: task.need.fact === 'company.portfolio' ? 1 : 0, claimsAdded: task.need.fact === 'company.portfolio' ? 1 : 0, message: 'synthetic deep result' };
+    },
+  });
+
+  assert.ok(portfolioSources.size >= 2, `expected independent corroboration, got ${[...portfolioSources].join(', ')}`);
+  assert.ok(result.tasksExecuted >= 2);
+});
+
 test('recursive research stops at bounded limits', () => {
   assert.equal(shouldContinueResearch({ depth: 1, maxDepth: 4, tasksCompleted: 10, maxTasks: 100, completeness: 0.4 }), true);
   assert.equal(shouldContinueResearch({ depth: 4, maxDepth: 4, tasksCompleted: 10, maxTasks: 100, completeness: 0.4 }), false);

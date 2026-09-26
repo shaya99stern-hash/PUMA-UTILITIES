@@ -1,12 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const VERSION_STORAGE_KEY = 'puma-app-version';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
 type VersionPayload = { version?: string };
 type UpdateState = 'idle' | 'available' | 'updating';
+
+type NavigatorWithStandalone = Navigator & { standalone?: boolean };
 
 function storedVersion() {
   try {
@@ -24,6 +26,11 @@ function rememberVersion(version: string) {
   }
 }
 
+function isInstalledPwa() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as NavigatorWithStandalone).standalone === true;
+}
+
 async function fetchVersion() {
   const response = await fetch(`/api/version?ts=${Date.now()}`, { cache: 'no-store' });
   if (!response.ok) return '';
@@ -31,31 +38,51 @@ async function fetchVersion() {
   return payload.version?.trim() ?? '';
 }
 
+async function prepareLatestWorker(registration?: ServiceWorkerRegistration) {
+  const activeRegistration = registration ?? await navigator.serviceWorker.getRegistration('/');
+  activeRegistration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
+  activeRegistration?.active?.postMessage({ type: 'CLEAR_STALE_PUMA_CACHES' });
+  await activeRegistration?.update();
+}
+
 export default function PwaUpdateManager() {
   const [state, setState] = useState<UpdateState>('idle');
   const [latestVersion, setLatestVersion] = useState('');
+  const [standalone, setStandalone] = useState(false);
+  const reloadRequested = useRef(false);
+
+  const reloadOnce = useCallback(() => {
+    if (reloadRequested.current) return;
+    reloadRequested.current = true;
+    window.location.reload();
+  }, []);
 
   const checkForUpdate = useCallback(async () => {
-    if (!navigator.onLine) return;
+    if (!navigator.onLine) return '';
 
     try {
       const version = await fetchVersion();
-      if (!version) return;
+      if (!version) return '';
 
       setLatestVersion(version);
       const previous = storedVersion();
       if (!previous) {
         rememberVersion(version);
-        return;
+        return '';
       }
 
-      if (previous !== version) setState('available');
+      if (previous !== version) {
+        setState('available');
+        return version;
+      }
     } catch {
       // Update checks must never block normal app use.
     }
+    return '';
   }, []);
 
   useEffect(() => {
+    setStandalone(isInstalledPwa());
     if (!('serviceWorker' in navigator)) return;
 
     let cancelled = false;
@@ -72,6 +99,17 @@ export default function PwaUpdateManager() {
       });
     };
 
+    const takeLatestInstalledVersion = async (version: string) => {
+      if (!version || !isInstalledPwa() || cancelled) return;
+      setState('updating');
+      rememberVersion(version);
+      try {
+        await prepareLatestWorker(registration);
+      } finally {
+        if (!cancelled) reloadOnce();
+      }
+    };
+
     const register = async () => {
       try {
         registration = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' });
@@ -81,19 +119,30 @@ export default function PwaUpdateManager() {
       } catch {
         // PWA update support is progressive enhancement.
       }
-      await checkForUpdate();
+      const version = await checkForUpdate();
+      await takeLatestInstalledVersion(version);
     };
 
-    const checkWhenVisible = () => {
+    const checkWhenVisible = async () => {
       if (document.visibilityState !== 'visible') return;
-      void registration?.update();
-      void checkForUpdate();
+      try {
+        await registration?.update();
+      } catch {
+        // The deployment-version check below still provides a refresh path.
+      }
+      const version = await checkForUpdate();
+      await takeLatestInstalledVersion(version);
     };
 
-    const timer = window.setInterval(checkWhenVisible, UPDATE_CHECK_INTERVAL_MS);
+    const handleControllerChange = () => {
+      if (!cancelled) reloadOnce();
+    };
+
+    const timer = window.setInterval(() => void checkWhenVisible(), UPDATE_CHECK_INTERVAL_MS);
     document.addEventListener('visibilitychange', checkWhenVisible);
     window.addEventListener('online', checkWhenVisible);
     window.addEventListener('focus', checkWhenVisible);
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
     void register();
 
     return () => {
@@ -102,8 +151,9 @@ export default function PwaUpdateManager() {
       document.removeEventListener('visibilitychange', checkWhenVisible);
       window.removeEventListener('online', checkWhenVisible);
       window.removeEventListener('focus', checkWhenVisible);
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
     };
-  }, [checkForUpdate]);
+  }, [checkForUpdate, reloadOnce]);
 
   const applyUpdate = async () => {
     setState('updating');
@@ -111,17 +161,53 @@ export default function PwaUpdateManager() {
 
     try {
       if (!version) version = await fetchVersion();
-      const registration = await navigator.serviceWorker.getRegistration('/');
-      registration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
-      registration?.active?.postMessage({ type: 'CLEAR_STALE_PUMA_CACHES' });
-      await registration?.update();
+      if (version) rememberVersion(version);
+      await prepareLatestWorker();
     } catch {
       // A network-first reload below is still the safest fallback.
     }
 
-    if (version) rememberVersion(version);
-    window.location.reload();
+    reloadOnce();
   };
+
+  const refreshApp = async () => {
+    setState('updating');
+    try {
+      const version = await fetchVersion();
+      if (version) rememberVersion(version);
+      await prepareLatestWorker();
+    } catch {
+      // Reload still refreshes network-first navigation when update checks fail.
+    }
+    reloadOnce();
+  };
+
+  if (state === 'idle' && standalone) {
+    return (
+      <button className="puma-refresh-button" type="button" onClick={() => void refreshApp()} aria-label="Refresh Puma Utilities">
+        Refresh app
+        <style jsx>{`
+          .puma-refresh-button {
+            position: fixed;
+            z-index: 79;
+            right: max(14px, env(safe-area-inset-right));
+            bottom: calc(92px + env(safe-area-inset-bottom));
+            min-height: 38px;
+            padding: 0 13px;
+            border: 1px solid rgba(255,255,255,.11);
+            border-radius: 11px;
+            background: rgba(14,16,18,.94);
+            color: #b8bcc0;
+            box-shadow: 0 14px 34px rgba(0,0,0,.28);
+            font: inherit;
+            font-size: 11px;
+            font-weight: 650;
+          }
+          @media (min-width: 900px) { .puma-refresh-button { bottom: 20px; } }
+        `}</style>
+      </button>
+    );
+  }
 
   if (state === 'idle') return null;
 
@@ -131,7 +217,7 @@ export default function PwaUpdateManager() {
         <strong>{state === 'updating' ? 'Updating Puma Utilities…' : 'Puma Utilities update ready'}</strong>
         <span>{state === 'updating' ? 'Loading the newest deployed version.' : 'Get the latest version without deleting or re-adding the app.'}</span>
       </div>
-      {state === 'available' && <button type="button" onClick={() => void applyUpdate()}>Update app</button>}
+      {state === 'available' && <button type="button" aria-label="Update app" onClick={() => void applyUpdate()}>Update &amp; refresh</button>}
       <style jsx>{`
         .puma-update-card {
           position: fixed;
