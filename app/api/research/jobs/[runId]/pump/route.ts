@@ -19,8 +19,9 @@ export async function POST(_request: Request, context: { params: Promise<{ runId
     // Authorization and all queue writes remain inside the signed-in workspace RLS scope.
     const current = await getResearchJobStatus(supabase, workspace.id, runId);
     const workerName = `web:${randomUUID()}`;
-    const lease = await supabase.rpc('claim_research_worker_tick', {
+    const lease = await supabase.rpc('claim_research_browser_tick', {
       worker_name: workerName,
+      target_run_id: runId,
       lease_seconds: 45,
     });
     if (lease.error) throw new Error(`Unable to coordinate research worker: ${lease.error.message}`);
@@ -31,7 +32,10 @@ export async function POST(_request: Request, context: { params: Promise<{ runId
     }
 
     releaseLease = async () => {
-      const released = await supabase.rpc('release_research_worker_tick', { worker_name: workerName });
+      const released = await supabase.rpc('release_research_browser_tick', {
+        worker_name: workerName,
+        target_run_id: runId,
+      });
       if (released.error) console.error('research browser worker lease release failed', released.error.message);
     };
 
