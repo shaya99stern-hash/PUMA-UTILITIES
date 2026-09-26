@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const VERSION_STORAGE_KEY = 'puma-app-version';
+const UPDATE_CONFIRM_KEY = 'puma-update-confirm-version';
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
 type VersionPayload = { version?: string };
-type UpdateState = 'idle' | 'available' | 'updating';
+type UpdateState = 'idle' | 'available' | 'updating' | 'updated' | 'current';
 
 type NavigatorWithStandalone = Navigator & { standalone?: boolean };
 
@@ -23,6 +24,24 @@ function rememberVersion(version: string) {
     window.localStorage.setItem(VERSION_STORAGE_KEY, version);
   } catch {
     // Local storage is optional; update checks still work for this session.
+  }
+}
+
+function markUpdateForConfirmation(version: string) {
+  try {
+    window.sessionStorage.setItem(UPDATE_CONFIRM_KEY, version);
+  } catch {
+    // The reload still works even if session storage is unavailable.
+  }
+}
+
+function takePendingConfirmation() {
+  try {
+    const version = window.sessionStorage.getItem(UPDATE_CONFIRM_KEY) ?? '';
+    window.sessionStorage.removeItem(UPDATE_CONFIRM_KEY);
+    return version;
+  } catch {
+    return '';
   }
 }
 
@@ -50,6 +69,11 @@ export default function PwaUpdateManager() {
   const [latestVersion, setLatestVersion] = useState('');
   const [standalone, setStandalone] = useState(false);
   const reloadRequested = useRef(false);
+
+  const showTransientState = useCallback((nextState: 'updated' | 'current') => {
+    setState(nextState);
+    window.setTimeout(() => setState('idle'), 4200);
+  }, []);
 
   const reloadOnce = useCallback(() => {
     if (reloadRequested.current) return;
@@ -83,6 +107,18 @@ export default function PwaUpdateManager() {
 
   useEffect(() => {
     setStandalone(isInstalledPwa());
+
+    const pendingConfirmation = takePendingConfirmation();
+    if (pendingConfirmation) {
+      void fetchVersion().then((version) => {
+        if (version && version === pendingConfirmation) {
+          rememberVersion(version);
+          setLatestVersion(version);
+          showTransientState('updated');
+        }
+      }).catch(() => undefined);
+    }
+
     if (!('serviceWorker' in navigator)) return;
 
     let cancelled = false;
@@ -103,6 +139,7 @@ export default function PwaUpdateManager() {
       if (!version || !isInstalledPwa() || cancelled) return;
       setState('updating');
       rememberVersion(version);
+      markUpdateForConfirmation(version);
       try {
         await prepareLatestWorker(registration);
       } finally {
@@ -135,7 +172,7 @@ export default function PwaUpdateManager() {
     };
 
     const handleControllerChange = () => {
-      if (!cancelled) reloadOnce();
+      if (!cancelled && state === 'updating') reloadOnce();
     };
 
     const timer = window.setInterval(() => void checkWhenVisible(), UPDATE_CHECK_INTERVAL_MS);
@@ -153,7 +190,7 @@ export default function PwaUpdateManager() {
       window.removeEventListener('focus', checkWhenVisible);
       navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
     };
-  }, [checkForUpdate, reloadOnce]);
+  }, [checkForUpdate, reloadOnce, showTransientState, state]);
 
   const applyUpdate = async () => {
     setState('updating');
@@ -161,7 +198,10 @@ export default function PwaUpdateManager() {
 
     try {
       if (!version) version = await fetchVersion();
-      if (version) rememberVersion(version);
+      if (version) {
+        rememberVersion(version);
+        markUpdateForConfirmation(version);
+      }
       await prepareLatestWorker();
     } catch {
       // A network-first reload below is still the safest fallback.
@@ -173,19 +213,30 @@ export default function PwaUpdateManager() {
   const refreshApp = async () => {
     setState('updating');
     try {
+      const before = storedVersion();
       const version = await fetchVersion();
-      if (version) rememberVersion(version);
       await prepareLatestWorker();
+
+      if (version && before && version === before) {
+        setLatestVersion(version);
+        showTransientState('current');
+        return;
+      }
+
+      if (version) {
+        rememberVersion(version);
+        markUpdateForConfirmation(version);
+      }
+      reloadOnce();
     } catch {
-      // Reload still refreshes network-first navigation when update checks fail.
+      setState('idle');
     }
-    reloadOnce();
   };
 
   if (state === 'idle' && standalone) {
     return (
       <button className="puma-refresh-button" type="button" onClick={() => void refreshApp()} aria-label="Refresh Puma Utilities">
-        Refresh app
+        Check update
         <style jsx>{`
           .puma-refresh-button {
             position: fixed;
@@ -211,11 +262,26 @@ export default function PwaUpdateManager() {
 
   if (state === 'idle') return null;
 
+  const title = state === 'updating'
+    ? 'Updating Puma Utilities…'
+    : state === 'updated'
+      ? 'Updated successfully'
+      : state === 'current'
+        ? 'Puma is already up to date'
+        : 'Puma Utilities update ready';
+  const detail = state === 'updating'
+    ? 'Installing the newest deployed version.'
+    : state === 'updated'
+      ? `You are now running ${latestVersion || 'the newest build'}.`
+      : state === 'current'
+        ? `Current build ${latestVersion || 'is already the newest version'}.`
+        : 'Get the latest version without deleting or re-adding the app.';
+
   return (
     <aside className="puma-update-card" role="status" aria-live="polite">
       <div>
-        <strong>{state === 'updating' ? 'Updating Puma Utilities…' : 'Puma Utilities update ready'}</strong>
-        <span>{state === 'updating' ? 'Loading the newest deployed version.' : 'Get the latest version without deleting or re-adding the app.'}</span>
+        <strong>{title}</strong>
+        <span>{detail}</span>
       </div>
       {state === 'available' && <button type="button" aria-label="Update app" onClick={() => void applyUpdate()}>Update &amp; refresh</button>}
       <style jsx>{`
