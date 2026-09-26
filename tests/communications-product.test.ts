@@ -62,21 +62,24 @@ test('communications settings expose company mailbox, scheduled email, email ale
 test('scheduled outreach honors the default mailbox instead of whichever mailbox loads first', () => {
   const panel = read('app/components/puma-communications-settings.tsx');
   assert.match(panel, /is_default/);
-  assert.match(panel, /find\([^\n]*is_default/);
+  assert.match(panel, /mailboxes\.find\(\(entry\) => entry\.is_default\)/);
+  assert.doesNotMatch(panel, /const primaryMailbox = mailboxes\[0\] \?\? null/);
 });
 
 test('phone push state is device-aware and deleting one subscription preserves other devices', () => {
   const panel = read('app/components/puma-communications-settings.tsx');
-  const route = read('app/api/communications/push/route.ts');
+  const push = read('app/api/communications/push/route.ts');
   assert.match(panel, /devicePushEnabled/);
-  assert.match(panel, /getSubscription\(\)/);
-  assert.match(route, /remainingSubscriptions/);
-  assert.match(route, /push_enabled:\s*remainingSubscriptions\s*>\s*0/);
+  assert.match(panel, /getSubscription/);
+  assert.match(push, /A push subscription endpoint is required/);
+  assert.match(push, /remainingSubscriptions/);
+  assert.match(push, /push_enabled: remainingSubscriptions > 0/);
 });
 
 test('PWA update lifecycle does not re-register listeners whenever UI state changes', () => {
   const updater = read('app/components/pwa-update-manager.tsx');
   assert.match(updater, /updatingRef/);
+  assert.match(updater, /updatingRef\.current/);
   assert.doesNotMatch(updater, /\[checkForUpdate, reloadOnce, showTransientState, state\]/);
 });
 
