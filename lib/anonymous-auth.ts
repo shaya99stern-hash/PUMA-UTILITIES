@@ -1,5 +1,6 @@
 export type PumaAuthUser = {
   id: string;
+  email?: string | null;
 };
 
 type AuthResult = {
