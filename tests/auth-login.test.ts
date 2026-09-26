@@ -63,6 +63,24 @@ test('Puma proxy silently bootstraps with a secure device cookie without requiri
   assert.doesNotMatch(proxy, /loginUrl/);
 });
 
+test('machine worker route bypasses user-session bootstrap before a device identity can be created', () => {
+  const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
+  const machineGuard = proxy.indexOf("'/api/research/worker-tick'");
+  const createDevice = proxy.indexOf('createDeviceToken()');
+  assert.ok(machineGuard >= 0, 'expected an explicit worker-tick machine bypass');
+  assert.ok(createDevice >= 0, 'expected device bootstrap code');
+  assert.ok(machineGuard < createDevice, 'machine bypass must run before device identity creation');
+  assert.match(proxy, /isMachineRequest/);
+});
+
+test('first browser request only establishes the device cookie, then redirects once before Supabase bootstrap', () => {
+  const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
+  assert.match(proxy, /bootstrapDeviceCookie/);
+  assert.match(proxy, /NextResponse\.redirect\([^\n]+307\)/);
+  assert.match(proxy, /request\.method === 'GET'/);
+  assert.match(proxy, /!validDeviceToken\(deviceToken\)/);
+});
+
 test('Supabase device bootstrap is rate limited before it creates a device identity', () => {
   const edge = readFileSync(new URL('../supabase/functions/puma-device-bootstrap/index.ts', import.meta.url), 'utf8');
   const migration = readFileSync(new URL('../supabase/migrations/202609260001_device_bootstrap_registry.sql', import.meta.url), 'utf8');
