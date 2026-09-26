@@ -35,7 +35,7 @@ test('installed iPhone PWA automatically takes over new deployments and always o
   const manager = readFileSync(resolve(process.cwd(), 'app/components/pwa-update-manager.tsx'), 'utf8');
   assert.match(manager, /controllerchange/);
   assert.match(manager, /display-mode:\s*standalone/);
-  assert.match(manager, /Update & refresh/i);
+  assert.match(manager, /Update (?:&|&amp;) refresh/i);
   assert.match(manager, /Refresh app/i);
   assert.match(manager, /registration\?\.update\(\)|registration\.update\(\)/);
 });
