@@ -38,7 +38,7 @@ test('existing Puma session is reused without device bootstrap', async () => {
   assert.equal(fake.setSessionCalls(), 0);
 });
 
-test('missing Puma session is replaced by OIDC device bootstrap session', async () => {
+test('missing Puma session is replaced by a silent device bootstrap session', async () => {
   const fake = fakeSupabase({ currentUser: null, sessionUser: { id: 'device-user' } });
   const user = await ensurePumaSession(fake.client, async () => ({ access_token: 'access', refresh_token: 'refresh' }));
   assert.equal(user.id, 'device-user');
@@ -50,28 +50,37 @@ test('missing Puma session fails closed when no trusted bootstrap is available',
   await assert.rejects(() => ensurePumaSession(fake.client), /AUTH_UNAVAILABLE/);
 });
 
-test('Puma proxy silently bootstraps with a secure device cookie and Vercel OIDC', () => {
+test('Puma proxy silently bootstraps with a secure device cookie without requiring Vercel OIDC', () => {
   const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
   assert.match(proxy, /puma-device/);
-  assert.match(proxy, /VERCEL_OIDC_TOKEN/);
   assert.match(proxy, /puma-device-bootstrap/);
   assert.match(proxy, /httpOnly:\s*true/);
   assert.match(proxy, /secure:\s*true/);
   assert.match(proxy, /ensurePumaSession/);
+  assert.doesNotMatch(proxy, /VERCEL_OIDC_TOKEN/);
   assert.doesNotMatch(proxy, /signInAnonymously/);
   assert.doesNotMatch(proxy, /PROTECTED_PREFIXES/);
   assert.doesNotMatch(proxy, /loginUrl/);
 });
 
-test('Supabase device bootstrap validates the exact Puma Vercel project identity', () => {
+test('Supabase device bootstrap is rate limited before it creates a device identity', () => {
   const edge = readFileSync(new URL('../supabase/functions/puma-device-bootstrap/index.ts', import.meta.url), 'utf8');
-  assert.match(edge, /oidc\.vercel\.com/);
-  assert.match(edge, /prj_C4OL0KlZAcpUC5PgUsVMpUpkHj5b/);
-  assert.match(edge, /team_jpn60UoglIwzJtcAwPyPEbmj/);
-  assert.match(edge, /jwtVerify/);
+  const migration = readFileSync(new URL('../supabase/migrations/202609260001_device_bootstrap_registry.sql', import.meta.url), 'utf8');
+  assert.match(edge, /reserve_puma_device_bootstrap/);
+  assert.match(edge, /cf-connecting-ip/i);
   assert.match(edge, /createUser/);
   assert.match(edge, /signInWithPassword/);
+  assert.doesNotMatch(edge, /oidc\.vercel\.com|VERCEL_OIDC_TOKEN|jwtVerify/);
   assert.doesNotMatch(edge, /Access-Control-Allow-Origin:\s*['"]\*['"]/);
+  assert.match(migration, /create table public\.puma_device_bootstrap_registry/i);
+  assert.match(migration, /enable row level security/i);
+  assert.match(migration, /create or replace function public\.reserve_puma_device_bootstrap/i);
+  assert.match(migration, /pg_advisory_xact_lock/i);
+  assert.match(migration, /interval '24 hours'/i);
+  assert.match(migration, />= 5/);
+  assert.match(migration, />= 25/);
+  assert.match(migration, /revoke all/i);
+  assert.match(migration, /grant execute on function public\.reserve_puma_device_bootstrap.*service_role/i);
 });
 
 test('legacy Puma login route is retired to the app home screen', () => {
