@@ -5,56 +5,73 @@ import { ensurePumaSession } from '../lib/anonymous-auth';
 
 function fakeSupabase(options: {
   currentUser?: { id: string } | null;
-  anonymousUser?: { id: string } | null;
-  anonymousError?: { message: string } | null;
+  sessionUser?: { id: string } | null;
 }) {
-  let anonymousCalls = 0;
+  let setSessionCalls = 0;
   return {
     client: {
       auth: {
         async getUser() {
           return { data: { user: options.currentUser ?? null }, error: null };
         },
-        async signInAnonymously() {
-          anonymousCalls += 1;
-          return {
-            data: { user: options.anonymousUser ?? null },
-            error: options.anonymousError ?? null,
-          };
+        async setSession(session: { access_token: string; refresh_token: string }) {
+          setSessionCalls += 1;
+          assert.equal(session.access_token, 'access');
+          assert.equal(session.refresh_token, 'refresh');
+          return { data: { user: options.sessionUser ?? null }, error: null };
         },
       },
     },
-    anonymousCalls: () => anonymousCalls,
+    setSessionCalls: () => setSessionCalls,
   };
 }
 
-test('existing Puma session is reused without creating an anonymous identity', async () => {
+test('existing Puma session is reused without device bootstrap', async () => {
   const fake = fakeSupabase({ currentUser: { id: 'existing-user' } });
-  const user = await ensurePumaSession(fake.client);
+  let bootstraps = 0;
+  const user = await ensurePumaSession(fake.client, async () => {
+    bootstraps += 1;
+    return { access_token: 'access', refresh_token: 'refresh' };
+  });
   assert.equal(user.id, 'existing-user');
-  assert.equal(fake.anonymousCalls(), 0);
+  assert.equal(bootstraps, 0);
+  assert.equal(fake.setSessionCalls(), 0);
 });
 
-test('missing Puma session is replaced by a silent anonymous session', async () => {
-  const fake = fakeSupabase({ currentUser: null, anonymousUser: { id: 'anonymous-user' } });
-  const user = await ensurePumaSession(fake.client);
-  assert.equal(user.id, 'anonymous-user');
-  assert.equal(fake.anonymousCalls(), 1);
+test('missing Puma session is replaced by OIDC device bootstrap session', async () => {
+  const fake = fakeSupabase({ currentUser: null, sessionUser: { id: 'device-user' } });
+  const user = await ensurePumaSession(fake.client, async () => ({ access_token: 'access', refresh_token: 'refresh' }));
+  assert.equal(user.id, 'device-user');
+  assert.equal(fake.setSessionCalls(), 1);
 });
 
-test('anonymous session bootstrap fails closed when Supabase rejects it', async () => {
-  const fake = fakeSupabase({ currentUser: null, anonymousError: { message: 'anonymous disabled' } });
+test('missing Puma session fails closed when no trusted bootstrap is available', async () => {
+  const fake = fakeSupabase({ currentUser: null });
   await assert.rejects(() => ensurePumaSession(fake.client), /AUTH_UNAVAILABLE/);
-  assert.equal(fake.anonymousCalls(), 1);
 });
 
-test('Puma proxy silently bootstraps auth and never redirects operational routes to login', () => {
+test('Puma proxy silently bootstraps with a secure device cookie and Vercel OIDC', () => {
   const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
+  assert.match(proxy, /puma-device/);
+  assert.match(proxy, /VERCEL_OIDC_TOKEN/);
+  assert.match(proxy, /puma-device-bootstrap/);
+  assert.match(proxy, /httpOnly:\s*true/);
+  assert.match(proxy, /secure:\s*true/);
   assert.match(proxy, /ensurePumaSession/);
-  assert.match(proxy, /signInAnonymously|anonymous/i);
+  assert.doesNotMatch(proxy, /signInAnonymously/);
   assert.doesNotMatch(proxy, /PROTECTED_PREFIXES/);
   assert.doesNotMatch(proxy, /loginUrl/);
-  assert.doesNotMatch(proxy, /pathname\s*=\s*['"]\/login['"]/);
+});
+
+test('Supabase device bootstrap validates the exact Puma Vercel project identity', () => {
+  const edge = readFileSync(new URL('../supabase/functions/puma-device-bootstrap/index.ts', import.meta.url), 'utf8');
+  assert.match(edge, /oidc\.vercel\.com/);
+  assert.match(edge, /prj_C4OL0KlZAcpUC5PgUsVMpUpkHj5b/);
+  assert.match(edge, /team_jpn60UoglIwzJtcAwPyPEbmj/);
+  assert.match(edge, /jwtVerify/);
+  assert.match(edge, /createUser/);
+  assert.match(edge, /signInWithPassword/);
+  assert.doesNotMatch(edge, /Access-Control-Allow-Origin:\s*['"]\*['"]/);
 });
 
 test('legacy Puma login route is retired to the app home screen', () => {
@@ -63,8 +80,8 @@ test('legacy Puma login route is retired to the app home screen', () => {
   assert.doesNotMatch(login, /signInWithOtp|verifyOtp|Check your email|Sign in/);
 });
 
-test('server-backed Puma routes use the same silent session bootstrap', () => {
+test('server-backed Puma routes require the proxy-established session rather than a login page', () => {
   const workspace = readFileSync(new URL('../lib/server/current-workspace.ts', import.meta.url), 'utf8');
   assert.match(workspace, /ensurePumaSession/);
-  assert.doesNotMatch(workspace, /AUTH_REQUIRED/);
+  assert.doesNotMatch(workspace, /AUTH_REQUIRED|signInWithOtp|signInAnonymously/);
 });
