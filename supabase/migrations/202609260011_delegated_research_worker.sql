@@ -61,7 +61,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not public.is_research_worker_request() and auth.uid() is null then
+  if not public.is_research_worker_request() then
     raise exception 'research worker authorization required' using errcode = '42501';
   end if;
   if worker_name is null or btrim(worker_name) = '' then
@@ -91,8 +91,80 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not public.is_research_worker_request() and auth.uid() is null then
+  if not public.is_research_worker_request() then
     raise exception 'research worker authorization required' using errcode = '42501';
+  end if;
+
+  update private.research_worker_dispatch
+  set lease_owner = null,
+      lease_expires_at = null,
+      updated_at = now()
+  where singleton_id = true
+    and lease_owner = worker_name;
+
+  return found;
+end;
+$$;
+
+create or replace function public.claim_research_browser_tick(
+  worker_name text,
+  target_run_id uuid,
+  lease_seconds integer default 45
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_workspace_id uuid;
+begin
+  if worker_name is null or btrim(worker_name) = '' then
+    raise exception 'worker_name is required';
+  end if;
+  if target_run_id is null then
+    raise exception 'target_run_id is required';
+  end if;
+
+  select r.workspace_id into target_workspace_id
+  from public.research_runs r
+  where r.id = target_run_id;
+
+  if auth.uid() is null or target_workspace_id is null or not public.owns_workspace(target_workspace_id) then
+    raise exception 'research run ownership required' using errcode = '42501';
+  end if;
+
+  update private.research_worker_dispatch
+  set lease_owner = worker_name,
+      lease_expires_at = now() + make_interval(secs => greatest(15, least(coalesce(lease_seconds, 45), 60))),
+      updated_at = now()
+  where singleton_id = true
+    and (
+      lease_owner is null
+      or lease_expires_at is null
+      or lease_expires_at < now()
+      or lease_owner = worker_name
+    );
+
+  return found;
+end;
+$$;
+
+create or replace function public.release_research_browser_tick(worker_name text, target_run_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_workspace_id uuid;
+begin
+  select r.workspace_id into target_workspace_id
+  from public.research_runs r
+  where r.id = target_run_id;
+
+  if auth.uid() is null or target_workspace_id is null or not public.owns_workspace(target_workspace_id) then
+    raise exception 'research run ownership required' using errcode = '42501';
   end if;
 
   update private.research_worker_dispatch
@@ -260,15 +332,19 @@ begin
 end $$;
 
 revoke execute on function public.verify_research_worker_token(text) from public, authenticated;
-revoke execute on function public.claim_research_worker_tick(text, integer) from public;
-revoke execute on function public.release_research_worker_tick(text) from public;
+revoke execute on function public.claim_research_worker_tick(text, integer) from public, authenticated;
+revoke execute on function public.release_research_worker_tick(text) from public, authenticated;
+revoke execute on function public.claim_research_browser_tick(text, uuid, integer) from public, anon;
+revoke execute on function public.release_research_browser_tick(text, uuid) from public, anon;
 revoke execute on function public.next_research_run_for_worker() from public, authenticated;
 revoke execute on function public.lease_research_tasks(text, integer, integer) from public, authenticated;
 revoke execute on function public.lease_research_tasks_for_run(text, uuid, integer, integer) from public;
 
 grant execute on function public.verify_research_worker_token(text) to anon;
-grant execute on function public.claim_research_worker_tick(text, integer) to anon, authenticated;
-grant execute on function public.release_research_worker_tick(text) to anon, authenticated;
+grant execute on function public.claim_research_worker_tick(text, integer) to anon;
+grant execute on function public.release_research_worker_tick(text) to anon;
+grant execute on function public.claim_research_browser_tick(text, uuid, integer) to authenticated;
+grant execute on function public.release_research_browser_tick(text, uuid) to authenticated;
 grant execute on function public.next_research_run_for_worker() to anon;
 grant execute on function public.lease_research_tasks(text, integer, integer) to anon;
 grant execute on function public.lease_research_tasks_for_run(text, uuid, integer, integer) to anon, authenticated;
