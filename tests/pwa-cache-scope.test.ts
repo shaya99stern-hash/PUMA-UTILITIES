@@ -35,6 +35,17 @@ test('service worker waits for cache writes and tolerates individual shell preca
   assert.doesNotMatch(source, /cache\.addAll\(APP_SHELL\)/);
 });
 
+test('service worker keeps network success usable when cache persistence fails and requires the root shell before takeover', () => {
+  const source = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8');
+  const helper = source.match(/async function fetchAndCache\(request\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+
+  assert.match(helper, /try\s*\{/);
+  assert.match(helper, /catch\s*\{/);
+  assert.match(helper, /return response;/);
+  assert.match(source, /const results = await Promise\.allSettled/);
+  assert.match(source, /if \(results\[0\]\?\.status === 'rejected'\) throw results\[0\]\.reason;/);
+});
+
 test('notification clicks cannot navigate the installed app to an external origin', () => {
   const source = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8');
 
