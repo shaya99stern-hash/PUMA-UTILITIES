@@ -1,14 +1,28 @@
 const CACHE_PREFIX = 'puma-utilities-';
-const VERSION = `${CACHE_PREFIX}shell-v8-release-44`;
+const VERSION = `${CACHE_PREFIX}shell-v9-pwa-reliability`;
 const APP_SHELL = ['/', '/manifest.webmanifest', '/apple-touch-icon.png', '/pwa-icon-192', '/pwa-icon-512'];
 
+async function fetchAndCache(request) {
+  const response = await fetch(request);
+  if (response.ok) {
+    const cache = await caches.open(VERSION);
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
+async function precacheShell() {
+  const cache = await caches.open(VERSION);
+  await Promise.allSettled(APP_SHELL.map(async (path) => {
+    const request = new Request(path, { cache: 'reload' });
+    const response = await fetch(request);
+    if (!response.ok) throw new Error(`Failed to precache ${path}: ${response.status}`);
+    await cache.put(request, response.clone());
+  }));
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(VERSION)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .catch(() => undefined)
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil(precacheShell().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
@@ -87,14 +101,7 @@ self.addEventListener('fetch', (event) => {
 
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(VERSION).then((cache) => cache.put(event.request, copy).catch(() => undefined));
-          }
-          return response;
-        })
+      fetchAndCache(event.request)
         .catch(() => caches.match(event.request).then((response) => response || caches.match('/'))),
     );
     return;
@@ -102,26 +109,14 @@ self.addEventListener('fetch', (event) => {
 
   if (requestUrl.pathname.startsWith('/_next/static/')) {
     event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(VERSION).then((cache) => cache.put(event.request, copy).catch(() => undefined));
-        }
-        return response;
-      })),
+      caches.match(event.request).then((cached) => cached || fetchAndCache(event.request)),
     );
     return;
   }
 
   if (APP_SHELL.includes(requestUrl.pathname)) {
     event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(VERSION).then((cache) => cache.put(event.request, copy).catch(() => undefined));
-        }
-        return response;
-      })),
+      caches.match(event.request).then((cached) => cached || fetchAndCache(event.request)),
     );
   }
 });
