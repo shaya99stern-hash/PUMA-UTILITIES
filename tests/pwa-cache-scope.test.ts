@@ -6,7 +6,7 @@ import test from 'node:test';
 test('service worker only retires Puma-namespaced stale caches', () => {
   const source = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8');
   assert.match(source, /const CACHE_PREFIX = 'puma-utilities-';/);
-  assert.match(source, /shell-v8-release-44/);
+  assert.match(source, /shell-v9-pwa-reliability/);
   assert.match(source, /key\.startsWith\(CACHE_PREFIX\) && key !== VERSION/);
   assert.match(source, /apple-touch-icon\.png/);
   assert.match(source, /pwa-icon-192/);
@@ -22,8 +22,17 @@ test('service worker makes the cached shell usable offline by caching immutable 
   assert.match(source, /pathname\.startsWith\('\/_next\/static\/'\)/);
   assert.match(source, /response\.ok/);
   assert.match(source, /caches\.open\(VERSION\)/);
-  assert.match(source, /cache\.put\(event\.request/);
+  assert.match(source, /fetchAndCache\(event\.request\)/);
   assert.match(source, /pathname\.startsWith\('\/api\/'\)/);
+});
+
+test('service worker waits for cache writes and tolerates individual shell precache failures', () => {
+  const source = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8');
+
+  assert.match(source, /Promise\.allSettled/);
+  assert.match(source, /APP_SHELL\.map/);
+  assert.match(source, /await cache\.put\(request, response\.clone\(\)\)/);
+  assert.doesNotMatch(source, /cache\.addAll\(APP_SHELL\)/);
 });
 
 test('notification clicks cannot navigate the installed app to an external origin', () => {
