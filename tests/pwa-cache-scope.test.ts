@@ -16,6 +16,24 @@ test('service worker only retires Puma-namespaced stale caches', () => {
   assert.doesNotMatch(source, /CLEAR_CACHES/);
 });
 
+test('service worker makes the cached shell usable offline by caching immutable Next assets', () => {
+  const source = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8');
+
+  assert.match(source, /pathname\.startsWith\('\/_next\/static\/'\)/);
+  assert.match(source, /response\.ok/);
+  assert.match(source, /caches\.open\(VERSION\)/);
+  assert.match(source, /cache\.put\(event\.request/);
+  assert.match(source, /pathname\.startsWith\('\/api\/'\)/);
+});
+
+test('notification clicks cannot navigate the installed app to an external origin', () => {
+  const source = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8');
+
+  assert.match(source, /function safeNotificationTarget/);
+  assert.match(source, /candidate\.origin !== self\.location\.origin/);
+  assert.match(source, /safeNotificationTarget\(href\)/);
+});
+
 test('installed app checks deployment versions and exposes an update action', () => {
   const manager = readFileSync(resolve(process.cwd(), 'app/components/pwa-update-manager.tsx'), 'utf8');
   const layout = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8');
