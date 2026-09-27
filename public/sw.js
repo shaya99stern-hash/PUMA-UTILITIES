@@ -53,10 +53,20 @@ self.addEventListener('push', (event) => {
   }));
 });
 
+function safeNotificationTarget(href) {
+  try {
+    const candidate = new URL(typeof href === 'string' ? href : '/', self.location.origin);
+    if (candidate.origin !== self.location.origin) return `${self.location.origin}/`;
+    return candidate.href;
+  } catch {
+    return `${self.location.origin}/`;
+  }
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const href = event.notification.data?.href || '/';
-  const target = new URL(href, self.location.origin).href;
+  const target = safeNotificationTarget(href);
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of windows) {
@@ -79,8 +89,10 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(VERSION).then((cache) => cache.put(event.request, copy).catch(() => undefined));
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(VERSION).then((cache) => cache.put(event.request, copy).catch(() => undefined));
+          }
           return response;
         })
         .catch(() => caches.match(event.request).then((response) => response || caches.match('/'))),
@@ -88,11 +100,26 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  if (requestUrl.pathname.startsWith('/_next/static/')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(VERSION).then((cache) => cache.put(event.request, copy).catch(() => undefined));
+        }
+        return response;
+      })),
+    );
+    return;
+  }
+
   if (APP_SHELL.includes(requestUrl.pathname)) {
     event.respondWith(
       caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-        const copy = response.clone();
-        caches.open(VERSION).then((cache) => cache.put(event.request, copy).catch(() => undefined));
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(VERSION).then((cache) => cache.put(event.request, copy).catch(() => undefined));
+        }
         return response;
       })),
     );
