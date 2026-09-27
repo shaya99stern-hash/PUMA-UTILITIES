@@ -5,20 +5,26 @@ const APP_SHELL = ['/', '/manifest.webmanifest', '/apple-touch-icon.png', '/pwa-
 async function fetchAndCache(request) {
   const response = await fetch(request);
   if (response.ok) {
-    const cache = await caches.open(VERSION);
-    await cache.put(request, response.clone());
+    try {
+      const cache = await caches.open(VERSION);
+      await cache.put(request, response.clone());
+    } catch {
+      // A successful network response must remain usable even when cache persistence fails.
+    }
   }
   return response;
 }
 
 async function precacheShell() {
   const cache = await caches.open(VERSION);
-  await Promise.allSettled(APP_SHELL.map(async (path) => {
+  const results = await Promise.allSettled(APP_SHELL.map(async (path) => {
     const request = new Request(path, { cache: 'reload' });
     const response = await fetch(request);
     if (!response.ok) throw new Error(`Failed to precache ${path}: ${response.status}`);
     await cache.put(request, response.clone());
   }));
+
+  if (results[0]?.status === 'rejected') throw results[0].reason;
 }
 
 self.addEventListener('install', (event) => {
