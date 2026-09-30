@@ -50,35 +50,25 @@ test('missing Puma session fails closed when no trusted bootstrap is available',
   await assert.rejects(() => ensurePumaSession(fake.client), /AUTH_UNAVAILABLE/);
 });
 
-test('Puma proxy silently bootstraps with a secure device cookie without requiring Vercel OIDC', () => {
+test('Puma opens without a sign-in wall unless PUMA_REQUIRE_LOGIN is set', () => {
   const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
-  assert.match(proxy, /puma-device/);
-  assert.match(proxy, /puma-device-bootstrap/);
-  assert.match(proxy, /httpOnly:\s*true/);
-  assert.match(proxy, /secure:\s*true/);
-  assert.match(proxy, /ensurePumaSession/);
-  assert.doesNotMatch(proxy, /VERCEL_OIDC_TOKEN/);
-  assert.doesNotMatch(proxy, /signInAnonymously/);
-  assert.doesNotMatch(proxy, /PROTECTED_PREFIXES/);
-  assert.doesNotMatch(proxy, /loginUrl/);
+  const config = readFileSync(new URL('../lib/supabase/config.ts', import.meta.url), 'utf8');
+  assert.match(config, /PUMA_REQUIRE_LOGIN/);
+  assert.match(proxy, /loginRequired\(\) && !data\.user/);
+  assert.doesNotMatch(proxy, /signInAnonymously|VERCEL_OIDC_TOKEN/);
 });
 
-test('machine worker route bypasses user-session bootstrap before a device identity can be created', () => {
-  const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
-  const machineGuard = proxy.indexOf("'/api/research/worker-tick'");
-  const createDevice = proxy.indexOf('createDeviceToken()');
-  assert.ok(machineGuard >= 0, 'expected an explicit worker-tick machine bypass');
-  assert.ok(createDevice >= 0, 'expected device bootstrap code');
-  assert.ok(machineGuard < createDevice, 'machine bypass must run before device identity creation');
-  assert.match(proxy, /isMachineRequest/);
+test('open mode resolves every request to the shared workspace', () => {
+  const auth = readFileSync(new URL('../lib/server/auth.ts', import.meta.url), 'utf8');
+  assert.match(auth, /getDefaultWorkspaceId/);
+  assert.match(auth, /if \(loginRequired\(\)\) return null/);
 });
 
-test('first browser request only establishes the device cookie, then redirects once before Supabase bootstrap', () => {
+test('machine and public routes are never redirected to sign-in', () => {
   const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8');
-  assert.match(proxy, /bootstrapDeviceCookie/);
-  assert.match(proxy, /NextResponse\.redirect\([^\n]+307\)/);
-  assert.match(proxy, /request\.method === 'GET'/);
-  assert.match(proxy, /!validDeviceToken\(deviceToken\)/);
+  assert.match(proxy, /PUBLIC_PREFIXES/);
+  assert.match(proxy, /'\/api\/'/);
+  assert.match(proxy, /CANONICAL_HOST/);
 });
 
 test('server-backed routes can recover a missing Supabase auth cookie from the stable device cookie', () => {
@@ -119,7 +109,7 @@ test('email sign-in exists as an optional recovery path and is never the front-d
   assert.match(login, /Sign in with email/i);
   assert.match(form, /email/i);
   assert.match(form, /password/i);
-  assert.match(proxy, /isAccountPath/);
+  assert.match(proxy, /'\/login'/);
   assert.doesNotMatch(proxy, /PROTECTED_PREFIXES|loginUrl/);
 });
 

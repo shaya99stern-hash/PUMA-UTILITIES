@@ -1,60 +1,14 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { ensurePumaSession, type PumaBootstrapSession } from './lib/anonymous-auth';
-import { PUMA_SUPABASE_PUBLISHABLE_KEY, PUMA_SUPABASE_URL } from './lib/supabase-config';
+import { devAuthUserId, loginRequired, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './lib/supabase/config';
 
 const CANONICAL_HOST = 'puma-utilities.vercel.app';
-const DEVICE_COOKIE = 'puma-device';
-const DEVICE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365 * 2;
-const DEVICE_BOOTSTRAP_URL = `${PUMA_SUPABASE_URL}/functions/v1/puma-device-bootstrap`;
-const MACHINE_PATHS = new Set(['/api/research/worker-tick']);
-const PUBLIC_AUTH_PATHS = new Set(['/login', '/api/account/sign-in']);
 
-function validDeviceToken(value: string | undefined): value is string {
-  return Boolean(value && /^[a-f0-9]{64}$/.test(value));
-}
+/** Paths reachable without a session. API routes enforce auth themselves. */
+const PUBLIC_PREFIXES = ['/login', '/auth', '/api/', '/u/', '/t/', '/manifest.webmanifest', '/sw.js', '/offline'];
 
-function createDeviceToken() {
-  return `${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '')}`;
-}
-
-function isMachineRequest(request: NextRequest) {
-  return MACHINE_PATHS.has(request.nextUrl.pathname);
-}
-
-function isAccountPath(request: NextRequest) {
-  return PUBLIC_AUTH_PATHS.has(request.nextUrl.pathname);
-}
-
-function setDeviceCookie(response: NextResponse, deviceToken: string) {
-  response.cookies.set(DEVICE_COOKIE, deviceToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: DEVICE_MAX_AGE_SECONDS,
-  });
-  response.headers.set('Cache-Control', 'private, no-store');
-  return response;
-}
-
-function bootstrapDeviceCookie(request: NextRequest, deviceToken: string) {
-  const target = request.nextUrl.clone();
-  return setDeviceCookie(NextResponse.redirect(target, 307), deviceToken);
-}
-
-async function bootstrapDeviceSession(deviceToken: string): Promise<PumaBootstrapSession> {
-  const result = await fetch(DEVICE_BOOTSTRAP_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ deviceToken }),
-    cache: 'no-store',
-  });
-
-  if (!result.ok) throw new Error(`AUTH_UNAVAILABLE: device bootstrap returned ${result.status}`);
-  const body = await result.json() as Partial<PumaBootstrapSession>;
-  if (!body.access_token || !body.refresh_token) throw new Error('AUTH_UNAVAILABLE: incomplete device session');
-  return { access_token: body.access_token, refresh_token: body.refresh_token };
+function isPublic(pathname: string) {
+  return PUBLIC_PREFIXES.some((prefix) => pathname === prefix.replace(/\/$/, '') || pathname.startsWith(prefix));
 }
 
 export async function proxy(request: NextRequest) {
@@ -69,48 +23,44 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (isMachineRequest(request) || isAccountPath(request)) {
-    const response = NextResponse.next({ request });
-    response.headers.set('Cache-Control', 'no-store');
-    return response;
-  }
-
-  let deviceToken = request.cookies.get(DEVICE_COOKIE)?.value;
-  if (!validDeviceToken(deviceToken)) {
-    deviceToken = createDeviceToken();
-    if (request.method === 'GET' || request.method === 'HEAD') {
-      return bootstrapDeviceCookie(request, deviceToken);
-    }
-    request.cookies.set(DEVICE_COOKIE, deviceToken);
+  // Open mode (default): no sign-in wall. Session cookies are only refreshed
+  // when someone has chosen to sign in.
+  if (devAuthUserId()) return NextResponse.next({ request });
+  if (!loginRequired() && !request.cookies.getAll().some((cookie) => cookie.name.startsWith('sb-'))) {
+    return NextResponse.next({ request });
   }
 
   let response = NextResponse.next({ request });
-  const supabase = createServerClient(PUMA_SUPABASE_URL, PUMA_SUPABASE_PUBLISHABLE_KEY, {
+  const supabase = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet, headers) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+      getAll: () => request.cookies.getAll(),
+      setAll: (list) => {
+        list.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        Object.entries(headers ?? {}).forEach(([key, value]) => response.headers.set(key, value));
+        list.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
       },
     },
   });
 
-  try {
-    await ensurePumaSession(supabase, () => bootstrapDeviceSession(deviceToken));
-    response.headers.set('x-puma-auth', 'ready');
-  } catch {
-    response.headers.set('x-puma-auth', 'unavailable');
-  }
+  // Refreshes the session cookie when needed.
+  const { data } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+  const pathname = request.nextUrl.pathname;
 
-  return setDeviceCookie(response, deviceToken);
+  if (loginRequired() && !data.user && !isPublic(pathname)) {
+    const login = request.nextUrl.clone();
+    login.pathname = '/login';
+    login.search = pathname === '/' ? '' : `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
+    return NextResponse.redirect(login);
+  }
+  if (data.user && pathname === '/login') {
+    const home = request.nextUrl.clone();
+    home.pathname = '/';
+    home.search = '';
+    return NextResponse.redirect(home);
+  }
+  return response;
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|css|js)$).*)'],
 };
