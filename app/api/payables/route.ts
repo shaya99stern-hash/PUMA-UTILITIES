@@ -3,7 +3,7 @@ import { intParam, json, readJson, route, searchParams } from '@/lib/server/http
 import { sql } from '@/lib/server/db';
 import { assertCompany } from '@/lib/crm/contacts';
 import { payableCreateSchema } from '@/lib/crm/schemas';
-import { escapeLike } from '@/lib/crm/server';
+import { dateOnly, escapeLike } from '@/lib/crm/server';
 import type { PayableListRow, PayableRow } from '@/lib/crm/types';
 
 export const runtime = 'nodejs';
@@ -27,7 +27,7 @@ export const GET = route(async (request) => {
   const limit = intParam(p.get('limit'), 200, 1, 1000);
   const [rows, summary] = await Promise.all([
     db<PayableListRow[]>`
-      select pa.*, ${eff} as effective_status, co.name as company_name, coalesce(pr.name, pr.address) as property_name
+      select pa.*, pa.due_date::text as due_date, ${eff} as effective_status, co.name as company_name, coalesce(pr.name, pr.address) as property_name
       from payables pa left join companies co on co.id = pa.company_id left join properties pr on pr.id = pa.property_id
       where ${where}
       order by (case when ${eff} = 'overdue' then 0 when ${eff} = 'due' then 1 when ${eff} = 'draft' then 2 else 3 end), pa.due_date asc nulls last, pa.created_at desc
@@ -54,5 +54,5 @@ export const POST = route(async (request) => {
   if (cols.status === 'paid') cols.paid_at = new Date();
   const keys = Object.keys(cols).filter((k) => cols[k] !== undefined);
   const rows = await db<PayableRow[]>`insert into payables ${db(cols, ...keys)} returning *`;
-  return json({ payable: rows[0] }, 201);
+  return json({ payable: { ...rows[0], due_date: dateOnly(rows[0].due_date) } }, 201);
 });

@@ -3,7 +3,7 @@ import { ApiError, json, readJson, route } from '@/lib/server/http';
 import { sql } from '@/lib/server/db';
 import { assertCompany } from '@/lib/crm/contacts';
 import { payablePatchSchema } from '@/lib/crm/schemas';
-import { getId, patchRow, type IdContext } from '@/lib/crm/server';
+import { dateOnly, getId, patchRow, type IdContext } from '@/lib/crm/server';
 import type { PayableRow } from '@/lib/crm/types';
 
 export const runtime = 'nodejs';
@@ -20,7 +20,7 @@ export const PATCH = route<IdContext>(async (request, context) => {
   if (body.status === 'paid' && before[0].status !== 'paid') patch.paid_at = new Date();
   if (body.status && body.status !== 'paid') patch.paid_at = null;
   const row = await patchRow<PayableRow>(db, 'payables', id, ctx.workspaceId, patch);
-  return json({ payable: row });
+  return json({ payable: row ? { ...row, due_date: dateOnly(row.due_date) } : row });
 });
 
 export const DELETE = route<IdContext>(async (_request, context) => {

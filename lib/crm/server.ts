@@ -73,3 +73,10 @@ export function escapeLike(value: string): string {
 }
 
 export { sql };
+
+/** Date-only column value (postgres.js returns a Date at UTC midnight) -> 'YYYY-MM-DD'. */
+export function dateOnly(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === 'string') return value.slice(0, 10);
+  return new Date(value as Date).toISOString().slice(0, 10);
+}
