@@ -42,7 +42,7 @@ const ALIASES: Record<string, string[]> = {
   city: ['city', 'town'],
   state: ['state', 'st', 'province', 'stateprovince'],
   zip: ['zip', 'zipcode', 'postalcode', 'postcode', 'zip5'],
-  units: ['units', 'unitcount', 'totalunits', 'apartments', 'portfolioUnits'.toLowerCase(), 'numberofunits', 'doors'],
+  units: ['units', 'unitcount', 'totalunits', 'apartments', 'portfoliounits', 'numberofunits', 'doors'],
   buildings: ['buildings', 'buildingcount', 'totalbuildings', 'properties', 'numberofbuildings', 'portfoliobuildings'],
   stage: ['stage', 'status', 'pipelinestage', 'leadstatus', 'dealstage'],
   type: ['type', 'companytype', 'category'],
