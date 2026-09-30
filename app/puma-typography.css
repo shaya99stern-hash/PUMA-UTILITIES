@@ -1,0 +1,18 @@
+/* Premium type: Inter (bundled, no external requests) with native iOS/macOS fallbacks. */
+:root {
+  --pm-font: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --pm-serif: var(--pm-font);
+}
+
+html, body, button, input, textarea, select {
+  font-family: var(--pm-font);
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+}
+
+body {
+  letter-spacing: -0.006em;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.022em;
+}

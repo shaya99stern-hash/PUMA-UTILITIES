@@ -13,6 +13,8 @@ import './puma-polish-v12.css';
 import './puma-app-shell.css';
 import './puma-crm-functional.css';
 import './puma-backend-foundation.css';
+import '@fontsource-variable/inter';
+import './puma-typography.css';
 
 const APPLE_ICON = '/apple-touch-icon.png?v=20260923-3';
 const PWA_ICON_192 = '/pwa-icon-192?v=20260923-2';
