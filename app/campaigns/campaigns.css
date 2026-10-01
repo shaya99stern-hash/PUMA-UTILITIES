@@ -80,3 +80,4 @@
 .rcp-flags .on { color: var(--success); }
 .tz-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .textarea-mono { font-family: var(--font-mono); font-size: 12.5px; }
+.wiz-state { width: 170px; flex: none; }

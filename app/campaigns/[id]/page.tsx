@@ -1,7 +1,7 @@
 'use client';
 
 import '../campaigns.css';
-import { AlertTriangle, Eye, MailCheck, MousePointerClick, Pause, Play, Plus, Rocket, Send, Trash2, UserMinus, Reply, XCircle } from 'lucide-react';
+import { AlertTriangle, Eye, MailCheck, MousePointerClick, Pause, Play, MoreHorizontal, Plus, Rocket, Trash2, UserMinus, Reply, XCircle } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
@@ -251,7 +251,7 @@ export default function CampaignDashboard() {
               </Button>
             )}
             <Menu
-              trigger={<Button variant="secondary" icon={Send}>More</Button>}
+              trigger={<Button variant="secondary" icon={MoreHorizontal}>More</Button>}
               items={[
                 { label: 'Send a test to myself', icon: MailCheck, onSelect: () => setTestOpen(true) },
                 { label: 'Add recipients', icon: Plus, onSelect: () => setAddOpen(true) },
