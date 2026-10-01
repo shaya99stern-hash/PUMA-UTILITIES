@@ -178,3 +178,63 @@ export async function searchContactsByAddress(houseNumber: string, streetStart: 
 export function hpdAddressKey(address: string, zip: string | null) {
   return `${addressKey(address)}|${zip ?? ''}`;
 }
+
+/** All registrations held by a person (head officer / owner / agent), across LLCs. */
+export async function searchContactsByPerson(first: string, last: string, ctx: FetchCtx, zip?: string | null, limit = 500) {
+  const where = [`upper(firstname)=${soql(first.toUpperCase())}`, `upper(lastname)=${soql(last.toUpperCase())}`];
+  if (zip) where.push(`businesszip=${soql(zip)}`);
+  const { rows, url } = await socrataRows(nycHpd, HPD_CONTACTS_URL, { $where: where.join(' AND '), $limit: limit }, ctx, { ttlMs: 7 * 24 * 3_600_000 });
+  return { contacts: parseContacts(rows), url };
+}
+
+/** Registrations (buildings) by registration id. */
+export async function fetchRegistrationsByIds(ids: string[], ctx: FetchCtx) {
+  const registrations: HpdRegistration[] = [];
+  let lastUrl = HPD_REG_URL;
+  for (const group of chunk([...new Set(ids)], 100)) {
+    const { rows, url } = await socrataRows(nycHpd, HPD_REG_URL, {
+      $select: 'registrationid,buildingid,bin,boroid,block,lot,housenumber,streetname,zip,lastregistrationdate',
+      $where: `registrationid in (${group.map(soql).join(',')})`,
+      $limit: 1000,
+    }, ctx, { ttlMs: 7 * 24 * 3_600_000 });
+    registrations.push(...parseRegistrations(rows));
+    lastUrl = url;
+  }
+  return { registrations, url: lastUrl };
+}
+
+export type HpdSeed = { kind: 'agent' | 'officer'; label: string; count: number; first?: string; last?: string; house?: string; street?: string; zip?: string; url: string };
+
+/** Managing agents ranked by number of registered NYC buildings (citywide). */
+export async function fetchTopAgents(limit: number, ctx: FetchCtx): Promise<HpdSeed[]> {
+  const { rows, url } = await socrataRows<{ corporationname?: string; n?: string }>(nycHpd, HPD_CONTACTS_URL, {
+    $select: 'corporationname,count(registrationid) as n',
+    $where: `type='Agent' AND corporationname IS NOT NULL`,
+    $group: 'corporationname',
+    $order: 'n desc',
+    $limit: limit,
+  }, ctx, { ttlMs: 7 * 24 * 3_600_000 });
+  return rows.flatMap((r) => (r.corporationname && !isGenericName(r.corporationname) ? [{ kind: 'agent' as const, label: r.corporationname, count: Number(r.n ?? 0), url }] : []));
+}
+
+/** Head officers (the people behind owner LLCs) ranked by number of registered buildings. */
+export async function fetchTopHeadOfficers(limit: number, ctx: FetchCtx): Promise<HpdSeed[]> {
+  const { rows, url } = await socrataRows<Record<string, string>>(nycHpd, HPD_CONTACTS_URL, {
+    $select: 'firstname,lastname,businesshousenumber,businessstreetname,businesszip,count(registrationid) as n',
+    $where: `type in ('HeadOfficer','IndividualOwner') AND firstname IS NOT NULL AND lastname IS NOT NULL`,
+    $group: 'firstname,lastname,businesshousenumber,businessstreetname,businesszip',
+    $order: 'n desc',
+    $limit: limit,
+  }, ctx, { ttlMs: 7 * 24 * 3_600_000 });
+  return rows.map((r) => ({
+    kind: 'officer' as const,
+    label: displayPersonName(r.firstname, r.lastname),
+    count: Number(r.n ?? 0),
+    first: r.firstname,
+    last: r.lastname,
+    house: r.businesshousenumber,
+    street: r.businessstreetname,
+    zip: r.businesszip,
+    url,
+  }));
+}

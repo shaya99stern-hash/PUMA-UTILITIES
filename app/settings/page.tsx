@@ -1,6 +1,6 @@
 'use client';
 
-import { Building, ChevronRight, Database, FileDown, Mail, Settings2, UserRound, Users, type LucideIcon } from 'lucide-react';
+import { Building, ChevronRight, Database, Plug, FileDown, Mail, Settings2, UserRound, Users, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, PageHeader } from '@/app/ui';
 import { useSettings } from './settings-shared';
@@ -21,6 +21,7 @@ const GROUPS: { label: string; rows: Row[] }[] = [
     label: 'Data',
     rows: [
       { href: '/settings/data-sources', title: 'Data sources', description: 'Public records the lead engine uses and their health', icon: Database },
+      { href: '/settings/connectors', title: 'Connectors', description: 'Add your own data sources and API keys — the engine uses them automatically', icon: Plug },
       { href: '/settings/import-export', title: 'Import & export', description: 'Upload a CSV of companies or download your data', icon: FileDown },
     ],
   },

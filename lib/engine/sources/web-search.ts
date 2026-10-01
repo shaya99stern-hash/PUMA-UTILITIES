@@ -21,10 +21,27 @@ export const webSearch: SourceInfo = {
 
 export type SearchHit = { title: string; url: string; snippet: string; provider: string };
 
+type SearchKeys = { brave?: string; serper?: string; google?: { key: string; cx: string } };
+let runtimeKeys: SearchKeys = {};
+
+/** Keys added in Settings > Connectors (take precedence over env vars). */
+export function configureSearchKeys(keys: SearchKeys) {
+  runtimeKeys = { ...keys };
+}
+
+function keys(): SearchKeys {
+  return {
+    brave: runtimeKeys.brave ?? (process.env.BRAVE_SEARCH_API_KEY?.trim() || undefined),
+    serper: runtimeKeys.serper ?? (process.env.SERPER_API_KEY?.trim() || undefined),
+    google: runtimeKeys.google ?? (process.env.GOOGLE_CSE_KEY?.trim() && process.env.GOOGLE_CSE_CX?.trim() ? { key: process.env.GOOGLE_CSE_KEY.trim(), cx: process.env.GOOGLE_CSE_CX.trim() } : undefined),
+  };
+}
+
 export function searchProvider(): 'brave' | 'serper' | 'google' | null {
-  if (process.env.BRAVE_SEARCH_API_KEY?.trim()) return 'brave';
-  if (process.env.SERPER_API_KEY?.trim()) return 'serper';
-  if (process.env.GOOGLE_CSE_KEY?.trim() && process.env.GOOGLE_CSE_CX?.trim()) return 'google';
+  const k = keys();
+  if (k.brave) return 'brave';
+  if (k.serper) return 'serper';
+  if (k.google) return 'google';
   return null;
 }
 
@@ -44,7 +61,7 @@ export async function search(query: string, ctx: FetchCtx, count = 8): Promise<S
   const common = { sourceId: webSearch.id, deadline: ctx.deadline, timeoutMs: 10_000, retries: 1, ttlMs: 14 * 24 * 3_600_000 };
   if (provider === 'brave') {
     const url = `https://api.search.brave.com/res/v1/web/search?count=${count}&q=${encodeURIComponent(query)}`;
-    const { data } = await fetchJson<Parameters<typeof parseBrave>[0]>({ ...common, url, headers: { 'X-Subscription-Token': process.env.BRAVE_SEARCH_API_KEY!.trim(), Accept: 'application/json' } });
+    const { data } = await fetchJson<Parameters<typeof parseBrave>[0]>({ ...common, url, headers: { 'X-Subscription-Token': keys().brave!, Accept: 'application/json' } });
     return parseBrave(data);
   }
   if (provider === 'serper') {
@@ -53,11 +70,12 @@ export async function search(query: string, ctx: FetchCtx, count = 8): Promise<S
       url: 'https://google.serper.dev/search',
       method: 'POST',
       body: JSON.stringify({ q: query, num: count }),
-      headers: { 'X-API-KEY': process.env.SERPER_API_KEY!.trim(), 'Content-Type': 'application/json' },
+      headers: { 'X-API-KEY': keys().serper!, 'Content-Type': 'application/json' },
     });
     return parseSerper(data);
   }
-  const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(process.env.GOOGLE_CSE_KEY!.trim())}&cx=${encodeURIComponent(process.env.GOOGLE_CSE_CX!.trim())}&num=${Math.min(10, count)}&q=${encodeURIComponent(query)}`;
+  const g = keys().google!;
+  const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(g.key)}&cx=${encodeURIComponent(g.cx)}&num=${Math.min(10, count)}&q=${encodeURIComponent(query)}`;
   const { data } = await fetchJson<Parameters<typeof parseGoogleCse>[0]>({ ...common, url });
   return parseGoogleCse(data);
 }
