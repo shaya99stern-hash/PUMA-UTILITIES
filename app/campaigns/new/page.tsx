@@ -19,12 +19,12 @@ const STARTER: SeqStep[] = [
   {
     subject: 'Cutting water costs at {{company}}',
     bodyHtml:
-      '<p>Hi {{first_name|there}},</p><p>I work with multifamily owners and managers in {{state|your area}} on reducing water spend. Most buildings lose 10-20% of their water to leaks and billing errors that nobody notices until the bill arrives.</p><p>Would it be worth a 15-minute call to see what that could look like for {{company|your portfolio}}?</p><p>Thanks,<br>{{sender_name}}</p>',
+      '<p>Hi {{first_name|there}},</p><p>I work with multifamily owners and managers in {{state|your area}} on reducing water spend. Most buildings lose 10-20% of their water to leaks and billing errors that nobody notices until the bill arrives.</p><p>Would it be worth a 15-minute call to see what that could look like for {{company|your portfolio}}?</p><p>Thanks,</p>',
     delayDays: 0,
   },
   {
     subject: '',
-    bodyHtml: '<p>Hi {{first_name|there}},</p><p>Following up in case my note got buried. Happy to send a short example of what we found at a similar property if that is easier than a call.</p><p>{{sender_name}}</p>',
+    bodyHtml: '<p>Hi {{first_name|there}},</p><p>Following up in case my note got buried. Happy to send a short example of what we found at a similar property if that is easier than a call.</p><p>Thanks,</p>',
     delayDays: 3,
   },
 ];
