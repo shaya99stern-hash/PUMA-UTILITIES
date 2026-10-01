@@ -1,35 +1,33 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
-import PwaUpdateManager from './components/pwa-update-manager';
-import './globals.css';
-import './puma-brand.css';
-import './client-workflow.css';
-import './puma-redesign.css';
-import './bulk-outreach.css';
-import './ios-native.css';
-import './puma-responsive-v6.css';
-import './puma-minimal-settings.css';
-import './puma-polish-v12.css';
-import './puma-app-shell.css';
-import './puma-crm-functional.css';
-import './puma-backend-foundation.css';
 import '@fontsource-variable/inter';
-import './puma-typography.css';
+import './styles/tokens.css';
+import './styles/base.css';
+import './styles/components.css';
+import './styles/shell.css';
+import './styles/pages.css';
+import PwaUpdateManager from './components/pwa-update-manager';
+import { AppShell } from './ui/app-shell';
+import { ToastProvider } from './ui/toast';
 
-const APPLE_ICON = '/apple-touch-icon.png?v=20260923-3';
-const PWA_ICON_192 = '/pwa-icon-192?v=20260923-2';
-const PWA_ICON_512 = '/pwa-icon-512?v=20260923-2';
+const APPLE_ICON = '/apple-touch-icon.png?v=20260930';
+const PWA_ICON_192 = '/pwa-icon-192?v=20260930';
+const PWA_ICON_512 = '/pwa-icon-512?v=20260930';
 
 export const metadata: Metadata = {
   applicationName: 'Puma Utilities',
-  title: 'Puma Utilities — Water Intelligence',
-  description: 'Nationwide multifamily water prospecting, client workflow, installation tracking, and client-authorized monitoring.',
+  title: {
+    default: 'Puma Utilities',
+    template: '%s · Puma Utilities',
+  },
+  description: 'CRM, lead intelligence and outreach for multifamily water savings.',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    title: 'Puma Utilities',
+    title: 'Puma',
     statusBarStyle: 'black-translucent',
   },
+  formatDetection: { telephone: false },
   icons: {
     icon: [
       { url: PWA_ICON_192, sizes: '192x192', type: 'image/png' },
@@ -43,7 +41,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#050607',
+  themeColor: '#0B0B0C',
   colorScheme: 'dark',
 };
 
@@ -51,7 +49,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="en" className="dark">
       <body>
-        {children}
+        <ToastProvider>
+          <AppShell>{children}</AppShell>
+        </ToastProvider>
         <PwaUpdateManager />
       </body>
     </html>

@@ -1,0 +1,141 @@
+/*
+ * Puma Utilities design tokens.
+ * Dark, premium, minimal. Every surface, text and accent color in the app
+ * should come from these variables — never hard-code colors in components.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0b0b0c;
+  --bg-elev: #111113;
+  --surface: #151517;
+  --surface-2: #1b1b1e;
+  --surface-3: #232327;
+  --surface-hover: rgba(255, 255, 255, 0.035);
+  --surface-active: rgba(255, 255, 255, 0.06);
+  --scrim: rgba(3, 3, 4, 0.62);
+
+  /* Lines */
+  --border: rgba(255, 255, 255, 0.075);
+  --border-strong: rgba(255, 255, 255, 0.13);
+  --border-focus: rgba(255, 122, 69, 0.55);
+
+  /* Text */
+  --text: #ededee;
+  --text-2: #a3a3a9;
+  --text-3: #6d6d74;
+  --text-inverse: #0b0b0c;
+
+  /* Primary (off-white) button */
+  --primary: #f2f1ee;
+  --primary-hover: #ffffff;
+  --primary-text: #0b0b0c;
+
+  /* Brand + semantic */
+  --accent: #ff7a45;
+  --accent-hover: #ff8c5c;
+  --accent-soft: rgba(255, 122, 69, 0.12);
+  --accent-line: rgba(255, 122, 69, 0.32);
+  --success: #3ecf8e;
+  --success-soft: rgba(62, 207, 142, 0.12);
+  --warning: #f5b544;
+  --warning-soft: rgba(245, 181, 68, 0.12);
+  --danger: #f2555a;
+  --danger-soft: rgba(242, 85, 90, 0.12);
+  --info: #5ea8ff;
+  --info-soft: rgba(94, 168, 255, 0.12);
+  --violet: #a58bff;
+  --violet-soft: rgba(165, 139, 255, 0.12);
+  --neutral-soft: rgba(255, 255, 255, 0.06);
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 22px;
+  --radius-full: 999px;
+
+  /* Elevation */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.02);
+  --shadow-2: 0 12px 32px -8px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-3: 0 24px 64px -12px rgba(0, 0, 0, 0.75), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --ring: 0 0 0 3px rgba(255, 122, 69, 0.22);
+
+  /* Spacing scale (4px base) */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Type */
+  --font: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  --text-xs: 11.5px;
+  --text-sm: 12.5px;
+  --text-base: 13.5px;
+  --text-md: 14.5px;
+  --text-lg: 16px;
+  --text-xl: 19px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 320ms;
+
+  /* Layout */
+  --sidebar-w: 236px;
+  --topbar-h: 56px;
+  --tabbar-h: 58px;
+  --content-max: 1280px;
+  --gutter: 16px;
+  --control-h: 36px;
+  --control-h-sm: 30px;
+  --touch: 44px;
+
+  /* Safe areas (iPhone notch / home indicator) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* Z layers */
+  --z-sticky: 20;
+  --z-shell: 40;
+  --z-menu: 60;
+  --z-sheet: 80;
+  --z-modal: 90;
+  --z-toast: 100;
+
+  /* Legacy aliases so un-migrated files still render sensibly */
+  --pm-font: var(--font);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --gutter: 28px;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --control-h: 44px;
+    --control-h-sm: 36px;
+    --text-base: 14.5px;
+    --text-md: 15.5px;
+  }
+}

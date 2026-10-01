@@ -1,5 +1,8 @@
-import PumaWorkspaceApp from '../components/puma-workspace-app';
+import type { Metadata } from 'next';
+import { PayablesView } from './payables-view';
+
+export const metadata: Metadata = { title: 'Accounts payable' };
 
 export default function AccountsPayablePage() {
-  return <PumaWorkspaceApp view="accounts-payable" />;
+  return <PayablesView />;
 }
