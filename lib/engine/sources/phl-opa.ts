@@ -82,3 +82,21 @@ export async function fetchOpaParcels(q: OpaQuery, page: { offset: number; limit
   }, ctx, { ttlMs: 7 * 24 * 3_600_000, timeoutMs: 25_000 });
   return { records: parseOpaFeatures(features, url), raw: features.length, exceeded, url };
 }
+
+/** Philadelphia apartment parcels whose owner mailing street matches (cross-reference by address). */
+export async function fetchOpaByMailing(street: string, zip: string | null, ctx: FetchCtx) {
+  const s = street.toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const m = s.match(/^(\d+[A-Z]?)\s+(\S+)/);
+  if (!m) return { records: [] as PropertyRecord[], url: '' };
+  const where = [`mailing_street LIKE ${sqlLit(`${m[1]} ${m[2]}%`)}`, `building_code_description LIKE 'APTS%'`];
+  if (zip) where.push(`mailing_zip LIKE ${sqlLit(`${zip.slice(0, 5)}%`)}`);
+  const { features, url } = await arcgisQuery(phlOpa, OPA_LAYER, { where: where.join(' AND '), outFields: FIELDS, returnGeometry: true, outSR: 4326, resultRecordCount: 500 }, ctx, { ttlMs: 7 * 24 * 3_600_000 });
+  return { records: parseOpaFeatures(features, url), url };
+}
+
+/** Philadelphia apartment parcels owned by a named entity. */
+export async function fetchOpaByOwner(name: string, ctx: FetchCtx) {
+  const term = name.toUpperCase().replace(/[^A-Z0-9 &]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (term.length < 4) return { records: [] as PropertyRecord[], url: '' };
+  return fetchOpaParcels({ ownerLike: [term] }, { offset: 0, limit: 500 }, ctx);
+}

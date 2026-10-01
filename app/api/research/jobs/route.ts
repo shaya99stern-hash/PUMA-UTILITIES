@@ -1,52 +1,48 @@
-import { NextResponse } from 'next/server';
-import { isPublicHttpUrl } from '@/lib/research/web-search';
-import { requireWorkspace } from '@/lib/server/current-workspace';
-import { createResearchJob } from '@/lib/server/research-jobs';
+import { after } from 'next/server';
+import { z } from 'zod';
+import { createDiscoverJob, pumpJob } from '@/lib/engine/jobs';
+import { requireMember } from '@/lib/server/auth';
+import { sql } from '@/lib/server/db';
+import { intParam, json, readJson, route, searchParams } from '@/lib/server/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
-const MAX_BODY_BYTES = 16_384;
-const DEEP_RESEARCH_PROFILE = {
-  maxTasks: 80,
-  maxDepth: 5,
-  maxBudgetUnits: 120,
-  perNeed: 6,
-  targetCompleteness: 0.9,
-} as const;
+const schema = z.object({
+  states: z.array(z.string().trim().length(2)).max(20).optional(),
+  counties: z.array(z.string().trim().max(60)).max(30).optional(),
+  cities: z.array(z.string().trim().max(60)).max(30).optional(),
+  zips: z.array(z.string().trim().max(10)).max(100).optional(),
+  minUnits: z.number().int().min(0).max(1_000_000).optional(),
+  maxUnits: z.number().int().min(0).max(10_000_000).optional(),
+  minBuildings: z.number().int().min(0).max(100_000).optional(),
+  maxBuildings: z.number().int().min(0).max(100_000).optional(),
+  minBuildingUnits: z.number().int().min(1).max(5000).optional(),
+  ownerType: z.enum(['any', 'owner_operator', 'property_manager', 'public_housing', 'nonprofit']).optional(),
+  keywords: z.array(z.string().trim().max(60)).max(10).optional(),
+  limit: z.number().int().min(5).max(200).optional(),
+});
 
-export async function POST(request: Request) {
-  try {
-    const contentLength = Number(request.headers.get('content-length') ?? 0);
-    if (contentLength > MAX_BODY_BYTES) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 });
-    const raw = await request.text();
-    if (raw.length > MAX_BODY_BYTES) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 });
-    const input = JSON.parse(raw) as Record<string, unknown>;
+/** Start a lead search. Research begins immediately and continues in the background. */
+export const POST = route(async (request) => {
+  const ctx = await requireMember();
+  const body = await readJson(request, schema);
+  const id = await createDiscoverJob(ctx.workspaceId, ctx.userId, body);
+  after(async () => {
+    await pumpJob(id, 45_000).catch(() => undefined);
+  });
+  return json({ id }, 201);
+});
 
-    const label = typeof input.label === 'string' ? input.label.trim() : '';
-    const geography = typeof input.geography === 'string' ? input.geography.trim().toUpperCase() : '';
-    const website = typeof input.website === 'string' ? input.website.trim() : '';
-    if (label.length < 2 || label.length > 180) return invalid('Company name must be 2–180 characters.');
-    if (geography && !/^[A-Z]{2}$/.test(geography)) return invalid('Geography must be a two-letter state code.');
-    if (website && !isPublicHttpUrl(website)) return invalid('Website must be a public HTTP(S) URL.');
-
-    const { supabase, user, workspace } = await requireWorkspace();
-    const job = await createResearchJob(supabase, workspace.id, user.id, {
-      label,
-      geography: geography || undefined,
-      website: website || undefined,
-      ...DEEP_RESEARCH_PROFILE,
-    });
-
-    return NextResponse.json(job, { status: 202, headers: { 'Cache-Control': 'no-store' } });
-  } catch (error) {
-    if (error instanceof SyntaxError) return invalid('Request body must be valid JSON.');
-    const message = error instanceof Error ? error.message : 'Unable to create research job.';
-    if (message === 'AUTH_REQUIRED') return NextResponse.json({ error: 'Sign in to start research.' }, { status: 401 });
-    return NextResponse.json({ error: message }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
-  }
-}
-
-function invalid(message: string) {
-  return NextResponse.json({ error: message }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
-}
+export const GET = route(async (request) => {
+  const ctx = await requireMember();
+  const limit = intParam(searchParams(request).get('limit'), 25, 1, 100);
+  const rows = await sql()`
+    select j.id, j.kind, j.title, j.status, j.progress, j.stage, j.stats, j.error, j.created_at, j.finished_at, j.target_company_id,
+      (select count(*)::int from lead_candidates c where c.job_id = j.id) as candidates,
+      (select count(*)::int from lead_candidates c where c.job_id = j.id and c.status = 'saved') as saved
+    from research_jobs j where j.workspace_id = ${ctx.workspaceId}
+    order by j.created_at desc limit ${limit}`;
+  return json({ jobs: rows });
+});

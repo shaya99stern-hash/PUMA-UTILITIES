@@ -35,7 +35,8 @@ export const HUD_LAYERS: Record<string, string> = {
   'hud-mf-insured': 'https://services.arcgis.com/VTyQ9soqVukalItT/arcgis/rest/services/HUD_Insured_Multifamily_Properties/FeatureServer/0',
 };
 
-const FIELDS = 'PROPERTY_ID,PROPERTY_NAME_TEXT,STD_ADDR,STD_CITY,STD_ST,STD_ZIP5,CURCNTY_NM,TOTAL_UNIT_COUNT,PROPERTY_ON_SITE_PHONE_NUMBER,PROPERTY_CATEGORY_NAME,CLIENT_GROUP_NAME,MGMT_AGENT_ORG_NAME,MGMT_CONTACT_FULL_NAME,MGMT_CONTACT_INDV_TITLE_TEXT,MGMT_CONTACT_MAIN_PHN_NBR,MGMT_CONTACT_EMAIL_TEXT,MGMT_CONTACT_ADDRESS_LINE1,MGMT_CONTACT_ADDRESS_LINE2,MGMT_CONTACT_CITY_NAME,MGMT_CONTACT_STATE_CODE,MGMT_CONTACT_ZIP_CODE,LAT,LON';
+const FIELDS = 'PROPERTY_ID,PROPERTY_NAME_TEXT,STD_ADDR,STD_CITY,STD_ST,STD_ZIP5,CURCNTY_NM,TOTAL_UNIT_COUNT,PROPERTY_ON_SITE_PHONE_NUMBER,PROPERTY_CATEGORY_NAME,CLIENT_GROUP_NAME,MGMT_AGENT_ORG_NAME,MGMT_CONTACT_FULL_NAME,MGMT_CONTACT_INDV_TITLE_TEXT,MGMT_CONTACT_MAIN_PHN_NBR,MGMT_CONTACT_EMAIL_TEXT,MGMT_CONTACT_ADDRESS_LINE1,MGMT_CONTACT_ADDRESS_LINE2,MGMT_CONTACT_CITY_NAME,MGMT_CONTACT_STATE_CODE,MGMT_CONTACT_ZIP_CODE,LAT,LON,REAC_LAST_INSPECTION_SCORE,MTR_LATEST_DSCR,IS_IN_DEFAULT_DELINQUENT_IND';
+const FIELDS_BY_LAYER: Record<string, string> = { 'hud-mf-assisted': `${FIELDS},TROUBLED_CODE`, 'hud-mf-insured': FIELDS };
 
 export type HudQuery = { states: string[]; counties?: string[]; cities?: string[]; zips?: string[]; minUnits: number; orgLike?: string[]; mgmtStreetLike?: string };
 
@@ -106,6 +107,10 @@ export function parseHudFeatures(sourceId: 'hud-mf-assisted' | 'hud-mf-insured',
         onSitePhone: cleanPhone(trimOrNull(a.PROPERTY_ON_SITE_PHONE_NUMBER)),
         category: trimOrNull(a.PROPERTY_CATEGORY_NAME),
         clientGroup: trimOrNull(a.CLIENT_GROUP_NAME),
+        troubledCode: trimOrNull(a.TROUBLED_CODE),
+        reacScore: trimOrNull(a.REAC_LAST_INSPECTION_SCORE),
+        dscr: toNumber(a.MTR_LATEST_DSCR),
+        defaultDelinquent: trimOrNull(a.IS_IN_DEFAULT_DELINQUENT_IND),
       },
     }];
   });
@@ -115,11 +120,35 @@ export async function fetchHudProperties(sourceId: 'hud-mf-assisted' | 'hud-mf-i
   const info = sourceId === 'hud-mf-assisted' ? hudAssisted : hudInsured;
   const { features, exceeded, url } = await arcgisQuery(info, HUD_LAYERS[sourceId], {
     where: hudWhere(q),
-    outFields: FIELDS,
+    outFields: FIELDS_BY_LAYER[sourceId],
     returnGeometry: false,
     orderByFields: 'OBJECTID',
     resultOffset: page.offset,
     resultRecordCount: Math.min(2000, page.limit),
   }, ctx, { ttlMs: 7 * 24 * 3_600_000 });
   return { records: parseHudFeatures(sourceId, features, url), raw: features.length, exceeded, url };
+}
+
+/** HUD properties managed by an organization (nationwide), for cross-referencing a company name. */
+export async function fetchHudByOrg(name: string, ctx: FetchCtx) {
+  const term = name.toUpperCase().replace(/[^A-Z0-9 &]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const out = [];
+  for (const id of ['hud-mf-assisted', 'hud-mf-insured'] as const) {
+    const r = await fetchHudProperties(id, { states: [], minUnits: 1, orgLike: [term] }, { offset: 0, limit: 500 }, ctx);
+    out.push(...r.records);
+  }
+  return out;
+}
+
+/** HUD properties whose management contact uses a given street address. */
+export async function fetchHudByMgmtStreet(street: string, ctx: FetchCtx) {
+  const s = street.toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const m = s.match(/^(\d+[A-Z]?)\s+(\S+)/);
+  if (!m) return [];
+  const out = [];
+  for (const id of ['hud-mf-assisted', 'hud-mf-insured'] as const) {
+    const r = await fetchHudProperties(id, { states: [], minUnits: 1, mgmtStreetLike: `${m[1]} ${m[2]}` }, { offset: 0, limit: 500 }, ctx);
+    out.push(...r.records);
+  }
+  return out;
 }

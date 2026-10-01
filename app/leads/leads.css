@@ -1,0 +1,33 @@
+.leads-builder { margin-bottom: 24px; }
+.leads-other { max-width: 280px; }
+.leads-jobs { display: flex; flex-direction: column; gap: 10px; }
+.leads-job-progress { margin-top: 10px; }
+.grid-3 { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 767px) { .grid-3 { grid-template-columns: minmax(0, 1fr); } .leads-other { max-width: none; flex: 1 1 100%; } }
+
+.lead-progress { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+.lead-log { max-height: 220px; overflow: auto; font-size: var(--text-sm); color: var(--text-3); display: flex; flex-direction: column; gap: 4px; font-variant-numeric: tabular-nums; }
+.lead-log .ok { color: var(--success); }
+.lead-log .warn { color: var(--warning); }
+.lead-log .err { color: var(--danger); }
+
+.lead-list { display: flex; flex-direction: column; gap: 12px; }
+.lead-card { display: flex; flex-direction: column; gap: 12px; }
+.lead-card__top { display: flex; gap: 12px; align-items: flex-start; }
+.lead-card__name { font-weight: 650; font-size: var(--text-md); color: var(--text); }
+.lead-card__meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: var(--text-sm); color: var(--text-2); }
+.lead-card__meta span { display: inline-flex; align-items: center; gap: 5px; }
+.lead-card__why { margin: 0; padding-left: 18px; color: var(--text-2); font-size: var(--text-sm); display: flex; flex-direction: column; gap: 2px; }
+.lead-card__contact { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface-2); font-size: var(--text-sm); }
+.lead-card__actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.lead-select { width: 20px; height: 20px; accent-color: var(--accent); margin-top: 2px; flex: none; }
+
+.dossier-section { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+.dossier-person { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.dossier-person:last-child { border-bottom: 0; }
+.dossier-trail { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--text-2); font-size: var(--text-sm); }
+.dossier-buildings { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.dossier-buildings th, .dossier-buildings td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.dossier-buildings th { color: var(--text-3); font-weight: 500; }
+.dossier-scroll { overflow-x: auto; }
+.signal { display: flex; gap: 8px; align-items: flex-start; font-size: var(--text-sm); color: var(--text-2); }

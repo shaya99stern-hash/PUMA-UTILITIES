@@ -55,10 +55,10 @@ async function handler(request: Request) {
   }
 
   try {
-    // The research engine lives in lib/engine (separate owner); a failure there must never break email.
-    // @ts-ignore - resolved at build time once lib/engine/tick.ts exists
-    const mod = (await import('@/lib/engine/tick')) as { runResearchTick?: (opts: { budgetMs: number }) => Promise<unknown> };
-    result.research = mod.runResearchTick ? await mod.runResearchTick({ budgetMs: 20_000 }) : { skipped: 'runResearchTick is not exported' };
+    // Research gets whatever time is left in this 60s invocation; a failure there must never break email.
+    const remaining = 56_000 - (Date.now() - started);
+    const { runResearchTick } = await import('@/lib/engine/tick');
+    result.research = remaining >= 9000 ? await runResearchTick({ budgetMs: Math.min(30_000, remaining - 3000) }) : { skipped: 'no time left in this tick' };
   } catch (error) {
     result.research = { skipped: error instanceof Error ? error.message : 'Research tick unavailable.' };
   }
