@@ -1,10 +1,16 @@
+/* Puma Utilities service worker.
+ * - cache-first for immutable Next.js assets (/_next/static) and fonts
+ * - network-first for page navigations, falling back to the cached page or /offline
+ * - never touches /api/* or cross-origin requests
+ */
 const CACHE_PREFIX = 'puma-utilities-';
-const VERSION = `${CACHE_PREFIX}shell-v9-pwa-reliability`;
-const APP_SHELL = ['/', '/manifest.webmanifest', '/apple-touch-icon.png', '/pwa-icon-192', '/pwa-icon-512'];
+const VERSION = `${CACHE_PREFIX}v10`;
+const OFFLINE_URL = '/offline';
+const APP_SHELL = [OFFLINE_URL, '/manifest.webmanifest', '/apple-touch-icon.png', '/pwa-icon-192', '/pwa-icon-512'];
 
 async function fetchAndCache(request) {
   const response = await fetch(request);
-  if (response.ok) {
+  if (response.ok && response.type === 'basic') {
     try {
       const cache = await caches.open(VERSION);
       await cache.put(request, response.clone());
@@ -23,7 +29,7 @@ async function precacheShell() {
     if (!response.ok) throw new Error(`Failed to precache ${path}: ${response.status}`);
     await cache.put(request, response.clone());
   }));
-
+  // The offline page is required; icons are best-effort.
   if (results[0]?.status === 'rejected') throw results[0].reason;
 }
 
@@ -32,15 +38,16 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    (async () => {
-      const keys = await caches.keys();
-      await Promise.all(keys
-        .filter((key) => key.startsWith(CACHE_PREFIX) && key !== VERSION)
-        .map((key) => caches.delete(key)));
-      await self.clients.claim();
-    })(),
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys
+      .filter((key) => key.startsWith(CACHE_PREFIX) && key !== VERSION)
+      .map((key) => caches.delete(key)));
+    if (self.registration.navigationPreload) {
+      try { await self.registration.navigationPreload.enable(); } catch { /* optional */ }
+    }
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('message', (event) => {
@@ -52,6 +59,55 @@ self.addEventListener('message', (event) => {
           .filter((key) => key.startsWith(CACHE_PREFIX) && key !== VERSION)
           .map((key) => caches.delete(key)),
       )),
+    );
+  }
+});
+
+function isFont(url) {
+  return url.pathname.startsWith('/_next/static/media/') || /\.(woff2?|ttf|otf)$/.test(url.pathname);
+}
+
+async function networkFirstNavigation(event) {
+  try {
+    const preloaded = await event.preloadResponse;
+    const response = preloaded || await fetch(event.request);
+    if (response.ok && response.type === 'basic' && !response.redirected) {
+      const copy = response.clone();
+      event.waitUntil(caches.open(VERSION).then((cache) => cache.put(event.request, copy)).catch(() => undefined));
+    }
+    return response;
+  } catch {
+    const cached = await caches.match(event.request);
+    if (cached) return cached;
+    const offline = await caches.match(OFFLINE_URL);
+    return offline || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+  }
+}
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  if (request.method !== 'GET') return;
+  const requestUrl = new URL(request.url);
+  if (requestUrl.origin !== self.location.origin) return;
+  if (requestUrl.pathname.startsWith('/api/')) return;
+  // Unsubscribe and tracking links must always hit the network.
+  if (requestUrl.pathname.startsWith('/u/') || requestUrl.pathname.startsWith('/t/') || requestUrl.pathname.startsWith('/auth/')) return;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(networkFirstNavigation(event));
+    return;
+  }
+
+  if (requestUrl.pathname.startsWith('/_next/static/') || isFont(requestUrl)) {
+    event.respondWith(
+      caches.match(request).then((cached) => cached || fetchAndCache(event.request)),
+    );
+    return;
+  }
+
+  if (APP_SHELL.includes(requestUrl.pathname)) {
+    event.respondWith(
+      fetchAndCache(event.request).catch(() => caches.match(request).then((cached) => cached || Response.error())),
     );
   }
 });
@@ -98,31 +154,4 @@ self.addEventListener('notificationclick', (event) => {
     if (self.clients.openWindow) return self.clients.openWindow(target);
     return undefined;
   })());
-});
-
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  const requestUrl = new URL(event.request.url);
-  if (requestUrl.origin !== self.location.origin || requestUrl.pathname.startsWith('/api/')) return;
-
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetchAndCache(event.request)
-        .catch(() => caches.match(event.request).then((response) => response || caches.match('/'))),
-    );
-    return;
-  }
-
-  if (requestUrl.pathname.startsWith('/_next/static/')) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetchAndCache(event.request)),
-    );
-    return;
-  }
-
-  if (APP_SHELL.includes(requestUrl.pathname)) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetchAndCache(event.request)),
-    );
-  }
 });

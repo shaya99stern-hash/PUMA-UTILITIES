@@ -61,7 +61,8 @@ export function ScorePill({ score, className, title }: { score: number | null | 
 const AVATAR_HUES = [18, 32, 200, 215, 262, 280, 160, 142, 350, 45];
 
 export function initials(name: string | null | undefined): string {
-  const clean = (name ?? '').replace(/[^\p{L}\p{N}\s'-]/gu, ' ').trim();
+  const raw = (name ?? '').includes('@') ? (name ?? '').split('@')[0].replace(/[._-]+/g, ' ') : name ?? '';
+  const clean = raw.replace(/[^\p{L}\p{N}\s'-]/gu, ' ').trim();
   if (!clean) return '?';
   const words = clean.split(/\s+/).filter((w) => !/^(llc|inc|corp|co|the|and|of|lp|ltd)$/i.test(w));
   const list = words.length ? words : clean.split(/\s+/);

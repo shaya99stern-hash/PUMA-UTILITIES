@@ -84,12 +84,13 @@ export async function listCompanies(ctx: Ctx, f: CompanyFilters, opts: { sort?: 
       order by ${orderBy(db, opts.sort ?? 'last_activity', opts.dir ?? '')}
       limit ${opts.limit} offset ${opts.offset}`,
     db<{ total: number }[]>`select count(*) as total from companies c where ${where}`,
-    db<{ stage: Stage; n: number }[]>`select c.stage, count(*) as n from companies c where ${whereNoStage} group by c.stage`,
+    db<{ stage: Stage; n: number; units: number | null; spend: number | null }[]>`select c.stage, count(*) as n, sum(c.portfolio_units) as units, sum(c.est_annual_water_spend) as spend from companies c where ${whereNoStage} group by c.stage`,
   ]);
   const counts: Record<string, number> = { all: 0 };
   for (const s of STAGES) counts[s] = 0;
-  for (const r of stageCounts) { counts[r.stage] = r.n; counts.all += r.n; }
-  return { rows, total: totals[0]?.total ?? 0, counts };
+  const sums: Record<string, { units: number; spend: number }> = {};
+  for (const r of stageCounts) { counts[r.stage] = r.n; counts.all += r.n; sums[r.stage] = { units: r.units ?? 0, spend: r.spend ?? 0 }; }
+  return { rows, total: totals[0]?.total ?? 0, counts, sums };
 }
 
 export type CompanyInput = {

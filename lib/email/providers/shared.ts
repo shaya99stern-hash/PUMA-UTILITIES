@@ -44,9 +44,10 @@ export function explainMailError(error: unknown, where: 'smtp' | 'imap' | 'send'
       ? `The mail server${host} rejected the login for ${label}. This provider needs an app password, not your normal password. Create one, paste it here, and try again.`
       : `The mail server${host} rejected the username or password for ${label}. Check both and try again.`;
   }
-  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return `Could not find the mail server${host}. Check the host name for ${label}.`;
-  if (code === 'ECONNREFUSED') return `The mail server${host} refused the connection for ${label}. Check the port and the SSL/STARTTLS setting.`;
-  if (code === 'ETIMEDOUT' || code === 'ESOCKET' && /timed? ?out/i.test(raw) || code === 'ECONNECTION' && /timed? ?out/i.test(raw) || /timed out|timeout/i.test(raw)) {
+  const text = `${code} ${raw}`;
+  if (/ENOTFOUND|EAI_AGAIN/.test(text)) return `Could not find the mail server${host}. Check the host name for ${label}.`;
+  if (/ECONNREFUSED/.test(text)) return `The mail server${host} refused the connection for ${label}. Check the port and the SSL/STARTTLS setting.`;
+  if (/ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|timed? ?out|timeout/i.test(text)) {
     return `Timed out connecting to the mail server${host} for ${label}. Check the host and port, and that your network allows the connection.`;
   }
   if (/certificate|self[- ]signed|CERT_|ssl|tls|wrong version number|handshake/i.test(raw) || code === 'ESOCKET') {

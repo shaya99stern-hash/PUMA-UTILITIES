@@ -39,6 +39,6 @@ export async function computeCampaignStats(campaignId: string): Promise<Campaign
 
 export async function refreshCampaignStats(campaignId: string): Promise<CampaignStats> {
   const stats = await computeCampaignStats(campaignId);
-  await sql()`update campaigns set stats = ${sql().json(stats as never)} where id = ${campaignId}`;
+  await sql()`update campaigns set stats = coalesce(stats, '{}'::jsonb) || ${sql().json(stats as never)} where id = ${campaignId}`;
   return stats;
 }

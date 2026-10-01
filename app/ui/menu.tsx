@@ -17,19 +17,21 @@ import {
 } from 'react';
 import { cx, renderIcon, type IconProp } from './util';
 
-export type MenuItem =
-  | {
-      label: ReactNode;
+export type MenuActionItem = {
+  label: ReactNode;
       icon?: IconProp;
       onSelect?: () => void;
       href?: string;
       danger?: boolean;
       disabled?: boolean;
       /** Right-aligned hint (shortcut, count). */
-      hint?: ReactNode;
-      separator?: never;
-      heading?: never;
-    }
+  hint?: ReactNode;
+  separator?: never;
+  heading?: never;
+};
+
+export type MenuItem =
+  | MenuActionItem
   | { separator: true; label?: never; heading?: never }
   | { heading: ReactNode; separator?: never; label?: never };
 
@@ -124,9 +126,10 @@ export function Menu({ trigger, items, align = 'end', className, ...aria }: Menu
           className={cx('ui-menu', align === 'start' ? 'ui-menu--start' : 'ui-menu--end', up && 'ui-menu--up')}
           onKeyDown={onKeyDown}
         >
-          {items.map((item, i) => {
-            if (item.separator) return <div key={`sep-${i}`} className="ui-menu__sep" role="separator" />;
-            if (item.heading) return <div key={`h-${i}`} className="ui-menu__label">{item.heading}</div>;
+          {items.map((entry, i) => {
+            if (entry.separator) return <div key={`sep-${i}`} className="ui-menu__sep" role="separator" />;
+            if (entry.heading) return <div key={`h-${i}`} className="ui-menu__label">{entry.heading}</div>;
+            const item = entry as MenuActionItem;
             const inner = (
               <>
                 {renderIcon(item.icon, 16)}

@@ -37,11 +37,11 @@ export function periodDays(start: Date | string | null, end: Date | string): num
   return Math.max(ms / DAY, 1 / 24);
 }
 
-/** Daily gallons rate for a reading (falls back to raw gallons if the period is unknown). */
+/** Daily gallons rate for a reading; null when the period length is unknown (so it never skews comparisons). */
 export function dailyRate(r: { periodStart: Date | string | null; periodEnd: Date | string; gallons: number | null }): number | null {
   if (r.gallons === null || r.gallons === undefined) return null;
   const days = periodDays(r.periodStart, r.periodEnd);
-  return days ? r.gallons / days : r.gallons;
+  return days ? r.gallons / days : null;
 }
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');

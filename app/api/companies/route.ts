@@ -26,6 +26,14 @@ export const GET = route(async (request) => {
     },
     { sort: p.get('sort') ?? undefined, dir: p.get('dir') ?? undefined, limit: intParam(p.get('limit'), 50, 1, 200), offset: intParam(p.get('offset'), 0, 0, 1_000_000) },
   );
+  if (p.get('facets') === '1') {
+    const db = sql();
+    const [states, tags] = await Promise.all([
+      db<{ value: string; n: number }[]>`select upper(state) as value, count(*) as n from companies where workspace_id = ${ctx.workspaceId} and state is not null group by 1 order by n desc limit 60`,
+      db<{ value: string; n: number }[]>`select t as value, count(*) as n from companies, unnest(tags) as t where workspace_id = ${ctx.workspaceId} group by 1 order by n desc limit 40`,
+    ]);
+    return json({ ...result, facets: { states, tags } });
+  }
   return json(result);
 });
 

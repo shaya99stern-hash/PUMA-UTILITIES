@@ -37,7 +37,7 @@ export const GET = route<IdContext>(async (_request, context) => {
       ? db<{ user_id: string; full_name: string | null; email: string | null }[]>`select user_id, full_name, email from profiles where user_id = ${company.owner_user_id}`
       : Promise.resolve([]),
   ]);
-  return json({ company, contacts, properties, tasks, activities, evidence, owner: owner[0] ?? null });
+  return json({ company, contacts, properties, tasks, activities, evidence, owner: owner[0] ?? null, me: ctx.userId });
 });
 
 export const PATCH = route<IdContext>(async (request, context) => {

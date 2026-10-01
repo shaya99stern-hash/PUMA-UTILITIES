@@ -54,7 +54,7 @@ function toInbound(m: GraphMessage, folder: Folder): InboundMessage {
   const from = m.from?.emailAddress;
   return {
     providerId: m.id,
-    messageId: m.internetMessageId?.toLowerCase() ?? null,
+    messageId: m.internetMessageId ?? null,
     inReplyTo: parseMessageIds(header(m, 'in-reply-to'))[0] ?? null,
     references: parseMessageIds(header(m, 'references')),
     from: from?.address ? { email: from.address.toLowerCase(), name: from.name || null } : null,
@@ -83,7 +83,7 @@ export function microsoftProvider(getToken: TokenSource, email: string): MailPro
         { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: buffer.toString('base64') },
         false,
       );
-      return { messageId: options.messageId, providerId: options.messageId.toLowerCase() };
+      return { messageId: options.messageId, providerId: options.messageId };
     },
 
     async listRecent({ folder, cursor, limit }: ListOptions): Promise<ListResult> {

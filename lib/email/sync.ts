@@ -3,7 +3,7 @@ import { sql } from '@/lib/server/db';
 import { isAuthFailure } from './providers/shared';
 import { markMailbox, providerFor, type MailboxRow } from './mailboxes';
 import { snippetOf } from './merge';
-import { detectBounce, isAutoReply, matchReply, normalizeMessageId, threadKeyFor, type ReplyCandidate } from './reply';
+import { cleanMessageId, detectBounce, isAutoReply, matchReply, normalizeMessageId, threadKeyFor, type ReplyCandidate } from './reply';
 import { refreshCampaignStats } from './stats';
 import type { Folder, InboundMessage } from './types';
 
@@ -69,7 +69,7 @@ async function logActivity(args: {
   }
 }
 
-type RecipientRow = { id: string; campaign_id: string; email: string; status: string; contact_id: string | null; company_id: string | null };
+type RecipientRow = { id: string; campaign_id: string; email: string; status: string; contact_id: string | null; company_id: string | null; current_step: number };
 
 /** Applies a received message to campaign recipients (stop sequence, reply event). Returns the matched campaign ids. */
 async function applyReply(mailbox: MailboxRow, msg: InboundMessage, storedId: string): Promise<{ campaignIds: string[]; recipientIds: string[] }> {
@@ -80,7 +80,7 @@ async function applyReply(mailbox: MailboxRow, msg: InboundMessage, storedId: st
   if (!from && !ids.length) return { campaignIds: [], recipientIds: [] };
 
   const recipients = await db<RecipientRow[]>`
-    select r.id, r.campaign_id, r.email::text as email, r.status, r.contact_id, r.company_id
+    select r.id, r.campaign_id, r.email::text as email, r.status, r.contact_id, r.company_id, r.current_step
     from campaign_recipients r
     where r.workspace_id = ${ws}
       and r.last_sent_at is not null
@@ -124,7 +124,7 @@ async function applyReply(mailbox: MailboxRow, msg: InboundMessage, storedId: st
     if (!updated.length) continue;
     await db`
       insert into email_events (workspace_id, campaign_id, recipient_id, type, meta)
-      values (${ws}, ${r.campaign_id}, ${r.id}, 'reply', ${db.json({ message_id: storedId, matched_by: match.by, subject: msg.subject } as never)})`;
+      values (${ws}, ${r.campaign_id}, ${r.id}, 'reply', ${db.json({ message_id: storedId, matched_by: match.by, subject: msg.subject, step: Math.max(0, r.current_step - 1) } as never)})`;
     campaignIds.push(r.campaign_id);
     recipientIds.push(r.id);
     if (r.contact_id) await db`update contacts set last_replied_at = ${msg.date} where id = ${r.contact_id}`;
@@ -180,11 +180,12 @@ export async function ingestMessage(mailbox: MailboxRow, msg: InboundMessage): P
   const db = sql();
   const ws = mailbox.workspace_id;
   const direction = msg.folder === 'sent' ? 'out' : 'in';
-  const messageId = normalizeMessageId(msg.messageId);
+  const messageId = cleanMessageId(msg.messageId);
+  const messageIdKey = normalizeMessageId(msg.messageId);
 
   const dup = await db<{ id: string }[]>`
     select id from email_messages
-    where mailbox_id = ${mailbox.id} and (provider_id = ${msg.providerId} or (${messageId}::text is not null and lower(message_id_header) = ${messageId}::text))
+    where mailbox_id = ${mailbox.id} and (provider_id = ${msg.providerId} or (${messageIdKey}::text is not null and lower(message_id_header) = ${messageIdKey}::text))
     limit 1`;
   if (dup.length) return { stored: false, reply: false, bounce: false, campaignIds: [] };
 
@@ -200,7 +201,7 @@ export async function ingestMessage(mailbox: MailboxRow, msg: InboundMessage): P
       workspace_id, mailbox_id, direction, provider_id, message_id_header, thread_key, in_reply_to, references_header,
       from_email, from_name, to_emails, cc_emails, subject, snippet, body_text, body_html, sent_at, is_read, contact_id, company_id
     ) values (
-      ${ws}, ${mailbox.id}, ${direction}, ${msg.providerId}, ${messageId}, ${threadKey}, ${normalizeMessageId(msg.inReplyTo)}, ${msg.references.join(' ') || null},
+      ${ws}, ${mailbox.id}, ${direction}, ${msg.providerId}, ${messageId}, ${threadKey}, ${cleanMessageId(msg.inReplyTo)}, ${msg.references.join(' ') || null},
       ${msg.from?.email ?? null}, ${msg.from?.name ?? null}, ${db.array(msg.to, 25)}, ${db.array(msg.cc, 25)}, ${msg.subject.slice(0, 500)}, ${snippetOf(text)}, ${text}, ${html}, ${msg.date},
       ${direction === 'out' ? true : msg.isRead}, ${linked.contactId}, ${linked.companyId}
     ) on conflict (mailbox_id, provider_id) do nothing returning id`;

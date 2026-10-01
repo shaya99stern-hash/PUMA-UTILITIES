@@ -67,7 +67,6 @@ async function prepareLatestWorker(registration?: ServiceWorkerRegistration) {
 export default function PwaUpdateManager() {
   const [state, setState] = useState<UpdateState>('idle');
   const [latestVersion, setLatestVersion] = useState('');
-  const [standalone, setStandalone] = useState(false);
   const reloadRequested = useRef(false);
   const updatingRef = useRef(false);
 
@@ -108,7 +107,6 @@ export default function PwaUpdateManager() {
   }, []);
 
   useEffect(() => {
-    setStandalone(isInstalledPwa());
 
     const pendingConfirmation = takePendingConfirmation();
     if (pendingConfirmation) {
@@ -214,58 +212,6 @@ export default function PwaUpdateManager() {
     reloadOnce();
   };
 
-  const refreshApp = async () => {
-    updatingRef.current = true;
-    setState('updating');
-    try {
-      const before = storedVersion();
-      const version = await fetchVersion();
-      await prepareLatestWorker();
-
-      if (version && before && version === before) {
-        setLatestVersion(version);
-        showTransientState('current');
-        return;
-      }
-
-      if (version) {
-        rememberVersion(version);
-        markUpdateForConfirmation(version);
-      }
-      reloadOnce();
-    } catch {
-      updatingRef.current = false;
-      setState('idle');
-    }
-  };
-
-  if (state === 'idle' && standalone) {
-    return (
-      <button className="puma-refresh-button" type="button" onClick={() => void refreshApp()} aria-label="Refresh app and check for updates">
-        Update app
-        <style jsx>{`
-          .puma-refresh-button {
-            position: fixed;
-            z-index: 79;
-            right: max(14px, env(safe-area-inset-right));
-            bottom: calc(92px + env(safe-area-inset-bottom));
-            min-height: 38px;
-            padding: 0 13px;
-            border: 1px solid rgba(255,255,255,.11);
-            border-radius: 11px;
-            background: rgba(14,16,18,.94);
-            color: #b8bcc0;
-            box-shadow: 0 14px 34px rgba(0,0,0,.28);
-            font: inherit;
-            font-size: 11px;
-            font-weight: 650;
-          }
-          @media (min-width: 900px) { .puma-refresh-button { bottom: 20px; } }
-        `}</style>
-      </button>
-    );
-  }
-
   if (state === 'idle') return null;
 
   const title = state === 'updating'
@@ -295,37 +241,37 @@ export default function PwaUpdateManager() {
           position: fixed;
           z-index: 80;
           right: max(14px, env(safe-area-inset-right));
-          bottom: calc(92px + env(safe-area-inset-bottom));
+          bottom: calc(var(--tabbar-h, 58px) + 12px + env(safe-area-inset-bottom));
           width: min(360px, calc(100vw - 28px));
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 14px;
           padding: 13px 14px;
-          border: 1px solid rgba(255,255,255,.11);
-          border-radius: 15px;
-          background: rgba(14,16,18,.97);
+          border: 1px solid var(--border-strong);
+          border-radius: 12px;
+          background: var(--surface-3);
           box-shadow: 0 18px 50px rgba(0,0,0,.38);
-          color: #f5f5f3;
+          color: var(--text);
           font-family: inherit;
         }
         .puma-update-card div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
         .puma-update-card strong { font-size: 12.5px; font-weight: 650; }
-        .puma-update-card span { color: #91969b; font-size: 10.5px; line-height: 1.35; }
+        .puma-update-card span { color: var(--text-2); font-size: 10.5px; line-height: 1.35; }
         .puma-update-card button {
           flex: 0 0 auto;
           min-height: 36px;
           padding: 0 12px;
-          border: 1px solid rgba(255,111,36,.38);
-          border-radius: 10px;
-          background: rgba(255,111,36,.12);
-          color: #ff762c;
+          border: 0;
+          border-radius: 8px;
+          background: var(--primary);
+          color: var(--primary-text);
           font: inherit;
           font-size: 11.5px;
           font-weight: 650;
         }
         @media (min-width: 900px) {
-          .puma-update-card { bottom: 20px; }
+          .puma-update-card { bottom: 20px; right: 20px; }
         }
       `}</style>
     </aside>

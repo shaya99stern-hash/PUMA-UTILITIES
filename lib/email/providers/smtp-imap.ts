@@ -37,7 +37,7 @@ function imapClient(cfg: SmtpImapConfig) {
   });
 }
 
-function smtpTransport(cfg: SmtpImapConfig) {
+function smtpTransport(cfg: SmtpImapConfig): nodemailer.Transporter {
   if (jsonTransportEnabled()) return nodemailer.createTransport({ jsonTransport: true });
   return nodemailer.createTransport({
     host: cfg.smtp.host,
@@ -65,7 +65,7 @@ export function toInbound(parsed: ParsedMail, extra: { providerId: string; folde
   const autoSubmitted = parsed.headers.get('auto-submitted');
   return {
     providerId: extra.providerId,
-    messageId: parsed.messageId?.toLowerCase() ?? null,
+    messageId: parsed.messageId ?? null,
     inReplyTo: parseMessageIds(parsed.inReplyTo)[0] ?? null,
     references: parseMessageIds(parsed.references),
     from: from?.address ? { email: from.address.toLowerCase(), name: from.name || null } : null,
@@ -111,7 +111,7 @@ export function smtpImapProvider(cfg: SmtpImapConfig): MailProvider {
         err.cause = error;
         throw err;
       }
-      return { messageId: options.messageId, providerId: options.messageId.toLowerCase() };
+      return { messageId: options.messageId, providerId: options.messageId };
     },
 
     async listRecent({ folder, cursor, limit }: ListOptions): Promise<ListResult> {
@@ -159,7 +159,7 @@ export function smtpImapProvider(cfg: SmtpImapConfig): MailProvider {
               const parsed = await simpleParser(msg.source);
               messages.push(
                 toInbound(parsed, {
-                  providerId: parsed.messageId?.toLowerCase() ?? `imap:${validity}:${path}:${msg.uid}`,
+                  providerId: parsed.messageId ?? `imap:${validity}:${path}:${msg.uid}`,
                   folder,
                   isRead: msg.flags?.has('\\Seen') ?? false,
                 }),

@@ -15,13 +15,26 @@ export function normalizeSubject(subject: string | null | undefined): string {
 export function parseMessageIds(header: string | string[] | null | undefined): string[] {
   const text = Array.isArray(header) ? header.join(' ') : (header ?? '');
   const ids = text.match(/<[^<>\s]+>/g) ?? [];
-  return [...new Set(ids.map((id) => id.toLowerCase()))];
+  const seen = new Set<string>();
+  return ids.filter((id) => {
+    const key = id.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export function normalizeMessageId(id: string | null | undefined): string | null {
   if (!id) return null;
   const m = id.match(/<[^<>\s]+>/);
   return m ? m[0].toLowerCase() : id.trim().toLowerCase() || null;
+}
+
+/** Message-IDs compare case-insensitively here, but are stored and re-sent with their original case. */
+export function cleanMessageId(id: string | null | undefined): string | null {
+  if (!id) return null;
+  const m = id.match(/<[^<>\s]+>/);
+  return m ? m[0] : null;
 }
 
 function hash(value: string) {

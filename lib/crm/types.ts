@@ -102,6 +102,7 @@ export type CompanyListRow = CompanyRow & {
   contact_count: number;
   property_count: number;
   has_email: boolean;
+  top_contact_name: string | null;
 };
 
 export type ContactRow = {
