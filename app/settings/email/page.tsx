@@ -193,6 +193,8 @@ function ConnectSheet({ open, onClose, providers, onConnected }: { open: boolean
   const [saving, setSaving] = useState(false);
   const [outcome, setOutcome] = useState<TestOutcome>(null);
   const [showServer, setShowServer] = useState(false);
+  // "Any email": the server detects SMTP/IMAP settings from the address.
+  const [auto, setAuto] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -203,7 +205,15 @@ function ConnectSheet({ open, onClose, providers, onConnected }: { open: boolean
   }, [open]);
 
   const info = PRESETS[preset];
+  const pickAuto = () => {
+    setAuto(true);
+    setPreset('custom');
+    setShowServer(false);
+    setOutcome(null);
+    setStep('details');
+  };
   const pick = (key: PresetKey) => {
+    setAuto(false);
     setPreset(key);
     setSmtp({ host: PRESETS[key].smtp.host, port: String(PRESETS[key].smtp.port), secure: PRESETS[key].smtp.secure });
     setImap({ host: PRESETS[key].imap.host, port: String(PRESETS[key].imap.port), secure: PRESETS[key].imap.secure });
@@ -218,17 +228,19 @@ function ConnectSheet({ open, onClose, providers, onConnected }: { open: boolean
     setSaving(true);
     setOutcome(null);
     try {
-      await apiPost('/api/mail/mailboxes', {
+      const manual = showServer || (!auto && preset === 'custom');
+      const res = await apiPost<{ warning?: string; detected?: { source: string } }>('/api/mail/mailboxes', {
         email,
         displayName: name || undefined,
-        preset,
+        preset: auto ? 'auto' : preset,
         username: username || undefined,
         password,
-        smtp: preset === 'custom' || showServer ? { host: smtp.host, port: Number(smtp.port), secure: smtp.secure } : undefined,
-        imap: preset === 'custom' || showServer ? { host: imap.host, port: Number(imap.port), secure: imap.secure } : undefined,
+        smtp: manual && smtp.host ? { host: smtp.host, port: Number(smtp.port), secure: smtp.secure } : undefined,
+        imap: manual && imap.host ? { host: imap.host, port: Number(imap.port), secure: imap.secure } : undefined,
         dailyLimit: Number(limit) || undefined,
       });
-      toast.success('Email connected', email);
+      if (res.warning) toast.info('Connected for sending', res.warning);
+      else toast.success('Email connected', res.detected ? `${email} · ${res.detected.source}` : email);
       await invalidate('/api/mail');
       onConnected();
       setPassword('');
@@ -243,14 +255,14 @@ function ConnectSheet({ open, onClose, providers, onConnected }: { open: boolean
     }
   };
 
-  const valid = email.includes('@') && password.length > 0 && (preset !== 'custom' || (smtp.host && imap.host));
+  const valid = email.includes('@') && password.length > 0 && (auto || preset !== 'custom' || !!smtp.host);
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
       size="lg"
-      title={step === 'pick' ? 'Connect email' : `Connect ${info.label}`}
+      title={step === 'pick' ? 'Connect email' : auto ? 'Connect any email' : `Connect ${info.label}`}
       description={step === 'pick' ? 'Choose where your email lives. Passwords are encrypted and never shown again.' : undefined}
       footer={
         step === 'details' ? (
@@ -285,7 +297,12 @@ function ConnectSheet({ open, onClose, providers, onConnected }: { open: boolean
               <p className="text-sm subtle">Recommended: no password to paste, and you can revoke access any time from your Google or Microsoft account.</p>
             </div>
           )}
-          <span className="section-title">{providers?.google || providers?.microsoft ? 'Or connect with an app password' : 'Choose your provider'}</span>
+          <button type="button" className="tile tile--wide" onClick={pickAuto}>
+            <span className="tile__logo"><Mail size={20} /></span>
+            <span className="tile__name">Any email address</span>
+            <span className="tile__sub">Enter your address and password. Puma finds the mail servers for you (work domains, Gmail, Outlook, iCloud, Yahoo and more).</span>
+          </button>
+          <span className="section-title">{providers?.google || providers?.microsoft ? 'Or pick your provider (app password)' : 'Or pick your provider'}</span>
           <div className="tiles">
             {TILES.map((t) => (
               <button key={t.key} type="button" className="tile" aria-pressed={preset === t.key && step === 'pick' ? undefined : undefined} onClick={() => pick(t.key)}>
@@ -317,7 +334,13 @@ function ConnectSheet({ open, onClose, providers, onConnected }: { open: boolean
               <strong>Easier:</strong> <a href={`/api/oauth/${oauth}/start?return=/settings/email`}>Continue with {oauth === 'google' ? 'Google' : 'Microsoft'}</a> instead of using a password.
             </div>
           )}
-          {info.appPassword && (
+          {auto && (
+            <div className="note">
+              Puma detects your mail servers automatically. If your provider uses two-step verification (Gmail, Outlook.com, iCloud, Yahoo), use an
+              app password instead of your normal password. If reading your inbox is not available, the account still connects for sending.
+            </div>
+          )}
+          {!auto && info.appPassword && (
             <div className="note">
               <div className="strong" style={{ color: 'var(--text)', marginBottom: 8 }}>
                 {info.label} needs an app password
@@ -339,7 +362,7 @@ function ConnectSheet({ open, onClose, providers, onConnected }: { open: boolean
               {info.note && <p className="text-sm" style={{ marginTop: 10 }}>{info.note}</p>}
             </div>
           )}
-          {!info.appPassword && (
+          {!auto && !info.appPassword && (
             <ol className="steps">
               {info.steps.map((s) => (
                 <li key={s}>
@@ -360,7 +383,7 @@ function ConnectSheet({ open, onClose, providers, onConnected }: { open: boolean
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
-                if (preset === 'custom' && !smtp.host) {
+                if (!auto && preset === 'custom' && !smtp.host) {
                   const guess = guessPreset(e.target.value);
                   if (guess !== 'custom') pick(guess);
                 }
@@ -370,16 +393,16 @@ function ConnectSheet({ open, onClose, providers, onConnected }: { open: boolean
           <Field label="Your name" hint="Shown as the sender name on outgoing email.">
             <Input placeholder="Alex Rivera" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
           </Field>
-          <Field label={info.appPassword ? 'App password' : 'Password'} required hint={info.appPassword ? 'Paste the 16-character app password. Spaces are fine.' : undefined}>
+          <Field label={auto ? 'Password or app password' : info.appPassword ? 'App password' : 'Password'} required hint={!auto && info.appPassword ? 'Paste the 16-character app password. Spaces are fine.' : undefined}>
             <Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={info.appPassword ? 'abcd efgh ijkl mnop' : undefined} />
           </Field>
 
-          {preset !== 'custom' && (
+          {(auto || preset !== 'custom') && (
             <button type="button" className="link text-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setShowServer((v) => !v)}>
               {showServer ? 'Hide server settings' : 'Server settings'}
             </button>
           )}
-          {(preset === 'custom' || showServer) && (
+          {((!auto && preset === 'custom') || showServer) && (
             <div className="stack">
               <Field label="Login name" hint="Usually your full email address. Leave blank to use it.">
                 <Input value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="off" />
@@ -396,7 +419,7 @@ function ConnectSheet({ open, onClose, providers, onConnected }: { open: boolean
                     <Select value={smtp.secure ? 'ssl' : 'starttls'} onChange={(e) => setSmtp({ ...smtp, secure: e.target.value === 'ssl' })} options={[{ value: 'ssl', label: 'SSL (465)' }, { value: 'starttls', label: 'STARTTLS (587)' }]} />
                   </Field>
                 </div>
-                <Field label="IMAP server (reading)" required>
+                <Field label="IMAP server (reading)" hint="Optional. Leave blank to connect for sending only.">
                   <Input value={imap.host} onChange={(e) => setImap({ ...imap, host: e.target.value })} placeholder="imap.example.com" autoCapitalize="off" />
                 </Field>
                 <Field label="Port">
@@ -573,13 +596,13 @@ function SendingSettings() {
     <>
       <Card
         title="Sender identity"
-        description="Required by CAN-SPAM. Shown in the footer of every campaign email next to the unsubscribe link."
+        description="Shown in the footer of campaign emails next to the unsubscribe link. US CAN-SPAM rules require it for marketing email."
       >
         <div className="stack">
           {!address.trim() && (
             <div className="note note--warn" role="status">
               <AlertTriangle size={16} style={{ display: 'inline', verticalAlign: '-3px', marginRight: 6 }} />
-              Add a mailing address. Campaigns cannot be launched without one.
+              No mailing address yet. Campaigns can still send, but add one (a P.O. box or virtual mailbox works) before real outreach.
             </div>
           )}
           <Field label="Business name">

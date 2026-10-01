@@ -74,13 +74,13 @@ async function accessTokenFor(row: MailboxRow): Promise<string> {
 export function providerFor(row: MailboxRow): MailProvider {
   if (row.provider === 'gmail') return gmailProvider(() => accessTokenFor(row), row.email);
   if (row.provider === 'microsoft') return microsoftProvider(() => accessTokenFor(row), row.email);
-  if (!row.secret_enc || !row.smtp_host || !row.imap_host) throw new ApiError(400, 'This mailbox is missing its connection details. Reconnect it.');
+  if (!row.secret_enc || !row.smtp_host) throw new ApiError(400, 'This mailbox is missing its connection details. Reconnect it.');
   return smtpImapProvider({
     email: row.email,
     username: row.username || row.email,
     password: decryptSecret(row.secret_enc),
     smtp: { host: row.smtp_host, port: row.smtp_port ?? 587, secure: row.smtp_secure ?? false },
-    imap: { host: row.imap_host, port: row.imap_port ?? 993, secure: row.imap_secure ?? true },
+    imap: { host: row.imap_host ?? '', port: row.imap_port ?? 993, secure: row.imap_secure ?? true },
     appPassword: /gmail|googlemail|icloud|me\.com|yahoo|zoho|office365|outlook/i.test(row.smtp_host),
   });
 }

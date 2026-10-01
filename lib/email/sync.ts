@@ -258,6 +258,8 @@ export async function syncMailbox(mailbox: MailboxRow, opts: { limit?: number; d
   const limit = opts.limit ?? 40;
   const touched = new Set<string>();
   const state: Record<string, string | null> = { ...(mailbox.sync_state ?? {}) };
+  // Send-only mailboxes (no IMAP) have nothing to sync.
+  if (mailbox.provider === 'smtp_imap' && !mailbox.imap_host) return result;
   try {
     const provider = providerFor(mailbox);
     const known = new Set(

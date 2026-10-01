@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ComplianceError, footerHtml, footerText, listUnsubscribeHeaders, requireCompanyAddress, unsubscribeUrl } from '../lib/email/compliance';
+import { ComplianceError, footerHtml, normalizeCompanyAddress, footerText, listUnsubscribeHeaders, requireCompanyAddress, unsubscribeUrl } from '../lib/email/compliance';
 import { renderEmail } from '../lib/email/render';
 import { rewriteLinks, safeRedirectUrl, trackedLink, trackingPixel, verifyClickSignature } from '../lib/email/tracking';
 import { signState, verifyState } from '../lib/email/sign';
@@ -89,4 +89,13 @@ test('OAuth state is signed, tamper-proof and expires', () => {
   assert.equal(verifyState(`${body}.bad`), null);
   assert.equal(verifyState(signState({ ws: 'w1' }, -10)), null);
   assert.equal(verifyState(null), null);
+});
+
+test('missing mailing address no longer blocks sending; footer omits the empty line', () => {
+  assert.equal(normalizeCompanyAddress(''), null);
+  assert.equal(normalizeCompanyAddress(' 1 Main St   Newark NJ '), '1 Main St Newark NJ');
+  const html = footerHtml({ address: '', unsubscribeUrl: 'https://x.test/u/abc', senderName: 'Alex', companyName: null });
+  assert.match(html, /Unsubscribe/);
+  assert.doesNotMatch(html, /<br><br>/);
+  assert.doesNotMatch(footerText({ address: '', unsubscribeUrl: 'https://x.test/u/abc' }), /\n\n\n/);
 });

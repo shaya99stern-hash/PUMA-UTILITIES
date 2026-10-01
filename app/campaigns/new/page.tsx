@@ -394,7 +394,7 @@ function Wizard() {
                 )}
               </Field>
               {workspace.data && !workspace.data.companyAddress && (
-                <Field label="Business mailing address" required hint="CAN-SPAM requires a physical address in every campaign email.">
+                <Field label="Business mailing address (recommended)" hint="Optional for now. US CAN-SPAM rules require a postal address in marketing email; a P.O. box or virtual mailbox works.">
                   <div className="row">
                     <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="100 Market St, Newark, NJ 07102" />
                     <Button loading={savingAddress} disabled={address.trim().length < 8} onClick={saveAddress}>Save</Button>
@@ -453,9 +453,9 @@ function Wizard() {
             <Stat2 label="First pass takes" value={`${daysNeeded} day${daysNeeded === 1 ? '' : 's'}`} />
           </div>
           {workspace.data && !workspace.data.companyAddress && !address.trim() && (
-            <div className="issue issue--error">
-              <AlertTriangle size={16} color="var(--danger)" />
-              <span>Add your business mailing address in the Settings step (or in Settings &gt; Email) before launching.</span>
+            <div className="issue issue--warning">
+              <AlertTriangle size={16} color="var(--warning)" />
+              <span>No mailing address yet. You can launch, but add one (a P.O. box or virtual mailbox works) in Settings &gt; Email before real outreach; CAN-SPAM requires it.</span>
             </div>
           )}
           {problems.map((p) => (

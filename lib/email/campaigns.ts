@@ -1,7 +1,7 @@
 import 'server-only';
 import { sql } from '@/lib/server/db';
 import { ApiError } from '@/lib/server/http';
-import { baseUrlFrom, ComplianceError, requireCompanyAddress } from './compliance';
+import { baseUrlFrom, ComplianceError, MISSING_ADDRESS_WARNING, normalizeCompanyAddress } from './compliance';
 import { isAuthFailure, isPermanentRecipientFailure } from './providers/shared';
 import { loadMailbox, sendViaMailbox, senderOf, sentLast24h, type MailboxRow } from './mailboxes';
 import { SAMPLE_RECIPIENT, sanitizeEmailHtml, snippetOf, type MergeSource } from './merge';
@@ -95,11 +95,7 @@ export async function readiness(campaign: CampaignRow, baseUrl: string): Promise
     if (!mailbox) issues.push({ level: 'error', message: 'The selected email account no longer exists.' });
     else if (mailbox.status !== 'active') issues.push({ level: 'error', message: `Reconnect ${mailbox.email}: ${mailbox.last_error ?? 'the connection is not active.'}` });
   }
-  try {
-    requireCompanyAddress(workspace.companyAddress);
-  } catch (e) {
-    issues.push({ level: 'error', message: (e as Error).message });
-  }
+  if (!normalizeCompanyAddress(workspace.companyAddress)) issues.push({ level: 'warning', message: MISSING_ADDRESS_WARNING });
   const steps = await loadSteps(campaign.id);
   if (!steps.length) issues.push({ level: 'error', message: 'Add at least one email to the sequence.' });
   if (steps[0] && !steps[0].subject.trim()) issues.push({ level: 'error', message: 'The first email needs a subject line.' });
@@ -252,7 +248,7 @@ export async function renderPreview(args: PreviewArgs): Promise<Rendered & { add
     sender: { name: args.mailbox?.display_name, email: args.mailbox?.email ?? 'you@example.com' },
     signatureHtml: args.mailbox?.signature_html,
     settings: args.settings,
-    workspace: { address: workspace.companyAddress ?? '[Your company mailing address - set it in Settings > Email]', companyName: workspace.companyName },
+    workspace: { address: workspace.companyAddress ?? '', companyName: workspace.companyName },
     baseUrl: baseUrlFrom(args.origin),
     preview: true,
   });
@@ -281,8 +277,6 @@ export async function sampleRecipient(workspaceId: string, opts: { campaignId?: 
 
 export async function sendTestEmail(args: PreviewArgs & { to: string }) {
   if (!args.mailbox) throw new ApiError(400, 'Choose a sending account first.');
-  const workspace = await loadWorkspaceEmail(args.workspaceId);
-  requireCompanyAddress(workspace.companyAddress);
   const rendered = await renderPreview(args);
   const result = await sendViaMailbox(args.mailbox, {
     from: senderOf(args.mailbox),
@@ -447,7 +441,7 @@ export async function runEmailTick(opts: { budgetMs?: number; baseUrl?: string; 
         continue;
       }
 
-      const address = requireCompanyAddress(ctx.workspace.companyAddress);
+      const address = normalizeCompanyAddress(ctx.workspace.companyAddress) ?? '';
 
       // Follow-ups reply in the same thread.
       let inReplyTo: string | null = null;

@@ -13,6 +13,15 @@ export function unsubscribeUrl(baseUrl: string, token: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/u/${token}`;
 }
 
+/** The workspace mailing address, or null when not set yet (sending still works; the UI warns). */
+export function normalizeCompanyAddress(address: string | null | undefined): string | null {
+  const value = address?.replace(/\s+/g, ' ').trim();
+  return value && value.length >= 8 ? value : null;
+}
+
+export const MISSING_ADDRESS_WARNING =
+  'No mailing address yet: emails will go out without one. US CAN-SPAM rules require a physical postal address in marketing email (a P.O. box or virtual mailbox works), so add one in Settings > Email before real outreach.';
+
 export function requireCompanyAddress(address: string | null | undefined): string {
   const value = address?.replace(/\s+/g, ' ').trim();
   if (!value || value.length < 8) {
@@ -35,7 +44,7 @@ export function footerHtml(f: FooterInput): string {
   return (
     `<div style="margin-top:28px;padding-top:12px;border-top:1px solid #e3e3e3;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7a7a7a">` +
     (who ? `${escapeHtml(who)}<br>` : '') +
-    `${escapeHtml(f.address)}<br>` +
+    (f.address.trim() ? `${escapeHtml(f.address)}<br>` : '') +
     `You are receiving this because we think our water-savings program may be relevant to your properties. ` +
     `<a href="${escapeHtml(f.unsubscribeUrl)}" style="color:#7a7a7a;text-decoration:underline">Unsubscribe</a>` +
     `</div>`
